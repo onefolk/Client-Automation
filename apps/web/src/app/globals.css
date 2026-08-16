@@ -4,13 +4,14 @@
 
 :root {
   --foreground-rgb: 248, 250, 252;
-  --background-start-rgb: 9, 13, 22;
-  --background-end-rgb: 15, 23, 42;
+  --brand: #02A0A0;
+  --gold: #FFBD65;
+  --bg-dark: #071317;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: #090D16;
+  background: #071317;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   overflow-x: hidden;
 }
@@ -21,14 +22,14 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0b1120;
+  background: #071317;
 }
 ::-webkit-scrollbar-thumb {
-  background: #23324d;
+  background: #1A3A44;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3b5075;
+  background: #02A0A0;
 }
 
 @keyframes pulse-subtle {
@@ -38,4 +39,12 @@ body {
 
 .animate-pulse-subtle {
   animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.glow-brand {
+  box-shadow: 0 0 20px -5px rgba(2, 160, 160, 0.35);
+}
+
+.glow-gold {
+  box-shadow: 0 0 20px -5px rgba(255, 189, 101, 0.35);
 }
