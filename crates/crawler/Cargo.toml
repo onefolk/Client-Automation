@@ -1,0 +1,12 @@
+[package]
+name = "crawler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+reqwest = { workspace = true }
+scraper = { workspace = true }
+url = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

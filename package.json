@@ -1,0 +1,17 @@
+{
+  "name": "onefolk-client-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "bun --filter web dev",
+    "build": "bun --filter web build",
+    "start": "bun --filter web start",
+    "lint": "bun --filter web lint"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

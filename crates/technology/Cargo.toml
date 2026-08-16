@@ -1,0 +1,10 @@
+[package]
+name = "technology"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+domain = { path = "../domain" }
+chrono = { workspace = true }
+uuid = { workspace = true }
+regex = { workspace = true }

@@ -1,0 +1,96 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: onefolk-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: onefolk
+      POSTGRES_PASSWORD: onefolk_secret_dev
+      POSTGRES_DB: onefolk_intelligence
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U onefolk -d onefolk_intelligence"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: onefolk-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.api
+    container_name: onefolk-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: development
+      PORT: 8000
+      API_HOST: 0.0.0.0
+      DATABASE_URL: postgres://onefolk:onefolk_secret_dev@postgres:5432/onefolk_intelligence
+      REDIS_URL: redis://redis:6379
+      GROK_API_KEY: mock_key
+      RUST_LOG: info,api=debug,domain=debug,events=debug
+    ports:
+      - "8000:8000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.worker
+    container_name: onefolk-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgres://onefolk:onefolk_secret_dev@postgres:5432/onefolk_intelligence
+      REDIS_URL: redis://redis:6379
+      GROK_API_KEY: mock_key
+      RUST_LOG: info,worker=debug,discovery=debug,providers=debug,normalization=debug
+    volumes:
+      - ./:/workspace
+
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.web
+    container_name: onefolk-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      PORT: 3000
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  redisdata:
