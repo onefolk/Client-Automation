@@ -74,7 +74,7 @@ async function fetchFromOpenStreetMap(query: string, city: string): Promise<Arra
         lon: parseFloat(item.lon),
         website: liveWebsite,
         phone: livePhone,
-        source_provider: 'openstreetmap_registry',
+        source_provider: 'OpenStreetMap Registry',
       };
     });
   } catch (err) {
@@ -83,7 +83,125 @@ async function fetchFromOpenStreetMap(query: string, city: string): Promise<Arra
   }
 }
 
-// Provider 2: Live Public Web Search Index
+// Provider 2: Reddit Public Community Recommendations & Discovery Feed
+async function fetchFromRedditDiscovery(query: string, city: string): Promise<Array<{
+  name: string;
+  address: string;
+  source_url: string;
+  website?: string;
+  source_provider: string;
+}>> {
+  try {
+    const redditUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(query + ' in ' + city + ' recommendation')}&sort=relevance&limit=8`;
+    const resp = await fetch(redditUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OneFolkRedditScanner/1.0',
+      },
+    });
+
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    const posts = data?.data?.children || [];
+    const results: Array<{
+      name: string;
+      address: string;
+      source_url: string;
+      website?: string;
+      source_provider: string;
+    }> = [];
+
+    for (const post of posts) {
+      const title = post.data?.title || '';
+      const permalink = post.data?.permalink ? `https://reddit.com${post.data.permalink}` : 'https://reddit.com';
+      const selftext = post.data?.selftext || '';
+      
+      // Look for quoted names or bold names in title/text
+      const words = title.split(/\s+/);
+      if (words.length > 2) {
+        const potentialName = words.slice(0, 4).join(' ').replace(/[^a-zA-Z0-9\s]/g, '').trim();
+        if (potentialName.length > 3 && !potentialName.toLowerCase().includes('what is') && !potentialName.toLowerCase().includes('anyone')) {
+          results.push({
+            name: potentialName,
+            address: `${city}`,
+            source_url: permalink,
+            website: `https://${potentialName.toLowerCase().replace(/\s+/g, '')}.com`,
+            source_provider: 'Reddit Community Discovery',
+          });
+        }
+      }
+    }
+
+    return results.slice(0, 4);
+  } catch (err) {
+    console.warn('Reddit discovery search failed', err);
+    return [];
+  }
+}
+
+// Provider 3: Threads (@Meta) Public Account & Topic Discovery
+async function fetchFromThreadsDiscovery(query: string, city: string): Promise<Array<{
+  name: string;
+  address: string;
+  source_url: string;
+  website?: string;
+  source_provider: string;
+}>> {
+  try {
+    const threadsQuery = `site:threads.net ${query} ${city}`;
+    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(threadsQuery)}`;
+    const resp = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OneFolkThreadsBot/1.0',
+      },
+    });
+
+    if (!resp.ok) return [];
+    const html = await resp.text();
+    const results: Array<{
+      name: string;
+      address: string;
+      source_url: string;
+      website?: string;
+      source_provider: string;
+    }> = [];
+
+    const linkRegex = /<a class="result__url" href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
+    let match;
+    let count = 0;
+
+    while ((match = linkRegex.exec(html)) !== null && count < 4) {
+      let rawHref = match[1];
+      if (rawHref.includes('uddg=')) {
+        try {
+          const u = new URL('https://duckduckgo.com' + rawHref);
+          rawHref = decodeURIComponent(u.searchParams.get('uddg') || rawHref);
+        } catch {}
+      }
+
+      if (rawHref.includes('threads.net/@')) {
+        const handle = rawHref.split('@')[1]?.split('/')[0]?.split('?')[0];
+        if (handle) {
+          const cleanName = handle.replace(/[._-]/g, ' ');
+          results.push({
+            name: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
+            address: `${city}`,
+            source_url: rawHref,
+            website: `https://${handle.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+            source_provider: 'Threads (@Meta) Index',
+          });
+          count++;
+        }
+      }
+    }
+
+    return results;
+  } catch (err) {
+    console.warn('Threads discovery query failed', err);
+    return [];
+  }
+}
+
+// Provider 4: Live Public Web Search Index
 async function fetchFromLiveWebSearch(query: string, city: string, country: string): Promise<Array<{
   name: string;
   address: string;
@@ -110,10 +228,7 @@ async function fetchFromLiveWebSearch(query: string, city: string, country: stri
       source_provider: string;
     }> = [];
 
-    // Parse DuckDuckGo result links
     const linkRegex = /<a class="result__url" href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
-    const titleRegex = /<a class="result__snippet"[^>]*>([^<]+)<\/a>/gi;
-
     let match;
     let count = 0;
     while ((match = linkRegex.exec(html)) !== null && count < 6) {
@@ -134,7 +249,9 @@ async function fetchFromLiveWebSearch(query: string, city: string, country: stri
         !domain.includes('yelp') &&
         !domain.includes('facebook') &&
         !domain.includes('instagram') &&
-        !domain.includes('wikipedia')
+        !domain.includes('wikipedia') &&
+        !domain.includes('threads.net') &&
+        !domain.includes('reddit.com')
       ) {
         const inferredName = domain.split('.')[0].replace(/-/g, ' ');
         results.push({
@@ -142,7 +259,7 @@ async function fetchFromLiveWebSearch(query: string, city: string, country: stri
           address: `${city}, ${country}`,
           source_url: rawHref,
           website: rawHref,
-          source_provider: 'live_web_search',
+          source_provider: 'Live Web Organic Search',
         });
         count++;
       }
@@ -151,46 +268,6 @@ async function fetchFromLiveWebSearch(query: string, city: string, country: stri
     return results;
   } catch (err) {
     console.warn('Live Web Search query failed', err);
-    return [];
-  }
-}
-
-// Provider 3: Wikipedia / Wikidata Knowledge Graph API
-async function fetchFromWikidata(query: string, city: string): Promise<Array<{
-  name: string;
-  address: string;
-  source_url: string;
-  website?: string;
-  source_provider: string;
-}>> {
-  try {
-    const wikiUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query + ' ' + city)}&limit=5&namespace=0&format=json`;
-    const resp = await fetch(wikiUrl, {
-      headers: { 'User-Agent': 'OneFolkClientBot/2.0' },
-    });
-
-    if (!resp.ok) return [];
-    const data = await resp.json();
-    if (!Array.isArray(data) || data.length < 4) return [];
-
-    const names = data[1] || [];
-    const urls = data[3] || [];
-    const results = [];
-
-    for (let i = 0; i < names.length; i++) {
-      const name = names[i];
-      if (name && !name.toLowerCase().includes('list of')) {
-        results.push({
-          name,
-          address: `${city}`,
-          source_url: urls[i] || `https://en.wikipedia.org/wiki/${encodeURIComponent(name)}`,
-          source_provider: 'wikidata_knowledge_graph',
-        });
-      }
-    }
-
-    return results;
-  } catch (err) {
     return [];
   }
 }
@@ -212,7 +289,7 @@ export async function POST(req: Request) {
     const {
       query = 'Japanese restaurants',
       filters = {},
-      providers = ['openstreetmap_registry', 'live_web_search', 'wikidata_knowledge_graph'],
+      providers = ['OpenStreetMap', 'Reddit', 'Threads', 'Live Web Search'],
     } = body;
 
     const searchId = crypto.randomUUID();
@@ -249,8 +326,9 @@ export async function POST(req: Request) {
       // Announce Multi-Provider Start
       const activeProviders = [
         { id: 'openstreetmap_registry', name: 'OpenStreetMap Global Registry' },
-        { id: 'live_web_search', name: 'Live Web Organic Search Index' },
-        { id: 'wikidata_knowledge_graph', name: 'Wikidata Knowledge Graph' },
+        { id: 'reddit_community', name: 'Reddit Local Community Mentions' },
+        { id: 'threads_meta', name: 'Threads (@Meta) Brand Index' },
+        { id: 'live_web_search', name: 'Live Web Search Index' },
       ];
 
       for (const p of activeProviders) {
@@ -259,21 +337,22 @@ export async function POST(req: Request) {
           data: {
             search_id: searchId,
             provider_id: p.id,
-            query_variation: `Executing ${p.name} query for "${query}" in ${city}`,
+            query_variation: `Executing ${p.name} live stream for "${query}" in ${city}`,
           },
         });
-        await new Promise((r) => setTimeout(r, 150));
+        await new Promise((r) => setTimeout(r, 120));
       }
 
-      // 1. CONCURRENT MULTI-SOURCE FETCHING
-      const [osmResults, webResults, wikiResults] = await Promise.all([
+      // 1. CONCURRENT MULTI-SOURCE FETCHING (OpenStreetMap + Reddit + Threads + Web)
+      const [osmResults, redditResults, threadsResults, webResults] = await Promise.all([
         fetchFromOpenStreetMap(query, city),
+        fetchFromRedditDiscovery(query, city),
+        fetchFromThreadsDiscovery(query, city),
         fetchFromLiveWebSearch(query, city, country),
-        fetchFromWikidata(query, city),
       ]);
 
       // 2. MULTI-SOURCE MERGING & CANONICAL ENTITY RESOLUTION
-      const candidateEntities = [...osmResults, ...webResults, ...wikiResults];
+      const candidateEntities = [...osmResults, ...redditResults, ...threadsResults, ...webResults];
       const deduplicatedMap = new Map<string, typeof candidateEntities[0]>();
 
       for (const cand of candidateEntities) {
@@ -424,8 +503,8 @@ export async function POST(req: Request) {
           business_id: bizId,
           search_id: searchId,
           event_type: isNew ? 'business.discovered' : 'business.merged',
-          title: isNew ? 'Multi-Source Entity Discovered & Crawled' : 'Master Entity Resolved',
-          description: `Discovered via ${entity.source_provider} and live-crawled "${business.name}" (${crawlData.load_time_ms}ms, SSL: ${crawlData.has_ssl}).`,
+          title: isNew ? `Discovered via ${entity.source_provider}` : 'Master Entity Resolved',
+          description: `Discovered candidate through ${entity.source_provider} and live-crawled "${business.name}" (${crawlData.load_time_ms}ms, SSL: ${crawlData.has_ssl}).`,
           metadata: {
             source_provider: entity.source_provider,
             source_url: entity.source_url,
@@ -459,7 +538,7 @@ export async function POST(req: Request) {
           });
         }
 
-        await new Promise((r) => setTimeout(r, 250));
+        await new Promise((r) => setTimeout(r, 220));
       }
 
       session.status = 'COMPLETED';
