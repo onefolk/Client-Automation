@@ -1,6 +1,6 @@
 import { Business, BusinessProfile, Opportunity, ActivityEvent, SearchFilters, SearchSession } from './types';
 
-const API_BASE_URL = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export async function createSearch(
   query: string,
