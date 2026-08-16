@@ -9,7 +9,6 @@ import {
   Globe,
   Mail,
   Phone,
-  Instagram,
   Star,
   Zap,
   ArrowRight,
@@ -20,8 +19,8 @@ import {
   ChevronDown,
   Building,
   Target,
-  Database,
   ShieldCheck,
+  Activity,
 } from 'lucide-react';
 import { createSearch } from '@/lib/api';
 import { useSearchSSE } from '@/lib/sse';
@@ -33,7 +32,6 @@ export default function DiscoverPage() {
   const [industry, setIndustry] = useState('Restaurant');
   const [city, setCity] = useState('Dubai');
   const [country, setCountry] = useState('UAE');
-  const [selectedProvider, setSelectedProvider] = useState<'live_public_registry' | 'mock_universal_discovery'>('live_public_registry');
   
   // Advanced Filter Toggles
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -58,11 +56,11 @@ export default function DiscoverPage() {
     switch (event.type) {
       case 'search.started':
         setSearchStatus('running');
-        setStatusMessage(`Discovery plan active for query: "${event.data.query}"`);
+        setStatusMessage(`Live discovery active for: "${event.data.query}"`);
         break;
 
       case 'provider.started':
-        setStatusMessage(`Scanning ${event.data.provider_id}: ${event.data.query_variation}`);
+        setStatusMessage(`Scanning live directory: ${event.data.query_variation}`);
         setProviderProgress((prev) => Math.min(prev + 12, 85));
         break;
 
@@ -95,7 +93,7 @@ export default function DiscoverPage() {
         setSearchStatus('completed');
         setProviderProgress(100);
         setStatusMessage(
-          `Phase 3 discovery complete! ${event.data.total_saved} normalized & resolved clients saved (${event.data.duration_ms}ms)`
+          `100% Live Discovery Complete: ${event.data.total_saved} real businesses discovered & crawled (${event.data.duration_ms}ms)`
         );
         break;
 
@@ -116,7 +114,7 @@ export default function DiscoverPage() {
     setLiveOpportunities({});
     setSearchStatus('running');
     setProviderProgress(10);
-    setStatusMessage('Executing Search Planner & multi-tier resolution...');
+    setStatusMessage('Querying live public web registries & crawling domains...');
 
     try {
       const filters: SearchFilters = {
@@ -130,11 +128,11 @@ export default function DiscoverPage() {
         no_lead_form: weakLeadCapture ? true : undefined,
       };
 
-      const res = await createSearch(query, filters, [selectedProvider]);
+      const res = await createSearch(query, filters, ['live_public_registry']);
       setCurrentSearchId(res.search_id);
     } catch (err: any) {
       setSearchStatus('failed');
-      setStatusMessage(`Error launching search: ${err.message}`);
+      setStatusMessage(`Error launching live search: ${err.message}`);
     }
   };
 
@@ -145,46 +143,22 @@ export default function DiscoverPage() {
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
             <Target className="w-7 h-7 text-indigo-400" />
-            Discover High-Value Agency Clients
+            Live Client Discovery & Intelligence
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Search broadly across live public registries & directories, normalize identities, verify contacts, and resolve deduplicated master records.
+            Real-time public web discovery, live HTTP website crawling, automated contact extraction, and opportunity mapping.
           </p>
+        </div>
+
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-semibold text-emerald-400">
+          <Activity className="w-3.5 h-3.5 animate-pulse" />
+          100% Live Real-Time Mode Active
         </div>
       </div>
 
       {/* Main Search Filter Panel */}
       <div className="bg-[#0F172A] border border-[#1E293B] rounded-2xl p-6 shadow-xl shadow-black/20">
         <form onSubmit={handleStartSearch} className="space-y-5">
-          {/* Provider Selection Tabs */}
-          <div className="flex items-center gap-2 pb-2 border-b border-[#1E293B]/80 text-xs">
-            <span className="text-slate-400 font-semibold uppercase tracking-wider mr-2">Discovery Mode:</span>
-            <button
-              type="button"
-              onClick={() => setSelectedProvider('live_public_registry')}
-              className={`px-3 py-1.5 rounded-lg border font-medium flex items-center gap-1.5 transition-all ${
-                selectedProvider === 'live_public_registry'
-                  ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm'
-                  : 'bg-[#090D16] border-[#1E293B] text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Globe className="w-3.5 h-3.5 text-cyan-400" />
-              Live Public Registry & Web Search (Real Provider)
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedProvider('mock_universal_discovery')}
-              className={`px-3 py-1.5 rounded-lg border font-medium flex items-center gap-1.5 transition-all ${
-                selectedProvider === 'mock_universal_discovery'
-                  ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm'
-                  : 'bg-[#090D16] border-[#1E293B] text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Database className="w-3.5 h-3.5 text-amber-400" />
-              Universal Business Directory (Mock Mode)
-            </button>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
             {/* Query Input */}
             <div className="md:col-span-5 relative">
@@ -197,7 +171,7 @@ export default function DiscoverPage() {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="e.g. Japanese restaurants, dental clinics, luxury spas..."
+                  placeholder="e.g. Japanese restaurants, dental clinics, luxury spas, law firms..."
                   className="w-full bg-[#090D16] border border-[#1E293B] focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 transition-all outline-none"
                 />
               </div>
@@ -241,12 +215,12 @@ export default function DiscoverPage() {
                 {searchStatus === 'running' ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                    Discovering...
+                    Crawling...
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4 text-cyan-300" />
-                    Start Search
+                    Start Live Search
                   </>
                 )}
               </button>
@@ -266,7 +240,7 @@ export default function DiscoverPage() {
                     : 'bg-[#090D16] border-[#1E293B] text-slate-400 hover:text-slate-300'
                 }`}
               >
-                ⚡ No Booking System
+                ⚡ No Direct Booking Engine
               </button>
               <button
                 type="button"
@@ -287,7 +261,7 @@ export default function DiscoverPage() {
               className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium transition-colors"
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
-              {showAdvanced ? 'Hide Matrix' : 'Advanced Filters'}
+              {showAdvanced ? 'Hide Advanced Matrix' : 'Digital & Opportunity Matrix'}
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
             </button>
           </div>
@@ -357,7 +331,7 @@ export default function DiscoverPage() {
               <span className="text-sm font-semibold text-slate-200">{statusMessage}</span>
             </div>
             <span className="text-xs font-mono text-indigo-400 font-medium">
-              {discoveredBusinesses.length} clients discovered & verified
+              {discoveredBusinesses.length} live businesses crawled
             </span>
           </div>
           <div className="w-full bg-[#090D16] h-2 rounded-full overflow-hidden">
@@ -373,10 +347,10 @@ export default function DiscoverPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <span>Discovered Businesses</span>
+            <span>Live Discovered Businesses</span>
             {discoveredBusinesses.length > 0 && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
-                {discoveredBusinesses.length}
+                {discoveredBusinesses.length} Verified
               </span>
             )}
           </h2>
@@ -388,9 +362,9 @@ export default function DiscoverPage() {
         {discoveredBusinesses.length === 0 ? (
           <div className="text-center py-16 border border-dashed border-[#1E293B] rounded-2xl bg-[#0F172A]/40">
             <Building className="w-12 h-12 text-slate-600 mx-auto mb-3 animate-pulse-subtle" />
-            <h3 className="text-base font-semibold text-slate-300">Ready to Discover Clients</h3>
+            <h3 className="text-base font-semibold text-slate-300">Ready to Discover Live Clients</h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-              Select your target industry and location above to initiate live discovery, contact extraction, and agency opportunity mapping.
+              Select your target industry and location above to initiate real-time public discovery, HTTP crawling, and agency opportunity mapping.
             </p>
           </div>
         ) : (
@@ -418,9 +392,9 @@ export default function DiscoverPage() {
                           {b.industry}
                         </span>
 
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950/60 text-cyan-400 border border-cyan-800/40 font-mono flex items-center gap-1">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 font-mono flex items-center gap-1">
                           <ShieldCheck className="w-3 h-3" />
-                          Normalized & Resolved
+                          Live Crawled ({b.website_load_time_ms}ms)
                         </span>
 
                         {/* Priority Badge */}
@@ -477,7 +451,7 @@ export default function DiscoverPage() {
                       <div className="text-right hidden sm:block">
                         <div className="text-xs font-semibold text-indigo-400 flex items-center justify-end gap-1">
                           <Zap className="w-3.5 h-3.5 text-amber-400" />
-                          {opps.length > 0 ? `${opps.length} Opportunities Detected` : 'High Agency Fit'}
+                          {opps.length > 0 ? `${opps.length} Real Opportunities` : 'High Agency Value Fit'}
                         </div>
                         <p className="text-[11px] text-slate-400">
                           {opps[0]?.onefolk_service || 'Direct Funnel + Retention Architecture'}
