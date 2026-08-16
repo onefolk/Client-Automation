@@ -380,11 +380,11 @@ export async function POST(req: Request) {
         const crawlData = await crawlWebsiteLive(websiteUrl);
         const domain = extractDomain(crawlData.url) || `${nameSlug}.com`;
 
-        const extractedEmail = crawlData.emails.length > 0 ? crawlData.emails[0] : `contact@${domain}`;
+        const extractedEmail = crawlData.emails.length > 0 ? crawlData.emails[0] : undefined;
         const extractedPhone =
           crawlData.phones.length > 0
             ? crawlData.phones[0]
-            : (entity as any).phone || `+971 4 ${320 + i * 5} ${1000 + i * 19}`;
+            : (entity as any).phone || undefined;
 
         // Entity Resolution against Master Store
         let existingId: string | undefined;
@@ -400,7 +400,7 @@ export async function POST(req: Request) {
 
         // 4. Dynamic Industry-Tailored Opportunity Detection Engine
         const oppList: Opportunity[] = [];
-        let priorityScore = 55;
+        let priorityScore = 50;
         const ind = industry.toLowerCase();
         const isHealthcare = ind.includes('health') || ind.includes('dent') || ind.includes('clinic') || ind.includes('medic');
         const isRealEstate = ind.includes('real') || ind.includes('estate') || ind.includes('property');
@@ -424,7 +424,7 @@ export async function POST(req: Request) {
               status: 'IDENTIFIED',
               created_at: bizCreatedAt,
             });
-            priorityScore += 20;
+            priorityScore += 25;
           }
           if (!crawlData.has_whatsapp) {
             oppList.push({
@@ -442,7 +442,7 @@ export async function POST(req: Request) {
               status: 'IDENTIFIED',
               created_at: bizCreatedAt,
             });
-            priorityScore += 15;
+            priorityScore += 20;
           }
         } else if (isRealEstate) {
           if (!crawlData.has_whatsapp) {
@@ -479,7 +479,7 @@ export async function POST(req: Request) {
               status: 'IDENTIFIED',
               created_at: bizCreatedAt,
             });
-            priorityScore += 15;
+            priorityScore += 20;
           }
         } else if (isLegal) {
           if (!crawlData.has_lead_form) {
@@ -559,7 +559,7 @@ export async function POST(req: Request) {
           }
         }
 
-        const priority: 'HIGH' | 'MEDIUM' | 'LOW' = priorityScore >= 75 ? 'HIGH' : priorityScore >= 50 ? 'MEDIUM' : 'LOW';
+        const priority: 'HIGH' | 'MEDIUM' | 'LOW' = priorityScore >= 70 ? 'HIGH' : priorityScore >= 45 ? 'MEDIUM' : 'LOW';
 
         const business: Business = {
           id: bizId,
@@ -573,12 +573,12 @@ export async function POST(req: Request) {
           latitude: (entity as any).lat,
           longitude: (entity as any).lon,
           phone: extractedPhone,
-          normalized_phone: extractedPhone.replace(/[^0-9+]/g, ''),
+          normalized_phone: extractedPhone ? extractedPhone.replace(/[^0-9+]/g, '') : undefined,
           email: extractedEmail,
           website: crawlData.url,
           domain,
-          rating: Number((4.1 + ((i * 0.15) % 0.8)).toFixed(1)),
-          review_count: 110 + i * 42,
+          rating: (entity as any).rating,
+          review_count: (entity as any).review_count || 0,
           has_website: crawlData.is_reachable,
           has_ssl: crawlData.has_ssl,
           is_mobile_friendly: crawlData.is_mobile_friendly,
@@ -587,7 +587,7 @@ export async function POST(req: Request) {
           priority,
           priority_score: priorityScore,
           confidence: 0.98,
-          data_completeness: 90,
+          data_completeness: extractedEmail && extractedPhone ? 95 : extractedEmail || extractedPhone ? 75 : 55,
           discovered_at: bizCreatedAt,
           created_at: bizCreatedAt,
           updated_at: bizCreatedAt,
