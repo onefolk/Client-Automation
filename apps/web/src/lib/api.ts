@@ -51,6 +51,14 @@ export async function getBusinessProfile(id: string): Promise<BusinessProfile> {
   return res.json();
 }
 
+export async function enrichBusiness(id: string): Promise<{ success: boolean; business: BusinessProfile }> {
+  const res = await fetch(`${API_BASE_URL}/api/businesses/${id}/enrich`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Failed to enrich business profile');
+  return res.json();
+}
+
 export async function listOpportunities(): Promise<Opportunity[]> {
   const res = await fetch(`${API_BASE_URL}/api/opportunities`);
   if (!res.ok) throw new Error('Failed to fetch opportunities');
