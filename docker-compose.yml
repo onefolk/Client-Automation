@@ -52,7 +52,7 @@ services:
       API_HOST: 0.0.0.0
       DATABASE_URL: postgres://onefolk:onefolk_secret_dev@postgres:5432/onefolk_intelligence
       REDIS_URL: redis://redis:6379
-      GROK_API_KEY: mock_key
+      GROK_API_KEY: ${GROK_API_KEY:-}
       RUST_LOG: info,api=debug,domain=debug,events=debug
     ports:
       - "8000:8000"
@@ -72,7 +72,7 @@ services:
       ENVIRONMENT: development
       DATABASE_URL: postgres://onefolk:onefolk_secret_dev@postgres:5432/onefolk_intelligence
       REDIS_URL: redis://redis:6379
-      GROK_API_KEY: mock_key
+      GROK_API_KEY: ${GROK_API_KEY:-}
       RUST_LOG: info,worker=debug,discovery=debug,providers=debug,normalization=debug
     volumes:
       - ./:/workspace

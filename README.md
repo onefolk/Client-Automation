@@ -47,9 +47,9 @@ Onefolk-Client-Intelligence/
 │   ├── database/                    # SQLx connection pool, repositories, PostgreSQL queries
 │   ├── queue/                       # Redis Streams Job Queue with consumer groups & ACK
 │   ├── events/                      # Redis Pub/Sub & Local Broadcast EventBus for SSE Streaming
-│   ├── discovery/                   # Deterministic SearchPlanner & Query Expansion
-│   ├── providers/                   # Provider Plugin Trait, Registry & Mock Discovery Provider
-│   ├── normalization/               # Name, URL, Domain, Phone, Address Normalization
+│   ├── discovery/                   # Search Planner, Deterministic Multi-Query Generator
+│   ├── providers/                   # Provider Plugin Trait, Registry & Live Public Registry Providers
+│   ├── normalization/               # Name, Legal Suffix, Phone & URL Normalization Engine
 │   ├── entity-resolution/           # Deterministic Entity Matching & Deduplication Engine
 │   ├── opportunities/               # Opportunity Engine, Service Mapping, Priority Scorer
 │   ├── crawler/                     # Level 1 HTTP Crawler with SSRF Protection

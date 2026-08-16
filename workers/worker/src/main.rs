@@ -5,7 +5,7 @@ use domain::{Contact, SearchStatus};
 use entity_resolution::{EntityResolver, ResolutionResult};
 use events::{EventBus, SystemEvent};
 use opportunities::OpportunityEngine;
-use providers::{MockDiscoveryProvider, ProviderRegistry};
+use providers::{LiveWebSearchProvider, ProviderRegistry, PublicRegistryProvider};
 use queue::JobQueue;
 use std::{sync::Arc, time::Duration};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -39,7 +39,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let event_bus = EventBus::new(&redis_url).await.expect("Failed to connect to EventBus");
 
     let mut provider_registry = ProviderRegistry::new();
-    provider_registry.register(Arc::new(MockDiscoveryProvider::new()));
+    provider_registry.register(Arc::new(PublicRegistryProvider::new()));
+    provider_registry.register(Arc::new(LiveWebSearchProvider::new()));
 
     let consumer_name = format!("worker_{}", Uuid::new_v4().simple());
     tracing::info!(consumer = %consumer_name, "OneFolk Worker loop ready for Redis Streams jobs");
@@ -85,9 +86,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         },
                                     )
                                     .await;
-
-                                // Artificial small delay to emulate network & demonstrate streaming UI
-                                tokio::time::sleep(Duration::from_millis(400)).await;
 
                                 match provider.search(&variation, &payload.filters, strategy.limit).await {
                                     Ok(discovered_list) => {
@@ -167,7 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                                 search_id: Some(payload.search_id),
                                                                 business_id: saved_biz.id,
                                                                 opportunity: opp.clone(),
-                                                            },
+                                                             },
                                                         )
                                                         .await;
                                                 }
@@ -202,9 +200,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                     )
                                                     .await;
                                             }
-
-                                            // Small micro-delay for smooth real-time visual streaming in UI
-                                            tokio::time::sleep(Duration::from_millis(300)).await;
                                         }
 
                                         let _ = event_bus

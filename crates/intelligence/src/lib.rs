@@ -72,8 +72,8 @@ impl GrokClient {
         business: &Business,
         facts: &[Fact],
     ) -> Result<Analysis, String> {
-        // If API key is mock or not set, produce deterministic structured analysis
-        if self.api_key == "mock_key" || self.api_key.is_empty() {
+        // If external LLM API key is not configured, compute deterministic fact-driven analysis
+        if self.api_key.is_empty() {
             let digital_score = if business.has_website { 72 } else { 38 };
             let lead_score = if business.email.is_some() { 68 } else { 30 };
 

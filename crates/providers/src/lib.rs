@@ -72,14 +72,14 @@ impl ProviderRegistry {
 impl Default for ProviderRegistry {
     fn default() -> Self {
         let mut registry = Self::new();
-        registry.register(Arc::new(MockDiscoveryProvider::new()));
         registry.register(Arc::new(PublicRegistryProvider::new()));
+        registry.register(Arc::new(LiveWebSearchProvider::new()));
         registry
     }
 }
 
 // ==============================================================================
-// 1. Real Public Registry & Web Search Provider (Phase 3)
+// 1. Live Public Registry Provider (Real-time OpenStreetMap / Municipal Index)
 // ==============================================================================
 
 pub struct PublicRegistryProvider {
@@ -91,14 +91,14 @@ pub struct PublicRegistryProvider {
 impl PublicRegistryProvider {
     pub fn new() -> Self {
         let client = Client::builder()
-            .timeout(Duration::from_secs(8))
+            .timeout(Duration::from_secs(10))
             .user_agent("OneFolkClientIntelligence/1.0 (+https://onefolk.ai)")
             .build()
             .unwrap_or_default();
 
         Self {
             id: "live_public_registry".to_string(),
-            name: "Live Public Web & Local Registry (Real Provider)".to_string(),
+            name: "Live Public Registry (OpenStreetMap/Public Index)".to_string(),
             client,
         }
     }
@@ -148,61 +148,72 @@ impl DiscoveryProvider for PublicRegistryProvider {
         let country = filters.country.clone().unwrap_or_else(|| "UAE".to_string());
         let industry = filters.industry.clone().unwrap_or_else(|| "Commercial".to_string());
 
-        // Perform live query against public directory index (e.g. OpenStreetMap Nominatim query)
         let search_endpoint = format!(
-            "https://nominatim.openstreetmap.org/search?q={}+{}&format=json&addressdetails=1&limit={}",
+            "https://nominatim.openstreetmap.org/search?q={}+{}&format=json&addressdetails=1&extratags=1&limit={}",
             urlencoding::encode(query),
             urlencoding::encode(&city),
             limit
         );
 
+        let resp = self
+            .client
+            .get(&search_endpoint)
+            .send()
+            .await
+            .map_err(|e| ProviderError::NetworkError(e.to_string()))?;
+
+        let json_array = resp
+            .json::<Vec<serde_json::Value>>()
+            .await
+            .map_err(|e| ProviderError::ParsingError(e.to_string()))?;
+
         let mut results = Vec::new();
 
-        if let Ok(resp) = self.client.get(&search_endpoint).send().await {
-            if let Ok(json_array) = resp.json::<Vec<serde_json::Value>>().await {
-                for (idx, item) in json_array.into_iter().enumerate() {
-                    let display_name = item["display_name"].as_str().unwrap_or_default();
-                    let name = item["name"]
-                        .as_str()
-                        .or_else(|| display_name.split(',').next())
-                        .unwrap_or("Commercial Entity");
+        for item in json_array {
+            let display_name = item["display_name"].as_str().unwrap_or_default();
+            let name = item["name"]
+                .as_str()
+                .or_else(|| display_name.split(',').next())
+                .unwrap_or("Commercial Entity");
 
-                    let clean_name = name.trim().to_string();
-                    if clean_name.is_empty() {
-                        continue;
-                    }
-
-                    let slug = clean_name.to_lowercase().replace(' ', "-");
-                    let domain = format!("{}.ae", slug.replace(|c: char| !c.is_alphanumeric() && c != '-', ""));
-
-                    let raw_payload = item.clone();
-
-                    results.push(DiscoveredBusiness {
-                        business_name: clean_name.clone(),
-                        website: Some(format!("https://{}", domain)),
-                        phone: Some(format!("+971 4 {:03} {:04}", 300 + idx * 7, 1000 + idx * 13)),
-                        email: Some(format!("contact@{}", domain)),
-                        address: Some(display_name.to_string()),
-                        city: Some(city.clone()),
-                        state: Some(city.clone()),
-                        country: Some(country.clone()),
-                        category: Some(industry.clone()),
-                        rating: Some(4.2 + ((idx as f64 * 0.1) % 0.8)),
-                        review_count: Some(120 + (idx as i32 * 45)),
-                        source: "live_public_registry".to_string(),
-                        source_url: Some(format!("https://openstreetmap.org/search?query={}", urlencoding::encode(&clean_name))),
-                        confidence: 0.98,
-                        collected_at: Utc::now(),
-                        raw_data: raw_payload,
-                    });
-                }
+            let clean_name = name.trim().to_string();
+            if clean_name.is_empty() {
+                continue;
             }
-        }
 
-        // Fallback resilience if external rate limited
-        if results.is_empty() {
-            let mock = MockDiscoveryProvider::new();
-            return mock.search(query, filters, limit).await;
+            let extratags = item.get("extratags");
+            let live_website = extratags
+                .and_then(|t| t["website"].as_str().or_else(|| t["contact:website"].as_str()).or_else(|| t["url"].as_str()))
+                .map(|s| s.to_string());
+
+            let live_phone = extratags
+                .and_then(|t| t["phone"].as_str().or_else(|| t["contact:phone"].as_str()))
+                .map(|s| s.to_string());
+
+            let raw_payload = item.clone();
+
+            results.push(DiscoveredBusiness {
+                business_name: clean_name.clone(),
+                website: live_website,
+                phone: live_phone,
+                email: None,
+                address: Some(display_name.to_string()),
+                city: Some(city.clone()),
+                state: Some(city.clone()),
+                country: Some(country.clone()),
+                category: Some(industry.clone()),
+                rating: None,
+                review_count: None,
+                source: "live_public_registry".to_string(),
+                source_url: Some(format!(
+                    "https://openstreetmap.org/{}/{}",
+                    item["osm_type"].as_str().unwrap_or("node"),
+                    item["osm_id"].as_i64().unwrap_or(0)
+                )),
+                confidence: 0.98,
+                collected_at: Utc::now(),
+                raw_data: raw_payload,
+            });
         }
 
         Ok(results)
@@ -210,25 +221,33 @@ impl DiscoveryProvider for PublicRegistryProvider {
 }
 
 // ==============================================================================
-// 2. Mock Discovery Provider
+// 2. Live Web Search Provider (DuckDuckGo / Public Search Ingestion)
 // ==============================================================================
 
-pub struct MockDiscoveryProvider {
+pub struct LiveWebSearchProvider {
     id: String,
     name: String,
+    client: Client,
 }
 
-impl MockDiscoveryProvider {
+impl LiveWebSearchProvider {
     pub fn new() -> Self {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(10))
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+            .build()
+            .unwrap_or_default();
+
         Self {
-            id: "mock_universal_discovery".to_string(),
-            name: "Universal Business Directory (Mock Discovery)".to_string(),
+            id: "live_web_search".to_string(),
+            name: "Live Public Web Search".to_string(),
+            client,
         }
     }
 }
 
 #[async_trait]
-impl DiscoveryProvider for MockDiscoveryProvider {
+impl DiscoveryProvider for LiveWebSearchProvider {
     fn id(&self) -> &str {
         &self.id
     }
@@ -238,7 +257,7 @@ impl DiscoveryProvider for MockDiscoveryProvider {
     }
 
     fn category(&self) -> ProviderCategory {
-        ProviderCategory::BusinessDirectory
+        ProviderCategory::SearchEngine
     }
 
     fn capabilities(&self) -> ProviderCapabilities {
@@ -248,7 +267,7 @@ impl DiscoveryProvider for MockDiscoveryProvider {
             supports_categories: true,
             returns_contacts: true,
             returns_social: true,
-            returns_ratings: true,
+            returns_ratings: false,
         }
     }
 
@@ -268,110 +287,65 @@ impl DiscoveryProvider for MockDiscoveryProvider {
             .or_else(|| filters.location.clone())
             .unwrap_or_else(|| "Dubai".to_string());
 
-        let industry = filters
-            .industry
-            .clone()
-            .unwrap_or_else(|| "Restaurant & Hospitality".to_string());
+        let target_query = format!("{} in {}", query, city);
+        let endpoint = format!(
+            "https://html.duckduckgo.com/html/?q={}",
+            urlencoding::encode(&target_query)
+        );
+
+        let resp = self
+            .client
+            .get(&endpoint)
+            .send()
+            .await
+            .map_err(|e| ProviderError::NetworkError(e.to_string()))?;
+
+        let html = resp
+            .text()
+            .await
+            .map_err(|e| ProviderError::ParsingError(e.to_string()))?;
 
         let mut results = Vec::new();
+        // Parse result links and titles from live DuckDuckGo HTML
+        let link_regex = regex::Regex::new(r#"<a class="result__url" href="([^"]+)">([^<]+)</a>"#).unwrap();
+        let title_regex = regex::Regex::new(r#"<a class="result__snippet"[^>]*>([^<]+)</a>"#).unwrap();
 
-        let templates = vec![
-            (
-                "Sakura Artisanal Dining",
-                "sakuradining-uae.com",
-                "+971 4 398 1245",
-                "reservations@sakuradining-uae.com",
-                "Downtown Boulevard, Tower 2",
-                4.6,
-                324,
-            ),
-            (
-                "Origami Japanese Kitchen",
-                "origamidxb.ae",
-                "+971 4 551 8890",
-                "contact@origamidxb.ae",
-                "Jumeirah Beach Road, Villa 14",
-                4.3,
-                189,
-            ),
-            (
-                "Kura Sushi Lounge",
-                "kura-sushi.me",
-                "+971 4 229 4411",
-                "info@kura-sushi.me",
-                "Dubai Marina Mall, Promenade Level",
-                4.8,
-                512,
-            ),
-            (
-                "Nobu Inspired Grill LLC",
-                "nobugrill-dubai.com",
-                "+971 4 426 2626",
-                "events@nobugrill-dubai.com",
-                "Palm Jumeirah, Crescent Road",
-                4.7,
-                890,
-            ),
-            (
-                "Tokyo Robata Bar",
-                "tokyorobata.ae",
-                "+971 4 330 9944",
-                "manager@tokyorobata.ae",
-                "DIFC, Gate Village Building 5",
-                4.1,
-                142,
-            ),
-            (
-                "Zen Garden Teppanyaki",
-                "zengarden-uae.com",
-                "+971 4 702 3311",
-                "hello@zengarden-uae.com",
-                "Business Bay, Marasi Drive",
-                3.9,
-                98,
-            ),
-            (
-                "Bespoke Bistro & Cafe",
-                "bespokebistrodxb.com",
-                "+971 4 883 1200",
-                "info@bespokebistrodxb.com",
-                "City Walk, Al Safa",
-                4.4,
-                260,
-            ),
-        ];
+        let captures: Vec<_> = link_regex.captures_iter(&html).take(limit).collect();
+        let snippet_captures: Vec<_> = title_regex.captures_iter(&html).take(limit).collect();
 
-        let effective_limit = limit.min(templates.len());
+        for (i, cap) in captures.into_iter().enumerate() {
+            let raw_url = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let clean_url = if raw_url.starts_with("//duckduckgo.com/l/?uddg=") {
+                raw_url.strip_prefix("//duckduckgo.com/l/?uddg=").unwrap_or(raw_url).split('&').next().unwrap_or(raw_url)
+            } else {
+                raw_url
+            };
 
-        for (i, (name, domain, phone, email, address, rating, reviews)) in
-            templates.into_iter().take(effective_limit).enumerate()
-        {
-            let website_url = format!("https://{}", domain);
-            let raw_data = serde_json::json!({
-                "provider_rank": i + 1,
-                "domain": domain,
-                "verified_source": true,
-                "matched_query": query,
-            });
+            let decoded_url = urlencoding::decode(clean_url).unwrap_or_else(|_| clean_url.into()).to_string();
+            let domain = decoded_url.replace("https://", "").replace("http://", "").split('/').next().unwrap_or("").to_string();
 
-            results.push(DiscoveredBusiness {
-                business_name: name.to_string(),
-                website: Some(website_url.clone()),
-                phone: Some(phone.to_string()),
-                email: Some(email.to_string()),
-                address: Some(address.to_string()),
-                city: Some(city.clone()),
-                state: Some(city.clone()),
-                country: Some(filters.country.clone().unwrap_or_else(|| "UAE".to_string())),
-                category: Some(industry.clone()),
-                rating: Some(rating),
-                review_count: Some(reviews),
-                source: "mock_universal_discovery".to_string(),
-                source_url: Some(format!("https://directory.mock.ae/biz/{}", domain)),
-                confidence: 0.95,
-                collected_at: Utc::now(),
-                raw_data,
-            });
+            let title = snippet_captures.get(i).and_then(|c| c.get(1)).map(|m| m.as_str()).unwrap_or(&domain);
+
+            if !domain.is_empty() && !domain.contains("duckduckgo.com") {
+                results.push(DiscoveredBusiness {
+                    business_name: domain.clone(),
+                    website: Some(format!("https://{}", domain)),
+                    phone: None,
+                    email: None,
+                    address: Some(title.to_string()),
+                    city: Some(city.clone()),
+                    state: Some(city.clone()),
+                    country: filters.country.clone(),
+                    category: filters.industry.clone(),
+                    rating: None,
+                    review_count: None,
+                    source: "live_web_search".to_string(),
+                    source_url: Some(decoded_url),
+                    confidence: 0.90,
+                    collected_at: Utc::now(),
+                    raw_data: serde_json::json!({ "domain": domain, "snippet": title }),
+                });
+            }
         }
 
         Ok(results)

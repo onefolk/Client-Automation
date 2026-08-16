@@ -48,7 +48,7 @@ impl SearchPlanner {
         variations.push(format!("top {} in {}", base_query, city));
 
         let providers = if selected_providers.is_empty() {
-            vec!["mock_universal_discovery".to_string()]
+            vec!["live_public_registry".to_string()]
         } else {
             selected_providers.to_vec()
         };
