@@ -88,14 +88,17 @@ export async function crawlWebsiteLive(targetUrl: string): Promise<LiveCrawlResu
       }
     }
 
-    // 4. Real Social Links Extraction
+    // 4. Real Social Links Extraction (Instagram, Threads, Reddit, Facebook, LinkedIn, TikTok, YouTube, X)
     const social_links: { platform: string; url: string }[] = [];
     const socialPatterns = [
       { platform: 'Instagram', regex: /href=["'](https?:\/\/(?:www\.)?instagram\.com\/[a-zA-Z0-9_.-]+)["']/gi },
+      { platform: 'Threads', regex: /href=["'](https?:\/\/(?:www\.)?threads\.net\/@[a-zA-Z0-9_.-]+)["']/gi },
+      { platform: 'Reddit', regex: /href=["'](https?:\/\/(?:www\.)?reddit\.com\/(?:r|user)\/[a-zA-Z0-9_.-]+)["']/gi },
       { platform: 'Facebook', regex: /href=["'](https?:\/\/(?:www\.)?facebook\.com\/[a-zA-Z0-9_.-]+)["']/gi },
       { platform: 'LinkedIn', regex: /href=["'](https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/[a-zA-Z0-9_.-]+)["']/gi },
       { platform: 'TikTok', regex: /href=["'](https?:\/\/(?:www\.)?tiktok\.com\/@[a-zA-Z0-9_.-]+)["']/gi },
       { platform: 'YouTube', regex: /href=["'](https?:\/\/(?:www\.)?youtube\.com\/(?:c\/|@)?[a-zA-Z0-9_.-]+)["']/gi },
+      { platform: 'X / Twitter', regex: /href=["'](https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[a-zA-Z0-9_.-]+)["']/gi },
     ];
 
     for (const sp of socialPatterns) {

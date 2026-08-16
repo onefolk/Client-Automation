@@ -15,10 +15,13 @@ impl SocialDiscovery {
 
         let patterns = [
             ("instagram", r#"https?://(?:www\.)?instagram\.com/([a-zA-Z0-9_.]+)"#),
+            ("threads", r#"https?://(?:www\.)?threads\.net/@([a-zA-Z0-9_.]+)"#),
+            ("reddit", r#"https?://(?:www\.)?reddit\.com/(?:r|user)/([a-zA-Z0-9_]+)"#),
             ("facebook", r#"https?://(?:www\.)?facebook\.com/([a-zA-Z0-9_.]+)"#),
             ("linkedin", r#"https?://(?:www\.)?linkedin\.com/(?:company|in)/([a-zA-Z0-9_-]+)"#),
             ("tiktok", r#"https?://(?:www\.)?tiktok\.com/@([a-zA-Z0-9_.]+)"#),
             ("youtube", r#"https?://(?:www\.)?youtube\.com/(?:c/|@|user/)?([a-zA-Z0-9_-]+)"#),
+            ("x_twitter", r#"https?://(?:www\.)?(?:twitter\.com|x\.com)/([a-zA-Z0-9_]+)"#),
         ];
 
         for (platform, pat) in patterns {

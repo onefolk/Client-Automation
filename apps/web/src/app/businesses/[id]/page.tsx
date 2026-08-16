@@ -447,17 +447,60 @@ Agency Partnerships Lead | OneFolk Intelligence`;
         {/* 6. Social Footprint Tab */}
         {activeTab === 'social' && (
           <div className="space-y-4">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Social Footprint</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Multi-Channel Social Footprint & Community Signals</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
               <div className="p-3.5 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-1">
-                <span className="font-bold text-[#FFBD65] block">Instagram Handle</span>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#FFBD65] block">Instagram</span>
+                  <span className="text-[10px] font-mono text-[#02A0A0]">Verified</span>
+                </div>
                 <p className="text-slate-300 font-mono">@{profile.slug.replace(/-/g, '_')}</p>
-                <p className="text-slate-400 text-[11px]">Primary organic social discovery channel.</p>
+                <p className="text-slate-400 text-[11px]">Primary visual channel for guest engagement & dining discovery.</p>
               </div>
+
               <div className="p-3.5 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-1">
-                <span className="font-bold text-[#02A0A0] block">WhatsApp VIP Channel</span>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white block">Threads (@Meta)</span>
+                  <span className="text-[10px] font-mono text-[#02A0A0]">Active Index</span>
+                </div>
+                <p className="text-slate-300 font-mono">threads.net/@{profile.slug.replace(/-/g, '_')}</p>
+                <p className="text-slate-400 text-[11px]">Real-time customer conversational updates & local announcements.</p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-orange-400 block">Reddit Mentions</span>
+                  <span className="text-[10px] font-mono text-[#FFBD65]">Community Sentiment</span>
+                </div>
+                <p className="text-slate-300 font-mono">r/{profile.city || 'local'}_dining</p>
+                <p className="text-slate-400 text-[11px]">Public community recommendations & local thread sentiment.</p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#02A0A0] block">WhatsApp VIP Channel</span>
+                  <span className="text-[10px] font-mono text-[#FFBD65]">High Growth Value</span>
+                </div>
                 <p className="text-slate-300">Direct booking and guest inquiry flow.</p>
-                <p className="text-slate-400 text-[11px]">High ROI vector for direct re-engagement.</p>
+                <p className="text-slate-400 text-[11px]">High ROI vector for direct re-engagement campaigns.</p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-blue-400 block">LinkedIn Profile</span>
+                  <span className="text-[10px] font-mono text-slate-400">Corporate</span>
+                </div>
+                <p className="text-slate-300 font-mono">linkedin.com/company/{profile.slug}</p>
+                <p className="text-slate-400 text-[11px]">Management team, founders, and executive decision makers.</p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-rose-400 block">TikTok / YouTube</span>
+                  <span className="text-[10px] font-mono text-slate-400">Video</span>
+                </div>
+                <p className="text-slate-300 font-mono">@{profile.slug.replace(/-/g, '')}</p>
+                <p className="text-slate-400 text-[11px]">Short-form food, ambiance, and influencer UGC reach.</p>
               </div>
             </div>
           </div>
