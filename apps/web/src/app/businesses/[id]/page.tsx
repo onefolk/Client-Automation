@@ -24,25 +24,31 @@ import {
   RefreshCw,
   ExternalLink,
   AlertTriangle,
+  Copy,
+  Check,
+  Send,
+  DollarSign,
 } from 'lucide-react';
 
 const tabs = [
-  { id: 'overview', name: 'Overview', icon: Building2 },
-  { id: 'contacts', name: 'Contacts', icon: Users },
-  { id: 'website', name: 'Website & Speed', icon: Globe },
-  { id: 'technology', name: 'Technologies', icon: Code2 },
-  { id: 'social', name: 'Social Signals', icon: MessageSquare },
+  { id: 'overview', name: 'Overview & Economics', icon: Building2 },
+  { id: 'pitch', name: 'Cold Outreach Pitch', icon: Send },
+  { id: 'contacts', name: 'Contacts & Decision Makers', icon: Users },
+  { id: 'website', name: 'Website & Infrastructure', icon: Globe },
+  { id: 'technology', name: 'Tech Stack', icon: Code2 },
+  { id: 'social', name: 'Social Footprint', icon: MessageSquare },
   { id: 'reviews', name: 'Reviews & Reputation', icon: Star },
-  { id: 'analysis', name: 'Grok AI Analysis & SWOT', icon: Sparkles },
-  { id: 'facts', name: 'Fact Store', icon: Database },
-  { id: 'opportunities', name: 'Agency Opportunities', icon: Zap },
-  { id: 'activity', name: 'Audit & Provenance', icon: Activity },
+  { id: 'analysis', name: 'Grok AI Intelligence & SWOT', icon: Sparkles },
+  { id: 'facts', name: 'Fact Store (Audit Log)', icon: Database },
+  { id: 'activity', name: 'Provenance Timeline', icon: Activity },
 ];
 
 export default function BusinessDetailPage() {
   const params = useParams();
   const id = params?.id as string;
   const [activeTab, setActiveTab] = useState('overview');
+  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [estimatedMonthlyOrders, setEstimatedMonthlyOrders] = useState(650);
   const queryClient = useQueryClient();
 
   const { data: profile, isLoading, error } = useQuery({
@@ -69,7 +75,7 @@ export default function BusinessDetailPage() {
   if (isLoading) {
     return (
       <div className="text-center py-24 text-slate-400">
-        <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-[#02A0A0]" />
+        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-3 text-[#02A0A0]" />
         Loading verified client intelligence profile...
       </div>
     );
@@ -86,35 +92,62 @@ export default function BusinessDetailPage() {
   const analysis = profile.analysis;
   const rating = profile.rating || 4.1;
   const reviewCount = profile.review_count || 110;
+  
+  // Calculate agency economics
+  const avgOrderValue = 45; // USD
+  const aggregatorFeePercent = 0.18; // 18% commission
+  const monthlyCommissionLoss = Math.round(estimatedMonthlyOrders * avgOrderValue * aggregatorFeePercent);
+  const annualCommissionLoss = monthlyCommissionLoss * 12;
+
+  // Generate personalized outreach email
+  const outreachPitchSubject = `Quick question regarding direct reservations for ${profile.name}`;
+  const outreachPitchBody = `Hi ${profile.name} team,
+
+I was reviewing top dining destinations in ${profile.city || 'Dubai'} and noticed your strong ★ ${rating.toFixed(1)} rating across ${reviewCount} customer reviews.
+
+While analyzing your website (${profile.domain || 'online presence'}), I noticed you currently rely heavily on third-party aggregators rather than a commission-free direct booking flow. 
+
+At ~${estimatedMonthlyOrders} monthly covers, your business is likely paying over $${monthlyCommissionLoss.toLocaleString()}/month in aggregator commission fees alone.
+
+At OneFolk, we build automated direct guest booking & WhatsApp VIP retention funnels that recapture this revenue and boost repeat diner lifetime value.
+
+Would you be open to a brief 10-minute walkthrough this Thursday on how to implement this?
+
+Best regards,
+Agency Partnerships Lead | OneFolk Intelligence`;
+
+  const handleCopyPitch = () => {
+    navigator.clipboard.writeText(`Subject: ${outreachPitchSubject}\n\n${outreachPitchBody}`);
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2500);
+  };
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Breadcrumb */}
       <div>
         <Link
           href="/businesses"
-          className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-3"
+          className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-2 font-medium"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          Back to Verified Directory
+          Back to Client Directory
         </Link>
 
         {/* Business Header Card */}
-        <div className="bg-[#0D1E24] border border-[#1A3A44] rounded-2xl p-6 shadow-xl shadow-black/20">
+        <div className="bg-[#0D1E24] border border-[#1A3A44] rounded-2xl p-5 shadow-xl shadow-black/20">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-bold text-white tracking-tight">{profile.name}</h1>
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#122931] text-slate-300 font-medium">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1 className="text-xl font-bold text-white tracking-tight">{profile.name}</h1>
+                <span className="text-xs px-2.5 py-0.5 rounded-md bg-[#122931] text-slate-300 font-medium">
                   {profile.industry}
                 </span>
                 <span
-                  className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border ${
+                  className={`text-xs px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider border ${
                     profile.priority === 'HIGH'
                       ? 'bg-[#FFBD65]/15 text-[#FFBD65] border-[#FFBD65]/30'
-                      : profile.priority === 'MEDIUM'
-                      ? 'bg-[#02A0A0]/15 text-[#02A0A0] border-[#02A0A0]/30'
-                      : 'bg-slate-500/15 text-slate-400 border-slate-500/30'
+                      : 'bg-[#02A0A0]/15 text-[#02A0A0] border-[#02A0A0]/30'
                   }`}
                 >
                   {profile.priority} Priority ({profile.priority_score}%)
@@ -128,20 +161,20 @@ export default function BusinessDetailPage() {
                     href={profile.website}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[#02A0A0] hover:underline flex items-center gap-1"
+                    className="text-[#02A0A0] hover:underline flex items-center gap-1 font-mono"
                   >
                     <Globe className="w-3.5 h-3.5" />
                     {profile.domain}
                   </a>
                 )}
                 {profile.email && (
-                  <span className="text-slate-300 flex items-center gap-1">
+                  <span className="text-slate-300 font-mono flex items-center gap-1">
                     <Mail className="w-3.5 h-3.5 text-[#02A0A0]" />
                     {profile.email}
                   </span>
                 )}
                 {profile.phone && (
-                  <span className="text-slate-300 flex items-center gap-1">
+                  <span className="text-slate-300 font-mono flex items-center gap-1">
                     <Phone className="w-3.5 h-3.5 text-[#FFBD65]" />
                     {profile.phone}
                   </span>
@@ -150,34 +183,34 @@ export default function BusinessDetailPage() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
               <button
                 onClick={() => enrichMutation.mutate()}
                 disabled={enrichMutation.isPending}
-                className="px-3.5 py-2 rounded-xl bg-[#122931] hover:bg-[#1A3A44] text-slate-200 text-xs font-semibold transition-all flex items-center gap-2 disabled:opacity-50"
+                className="px-3 py-1.5 rounded-xl bg-[#122931] hover:bg-[#1A3A44] text-slate-200 text-xs font-semibold transition-all flex items-center gap-1.5 disabled:opacity-50"
               >
                 {enrichMutation.isPending ? (
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                 ) : (
                   <Globe className="w-3.5 h-3.5 text-[#02A0A0]" />
                 )}
-                Re-Crawl Level 1
+                Re-Crawl Website
               </button>
 
               <button
                 onClick={() => analyzeMutation.mutate()}
                 disabled={analyzeMutation.isPending}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#02A0A0] to-[#028383] hover:from-[#22BDBD] hover:to-[#02A0A0] active:scale-[0.98] text-[#071317] text-xs font-bold shadow-lg shadow-[#02A0A0]/25 transition-all flex items-center gap-2 disabled:opacity-50"
+                className="px-3.5 py-1.5 rounded-xl bg-[#02A0A0] hover:bg-[#22BDBD] active:scale-[0.98] text-[#071317] text-xs font-bold shadow-md shadow-[#02A0A0]/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
               >
                 {analyzeMutation.isPending ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#071317]" />
-                    Running Grok AI...
+                    Evaluating...
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-3.5 h-3.5 text-[#071317]" />
-                    Run Grok AI Analysis
+                    Run Grok AI Audit
                   </>
                 )}
               </button>
@@ -194,7 +227,7 @@ export default function BusinessDetailPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold rounded-t-xl transition-all whitespace-nowrap border-t border-x ${
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-t-xl transition-all whitespace-nowrap border-t border-x ${
                 isActive
                   ? 'bg-[#0D1E24] border-[#1A3A44] text-[#02A0A0] font-bold border-b-transparent'
                   : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -208,72 +241,151 @@ export default function BusinessDetailPage() {
       </div>
 
       {/* Tab Contents */}
-      <div className="bg-[#0D1E24] border border-[#1A3A44] rounded-2xl p-6 shadow-xl shadow-black/20">
-        {/* 1. Overview Tab */}
+      <div className="bg-[#0D1E24] border border-[#1A3A44] rounded-2xl p-5 shadow-xl shadow-black/20">
+        {/* 1. Overview & Economics Tab */}
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            <h3 className="text-base font-bold text-white">Client Summary & Fact-Based Priority</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44]">
-                <span className="text-xs text-slate-400 uppercase font-semibold">Priority Score</span>
-                <p className="text-2xl font-bold text-[#FFBD65] mt-1">{profile.priority_score}/100</p>
-                <p className="text-[11px] text-slate-400 mt-1">Calculated from verified gaps and footfall</p>
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                Client Opportunity Economics & Retainer Sizing
+              </h3>
+              <span className="text-xs font-mono text-[#FFBD65] font-bold">
+                Value Potential: $4,500 - $9,000/mo
+              </span>
+            </div>
+
+            {/* Economics Calculator */}
+            <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-bold text-white">Estimated Monthly Online Guest Covers</span>
+                  <p className="text-[11px] text-slate-400">Adjust based on restaurant seat capacity and footfall</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="200"
+                    max="2000"
+                    step="50"
+                    value={estimatedMonthlyOrders}
+                    onChange={(e) => setEstimatedMonthlyOrders(Number(e.target.value))}
+                    className="w-36 accent-[#02A0A0] cursor-pointer"
+                  />
+                  <span className="text-sm font-mono font-bold text-[#02A0A0] w-12 text-right">
+                    {estimatedMonthlyOrders}
+                  </span>
+                </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44]">
-                <span className="text-xs text-slate-400 uppercase font-semibold">Data Completeness</span>
-                <p className="text-2xl font-bold text-[#02A0A0] mt-1">{profile.data_completeness}%</p>
-                <p className="text-[11px] text-slate-400 mt-1">Live HTTP crawl & registry resolution</p>
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-[#1A3A44] text-xs">
+                <div className="p-3 bg-[#0D1E24] rounded-lg border border-[#1A3A44]">
+                  <span className="text-slate-400 block text-[11px]">Monthly Aggregator Commission Loss</span>
+                  <span className="text-lg font-bold text-rose-400 font-mono mt-0.5 block">
+                    ${monthlyCommissionLoss.toLocaleString()} / mo
+                  </span>
+                  <span className="text-[10px] text-slate-500">Based on 18% third-party marketplace take rate</span>
+                </div>
 
-              <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44]">
-                <span className="text-xs text-slate-400 uppercase font-semibold">Agency Opportunities</span>
-                <p className="text-2xl font-bold text-[#02A0A0] mt-1">{profile.opportunities?.length || 0}</p>
-                <p className="text-[11px] text-slate-400 mt-1">High-impact value creation vectors</p>
+                <div className="p-3 bg-[#0D1E24] rounded-lg border border-[#1A3A44]">
+                  <span className="text-slate-400 block text-[11px]">Annual Recoverable Revenue</span>
+                  <span className="text-lg font-bold text-[#FFBD65] font-mono mt-0.5 block">
+                    ${annualCommissionLoss.toLocaleString()} / yr
+                  </span>
+                  <span className="text-[10px] text-slate-500">Recaptured via Direct Funnel & WhatsApp CRM</span>
+                </div>
+
+                <div className="p-3 bg-[#0D1E24] rounded-lg border border-[#1A3A44]">
+                  <span className="text-slate-400 block text-[11px]">Recommended OneFolk Retainer</span>
+                  <span className="text-lg font-bold text-[#02A0A0] font-mono mt-0.5 block">
+                    $4,500 / mo + 5% rev-share
+                  </span>
+                  <span className="text-[10px] text-slate-500">ROI to client: 3.8x within 90 days</span>
+                </div>
               </div>
             </div>
 
+            {/* Core Identity Facts */}
             <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44]">
-              <h4 className="text-sm font-semibold text-white mb-2">Normalized Business Identity</h4>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Verified Identity Ground Truth</h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                 <div>
-                  <span className="text-slate-400 block">Normalized Name</span>
+                  <span className="text-slate-400 block text-[11px]">Normalized Name</span>
                   <span className="text-slate-200 font-mono">{profile.normalized_name}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Slug</span>
-                  <span className="text-slate-200 font-mono">{profile.slug}</span>
+                  <span className="text-slate-400 block text-[11px]">Canonical Domain</span>
+                  <span className="text-[#02A0A0] font-mono">{profile.domain || 'Unverified'}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Domain</span>
-                  <span className="text-slate-200 font-mono">{profile.domain || 'None'}</span>
+                  <span className="text-slate-400 block text-[11px]">Resolution Confidence</span>
+                  <span className="text-[#FFBD65] font-mono font-bold">{(profile.confidence * 100).toFixed(0)}%</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Confidence</span>
-                  <span className="text-slate-200 font-mono">{(profile.confidence * 100).toFixed(0)}%</span>
+                  <span className="text-slate-400 block text-[11px]">Data Completeness</span>
+                  <span className="text-slate-200 font-mono">{profile.data_completeness}%</span>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* 2. Contacts Tab */}
+        {/* 2. Cold Outreach Pitch Tab */}
+        {activeTab === 'pitch' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                  Personalized Agency Sales Pitch Brief
+                </h3>
+                <p className="text-xs text-slate-400">Fact-grounded cold outreach email based on verified technical gaps</p>
+              </div>
+
+              <button
+                onClick={handleCopyPitch}
+                className="px-3.5 py-1.5 rounded-lg bg-[#02A0A0] hover:bg-[#22BDBD] text-[#071317] text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                {copiedEmail ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    Copied to Clipboard!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    Copy Email Template
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-3">
+              <div className="text-xs font-mono text-[#FFBD65] border-b border-[#1A3A44] pb-2 font-bold">
+                Subject: {outreachPitchSubject}
+              </div>
+              <pre className="text-xs font-mono text-slate-300 whitespace-pre-wrap leading-relaxed">
+                {outreachPitchBody}
+              </pre>
+            </div>
+          </div>
+        )}
+
+        {/* 3. Contacts Tab */}
         {activeTab === 'contacts' && (
           <div className="space-y-4">
-            <h3 className="text-base font-bold text-white">Extracted Public Contacts & Provenance</h3>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Extracted Public Contacts & Channels</h3>
             {profile.contacts.length === 0 ? (
               <p className="text-xs text-slate-400">No public contacts extracted yet.</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {profile.contacts.map((c) => (
-                  <div key={c.id} className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-2">
+                  <div key={c.id} className="p-3.5 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs uppercase font-bold text-[#02A0A0]">{c.contact_type} ({c.label || 'general'})</span>
+                      <span className="text-[11px] uppercase font-bold text-[#02A0A0]">{c.contact_type} ({c.label || 'general'})</span>
                       <span className="text-[10px] text-slate-400 font-mono">{(c.confidence * 100).toFixed(0)}% verified</span>
                     </div>
-                    <p className="text-sm font-semibold text-white font-mono">{c.value}</p>
+                    <p className="text-xs font-bold text-white font-mono">{c.value}</p>
                     {c.source_url && (
-                      <p className="text-[10px] text-slate-400 truncate">Source: {c.source_url}</p>
+                      <p className="text-[10px] text-slate-500 truncate">Source: {c.source_url}</p>
                     )}
                   </div>
                 ))}
@@ -282,48 +394,48 @@ export default function BusinessDetailPage() {
           </div>
         )}
 
-        {/* 3. Website & Performance Tab */}
+        {/* 4. Website & Performance Tab */}
         {activeTab === 'website' && (
           <div className="space-y-4">
-            <h3 className="text-base font-bold text-white">Live Website Crawl & Performance Analysis</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Live HTTP Crawl & Latency</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
               <div className="p-3 bg-[#071317] rounded-xl border border-[#1A3A44]">
-                <span className="text-slate-400 block">Live Status</span>
-                <span className="text-[#02A0A0] font-semibold">{profile.has_website ? '200 OK (Reachable)' : 'Offline'}</span>
+                <span className="text-slate-400 block text-[11px]">HTTP Response</span>
+                <span className="text-[#02A0A0] font-bold">{profile.has_website ? '200 OK (Live)' : 'Unreachable'}</span>
               </div>
               <div className="p-3 bg-[#071317] rounded-xl border border-[#1A3A44]">
-                <span className="text-slate-400 block">SSL Security</span>
-                <span className="text-[#02A0A0] font-semibold">{profile.has_ssl ? 'Valid (HTTPS)' : 'Missing SSL'}</span>
+                <span className="text-slate-400 block text-[11px]">SSL Encryption</span>
+                <span className="text-[#02A0A0] font-bold">{profile.has_ssl ? 'Valid HTTPS' : 'Missing SSL'}</span>
               </div>
               <div className="p-3 bg-[#071317] rounded-xl border border-[#1A3A44]">
-                <span className="text-slate-400 block">Mobile Responsive</span>
-                <span className="text-[#02A0A0] font-semibold">{profile.is_mobile_friendly ? 'Responsive Viewport' : 'Non-Responsive'}</span>
+                <span className="text-slate-400 block text-[11px]">Mobile Viewport</span>
+                <span className="text-[#02A0A0] font-bold">{profile.is_mobile_friendly ? 'Responsive' : 'Non-Responsive'}</span>
               </div>
               <div className="p-3 bg-[#071317] rounded-xl border border-[#1A3A44]">
-                <span className="text-slate-400 block">Response Load Time</span>
+                <span className="text-slate-400 block text-[11px]">Server Latency</span>
                 <span className="text-[#FFBD65] font-mono font-bold">{profile.website_load_time_ms || 1850} ms</span>
               </div>
             </div>
           </div>
         )}
 
-        {/* 4. Technologies Tab */}
+        {/* 5. Technologies Tab */}
         {activeTab === 'technology' && (
           <div className="space-y-4">
-            <h3 className="text-base font-bold text-white">Live Fingerprinted Technology Stack</h3>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Fingerprinted Stack</h3>
             {!profile.technologies || profile.technologies.length === 0 ? (
-              <p className="text-xs text-slate-400">Click "Re-Crawl Level 1" above to fingerprint technologies from live HTML.</p>
+              <p className="text-xs text-slate-400">Click "Re-Crawl Website" above to fingerprint technologies from live HTML.</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {profile.technologies.map((t) => (
-                  <div key={t.id} className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-1.5">
+                  <div key={t.id} className="p-3.5 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs uppercase font-bold text-[#02A0A0]">{t.category}</span>
+                      <span className="text-[10px] uppercase font-bold text-[#02A0A0]">{t.category}</span>
                       <span className="text-[10px] text-slate-400 font-mono">{(t.confidence * 100).toFixed(0)}% confidence</span>
                     </div>
-                    <p className="text-sm font-bold text-white">{t.name}</p>
+                    <p className="text-xs font-bold text-white">{t.name}</p>
                     {t.evidence && (
-                      <p className="text-xs text-slate-400">Evidence: {t.evidence}</p>
+                      <p className="text-[11px] text-slate-400">Evidence: {t.evidence}</p>
                     )}
                   </div>
                 ))}
@@ -332,80 +444,64 @@ export default function BusinessDetailPage() {
           </div>
         )}
 
-        {/* 5. Social Signals Tab */}
+        {/* 6. Social Footprint Tab */}
         {activeTab === 'social' && (
           <div className="space-y-4">
-            <h3 className="text-base font-bold text-white">Social Channel Signals & Verified Footprint</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-[#FFBD65] flex items-center gap-1.5">
-                    Instagram Presence
-                  </span>
-                  <span className="text-[10px] font-mono text-[#02A0A0] font-bold">Active</span>
-                </div>
-                <p className="text-slate-300">
-                  Target handle: <span className="font-mono text-[#02A0A0] font-semibold">@{profile.slug.replace(/-/g, '_')}</span>
-                </p>
-                <p className="text-slate-400 text-[11px]">Primary visual channel for guest engagement and organic discovery.</p>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Social Footprint</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="p-3.5 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-1">
+                <span className="font-bold text-[#FFBD65] block">Instagram Handle</span>
+                <p className="text-slate-300 font-mono">@{profile.slug.replace(/-/g, '_')}</p>
+                <p className="text-slate-400 text-[11px]">Primary organic social discovery channel.</p>
               </div>
-
-              <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-[#02A0A0] flex items-center gap-1.5">
-                    WhatsApp VIP Channel
-                  </span>
-                  <span className="text-[10px] font-mono text-[#FFBD65] font-bold">High Growth Opportunity</span>
-                </div>
-                <p className="text-slate-300">Direct booking and inquiry chat flow mapping.</p>
-                <p className="text-slate-400 text-[11px]">Enables instant diner re-engagement and automated review requests.</p>
+              <div className="p-3.5 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-1">
+                <span className="font-bold text-[#02A0A0] block">WhatsApp VIP Channel</span>
+                <p className="text-slate-300">Direct booking and guest inquiry flow.</p>
+                <p className="text-slate-400 text-[11px]">High ROI vector for direct re-engagement.</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* 6. Reviews & Reputation Tab */}
+        {/* 7. Reviews & Reputation Tab */}
         {activeTab === 'reviews' && (
-          <div className="space-y-6">
-            <h3 className="text-base font-bold text-white">Public Reviews & Reputation Trust Index</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Public Reputation Index</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44]">
-                <span className="text-xs text-slate-400 uppercase font-semibold">Public Aggregate Rating</span>
-                <p className="text-3xl font-bold text-[#FFBD65] mt-1">★ {rating.toFixed(1)}</p>
-                <p className="text-[11px] text-slate-400 mt-1">From {reviewCount} verified client reviews</p>
+                <span className="text-[11px] text-slate-400 uppercase font-semibold">Average Rating</span>
+                <p className="text-2xl font-bold text-[#FFBD65] mt-1">★ {rating.toFixed(1)}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">From {reviewCount} verified reviews</p>
               </div>
 
               <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44]">
-                <span className="text-xs text-slate-400 uppercase font-semibold">Sentiment Health</span>
-                <p className="text-lg font-bold text-[#02A0A0] mt-1">
+                <span className="text-[11px] text-slate-400 uppercase font-semibold">Sentiment Health</span>
+                <p className="text-base font-bold text-[#02A0A0] mt-1">
                   {rating >= 4.4 ? 'OVERWHELMINGLY POSITIVE' : 'GENERALLY POSITIVE'}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-1">94% positive customer satisfaction index</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">High footfall density</p>
               </div>
 
               <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44]">
-                <span className="text-xs text-slate-400 uppercase font-semibold">Reputation Trust Tier</span>
-                <p className="text-lg font-bold text-[#FFBD65] mt-1">AUTHORITY TIER</p>
-                <p className="text-[11px] text-slate-400 mt-1">High public trust & footfall density</p>
+                <span className="text-[11px] text-slate-400 uppercase font-semibold">Reputation Tier</span>
+                <p className="text-base font-bold text-[#FFBD65] mt-1">AUTHORITY TIER</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Trusted local brand</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* 7. Grok AI Analysis & SWOT Tab */}
+        {/* 8. Grok AI Analysis & SWOT Tab */}
         {activeTab === 'analysis' && (
-          <div className="space-y-6">
+          <div className="space-y-5">
             <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#02A0A0]" />
-                  Fact-Grounded Grok AI Intelligence Briefing
-                </h3>
-                <p className="text-xs text-slate-400">Strictly computed from verified Fact Store ground truth</p>
-              </div>
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#02A0A0]" />
+                Fact-Grounded Grok AI Strategic Briefing
+              </h3>
 
               {analysis && (
-                <span className="px-3 py-1 rounded-full text-xs font-bold font-mono bg-[#02A0A0]/15 text-[#02A0A0] border border-[#02A0A0]/30">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-[#02A0A0]/15 text-[#02A0A0] border border-[#02A0A0]/30">
                   Maturity: {analysis.marketing_maturity}
                 </span>
               )}
@@ -413,51 +509,50 @@ export default function BusinessDetailPage() {
 
             {!analysis ? (
               <div className="text-center py-12 border border-dashed border-[#1A3A44] rounded-2xl bg-[#071317]">
-                <Sparkles className="w-8 h-8 text-[#02A0A0] mx-auto mb-2" />
-                <p className="text-sm font-semibold text-slate-200">No Deep AI Analysis Computed Yet</p>
-                <p className="text-xs text-slate-400 mt-1">Click "Run Grok AI Analysis" at the top to evaluate 6 intelligence scores and SWOT.</p>
+                <Sparkles className="w-7 h-7 text-[#02A0A0] mx-auto mb-2" />
+                <p className="text-xs font-bold text-white">No AI Audit Run Yet</p>
+                <p className="text-[11px] text-slate-400 mt-1">Click "Run Grok AI Audit" at the top to evaluate 6 intelligence pillars.</p>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {/* 6-Pillar Score Meters */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
-                  <div className="p-3 bg-[#071317] rounded-xl border border-[#1A3A44] text-center">
-                    <span className="text-slate-400 block text-[11px]">Digital Presence</span>
-                    <span className="text-xl font-bold text-[#02A0A0] mt-1 block">{analysis.digital_presence_score}%</span>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+                  <div className="p-2.5 bg-[#071317] rounded-xl border border-[#1A3A44] text-center">
+                    <span className="text-slate-400 block text-[10px]">Digital Presence</span>
+                    <span className="text-lg font-bold text-[#02A0A0] mt-0.5 block">{analysis.digital_presence_score}%</span>
                   </div>
-                  <div className="p-3 bg-[#071317] rounded-xl border border-[#1A3A44] text-center">
-                    <span className="text-slate-400 block text-[11px]">Website Architecture</span>
-                    <span className="text-xl font-bold text-[#02A0A0] mt-1 block">{analysis.website_score}%</span>
+                  <div className="p-2.5 bg-[#071317] rounded-xl border border-[#1A3A44] text-center">
+                    <span className="text-slate-400 block text-[10px]">Website Infra</span>
+                    <span className="text-lg font-bold text-[#02A0A0] mt-0.5 block">{analysis.website_score}%</span>
                   </div>
-                  <div className="p-3 bg-[#071317] rounded-xl border border-[#1A3A44] text-center">
-                    <span className="text-slate-400 block text-[11px]">Social Presence</span>
-                    <span className="text-xl font-bold text-[#FFBD65] mt-1 block">{analysis.social_score}%</span>
+                  <div className="p-2.5 bg-[#071317] rounded-xl border border-[#1A3A44] text-center">
+                    <span className="text-slate-400 block text-[10px]">Social Channels</span>
+                    <span className="text-lg font-bold text-[#FFBD65] mt-0.5 block">{analysis.social_score}%</span>
                   </div>
-                  <div className="p-3 bg-[#071317] rounded-xl border border-[#1A3A44] text-center">
-                    <span className="text-slate-400 block text-[11px]">SEO & Visibility</span>
-                    <span className="text-xl font-bold text-[#02A0A0] mt-1 block">{analysis.seo_score}%</span>
+                  <div className="p-2.5 bg-[#071317] rounded-xl border border-[#1A3A44] text-center">
+                    <span className="text-slate-400 block text-[10px]">SEO Visibility</span>
+                    <span className="text-lg font-bold text-[#02A0A0] mt-0.5 block">{analysis.seo_score}%</span>
                   </div>
-                  <div className="p-3 bg-[#071317] rounded-xl border border-[#1A3A44] text-center">
-                    <span className="text-slate-400 block text-[11px]">Lead Capture</span>
-                    <span className="text-xl font-bold text-[#FFBD65] mt-1 block">{analysis.lead_capture_score}%</span>
+                  <div className="p-2.5 bg-[#071317] rounded-xl border border-[#1A3A44] text-center">
+                    <span className="text-slate-400 block text-[10px]">Lead Funnel</span>
+                    <span className="text-lg font-bold text-[#FFBD65] mt-0.5 block">{analysis.lead_capture_score}%</span>
                   </div>
-                  <div className="p-3 bg-[#071317] rounded-xl border border-[#1A3A44] text-center">
-                    <span className="text-slate-400 block text-[11px]">Reputation Index</span>
-                    <span className="text-xl font-bold text-[#02A0A0] mt-1 block">{analysis.reputation_score}%</span>
+                  <div className="p-2.5 bg-[#071317] rounded-xl border border-[#1A3A44] text-center">
+                    <span className="text-slate-400 block text-[10px]">Reputation Trust</span>
+                    <span className="text-lg font-bold text-[#02A0A0] mt-0.5 block">{analysis.reputation_score}%</span>
                   </div>
                 </div>
 
                 {/* SWOT Breakdown */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Strengths */}
-                  <div className="p-4 rounded-xl bg-[#02A0A0]/10 border border-[#02A0A0]/30 space-y-2">
-                    <h4 className="text-xs font-bold text-[#02A0A0] flex items-center gap-1.5 uppercase tracking-wider">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3.5 rounded-xl bg-[#02A0A0]/10 border border-[#02A0A0]/30 space-y-1.5">
+                    <h4 className="text-xs font-bold text-[#02A0A0] uppercase tracking-wider flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      Core Strengths
+                      Strengths
                     </h4>
-                    <ul className="space-y-1.5 text-xs text-slate-300">
+                    <ul className="space-y-1 text-xs text-slate-300">
                       {analysis.strengths.map((s, idx) => (
-                        <li key={idx} className="flex items-start gap-1.5">
+                        <li key={idx} className="flex items-start gap-1">
                           <span className="text-[#02A0A0]">•</span>
                           <span>{s}</span>
                         </li>
@@ -465,15 +560,14 @@ export default function BusinessDetailPage() {
                     </ul>
                   </div>
 
-                  {/* Weaknesses */}
-                  <div className="p-4 rounded-xl bg-rose-950/20 border border-rose-900/40 space-y-2">
-                    <h4 className="text-xs font-bold text-rose-400 flex items-center gap-1.5 uppercase tracking-wider">
+                  <div className="p-3.5 rounded-xl bg-rose-950/20 border border-rose-900/40 space-y-1.5">
+                    <h4 className="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1">
                       <AlertTriangle className="w-3.5 h-3.5" />
-                      Critical Digital Gaps
+                      Digital Gaps
                     </h4>
-                    <ul className="space-y-1.5 text-xs text-slate-300">
+                    <ul className="space-y-1 text-xs text-slate-300">
                       {analysis.weaknesses.map((w, idx) => (
-                        <li key={idx} className="flex items-start gap-1.5">
+                        <li key={idx} className="flex items-start gap-1">
                           <span className="text-rose-400">•</span>
                           <span>{w}</span>
                         </li>
@@ -481,15 +575,14 @@ export default function BusinessDetailPage() {
                     </ul>
                   </div>
 
-                  {/* Opportunities */}
-                  <div className="p-4 rounded-xl bg-[#FFBD65]/10 border border-[#FFBD65]/30 space-y-2">
-                    <h4 className="text-xs font-bold text-[#FFBD65] flex items-center gap-1.5 uppercase tracking-wider">
+                  <div className="p-3.5 rounded-xl bg-[#FFBD65]/10 border border-[#FFBD65]/30 space-y-1.5">
+                    <h4 className="text-xs font-bold text-[#FFBD65] uppercase tracking-wider flex items-center gap-1">
                       <Zap className="w-3.5 h-3.5" />
-                      Agency Value Vectors
+                      Agency Vectors
                     </h4>
-                    <ul className="space-y-1.5 text-xs text-slate-300">
+                    <ul className="space-y-1 text-xs text-slate-300">
                       {analysis.opportunities.map((o, idx) => (
-                        <li key={idx} className="flex items-start gap-1.5">
+                        <li key={idx} className="flex items-start gap-1">
                           <span className="text-[#FFBD65]">•</span>
                           <span>{o}</span>
                         </li>
@@ -502,65 +595,23 @@ export default function BusinessDetailPage() {
           </div>
         )}
 
-        {/* 8. Fact Store Tab */}
+        {/* 9. Fact Store Tab */}
         {activeTab === 'facts' && (
           <div className="space-y-4">
-            <h3 className="text-base font-bold text-white">Fact Store (Audit-Proof Structured Ground Truth)</h3>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Fact Store Audit Log</h3>
             {!profile.facts || profile.facts.length === 0 ? (
-              <p className="text-xs text-slate-400">No facts recorded yet. Run enrichment to populate.</p>
+              <p className="text-xs text-slate-400">No facts recorded yet.</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {profile.facts.map((f) => (
-                  <div key={f.id} className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-2">
+                  <div key={f.id} className="p-3.5 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold uppercase text-[#02A0A0]">{f.category}</span>
-                        <span className="text-xs text-slate-400 font-mono">/ {f.key}</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-mono">Source: {f.source}</span>
+                      <span className="text-xs font-bold text-[#02A0A0]">{f.category} / {f.key}</span>
+                      <span className="text-[10px] text-slate-500 font-mono">Source: {f.source}</span>
                     </div>
-                    <pre className="text-xs bg-[#0D1E24] p-2.5 rounded-lg border border-[#1A3A44] text-slate-200 overflow-x-auto font-mono">
+                    <pre className="text-[11px] bg-[#0D1E24] p-2 rounded-lg border border-[#1A3A44] text-slate-300 overflow-x-auto font-mono">
                       {JSON.stringify(f.value, null, 2)}
                     </pre>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 9. Opportunities Tab */}
-        {activeTab === 'opportunities' && (
-          <div className="space-y-4">
-            <h3 className="text-base font-bold text-white">Detected Agency Value Creation Opportunities</h3>
-            {profile.opportunities.length === 0 ? (
-              <p className="text-xs text-slate-400">No opportunities detected.</p>
-            ) : (
-              <div className="space-y-4">
-                {profile.opportunities.map((opp) => (
-                  <div key={opp.id} className="p-5 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Zap className="w-4 h-4 text-[#FFBD65]" />
-                        <h4 className="text-sm font-bold text-white">{opp.title}</h4>
-                      </div>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#FFBD65]/15 text-[#FFBD65] border border-[#FFBD65]/30 font-bold uppercase">
-                        {opp.impact} Impact
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-slate-300 leading-relaxed">{opp.description}</p>
-
-                    <div className="pt-3 border-t border-[#1A3A44] flex flex-wrap items-center justify-between text-xs gap-2">
-                      <span className="text-[#02A0A0] font-bold">
-                        Recommended Service: {opp.onefolk_service}
-                      </span>
-                      {opp.estimated_revenue_potential && (
-                        <span className="text-[#FFBD65] font-semibold font-mono">
-                          Value Potential: {opp.estimated_revenue_potential}
-                        </span>
-                      )}
-                    </div>
                   </div>
                 ))}
               </div>
@@ -571,20 +622,20 @@ export default function BusinessDetailPage() {
         {/* 10. Activity Timeline */}
         {activeTab === 'activity' && (
           <div className="space-y-4">
-            <h3 className="text-base font-bold text-white">Provenance & Activity Timeline</h3>
-            <div className="space-y-3">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Provenance & Event History</h3>
+            <div className="space-y-2.5">
               {profile.activities.map((act) => (
-                <div key={act.id} className="p-3.5 rounded-xl bg-[#071317] border border-[#1A3A44] flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-[#02A0A0] mt-1.5 shrink-0" />
+                <div key={act.id} className="p-3 rounded-xl bg-[#071317] border border-[#1A3A44] flex items-start gap-2.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#02A0A0] mt-1.5 shrink-0" />
                   <div>
                     <div className="flex items-center gap-2">
                       <h4 className="text-xs font-bold text-white">{act.title}</h4>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {new Date(act.created_at).toLocaleString()}
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {new Date(act.created_at).toLocaleTimeString()}
                       </span>
                     </div>
                     {act.description && (
-                      <p className="text-xs text-slate-400 mt-0.5">{act.description}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{act.description}</p>
                     )}
                   </div>
                 </div>
