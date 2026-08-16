@@ -59,6 +59,14 @@ export async function enrichBusiness(id: string): Promise<{ success: boolean; bu
   return res.json();
 }
 
+export async function analyzeBusiness(id: string): Promise<{ success: boolean; analysis: any }> {
+  const res = await fetch(`${API_BASE_URL}/api/businesses/${id}/analyze`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Failed to run intelligence analysis');
+  return res.json();
+}
+
 export async function listOpportunities(): Promise<Opportunity[]> {
   const res = await fetch(`${API_BASE_URL}/api/opportunities`);
   if (!res.ok) throw new Error('Failed to fetch opportunities');

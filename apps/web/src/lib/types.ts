@@ -1,39 +1,20 @@
-export type SearchStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'PARTIAL' | 'FAILED' | 'CANCELLED';
-export type BusinessStatus = 'NEW' | 'DISCOVERED' | 'ENRICHING' | 'ENRICHED' | 'ANALYZING' | 'ANALYZED' | 'OPPORTUNITY_FOUND' | 'SAVED' | 'CONTACTED' | 'BLOCKED';
+export type SearchStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type BusinessStatus = 'DISCOVERED' | 'ENRICHED' | 'ANALYZED' | 'OPPORTUNITY_FOUND' | 'CONTACTED' | 'REJECTED';
 export type ClientPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 export type OpportunityImpact = 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface SearchFilters {
   industry?: string;
-  sub_industry?: string;
-  country?: string;
-  state?: string;
   city?: string;
+  state?: string;
+  country?: string;
   location?: string;
-  keywords?: string[];
-  business_type?: string;
-
-  business_size?: string;
-  min_rating?: number;
-  min_reviews?: number;
-  business_status?: string;
-
   has_website?: boolean;
   has_email?: boolean;
   has_phone?: boolean;
-  has_instagram?: boolean;
-  has_facebook?: boolean;
-  has_linkedin?: boolean;
-  has_google_business?: boolean;
-
-  outdated_website?: boolean;
-  weak_website?: boolean;
   no_booking_system?: boolean;
   no_lead_form?: boolean;
-  no_clear_cta?: boolean;
-  weak_social_presence?: boolean;
-  weak_seo?: boolean;
-  low_digital_maturity?: boolean;
+  [key: string]: any;
 }
 
 export interface SearchSession {
@@ -113,6 +94,66 @@ export interface Contact {
   created_at: string;
 }
 
+export interface Technology {
+  id: string;
+  business_id: string;
+  category: string;
+  name: string;
+  version?: string;
+  confidence: number;
+  evidence?: string;
+}
+
+export interface Fact {
+  id: string;
+  business_id: string;
+  category: string;
+  key: string;
+  value: any;
+  source: string;
+  source_url?: string;
+  confidence: number;
+  verified: boolean;
+  created_at: string;
+}
+
+export interface SocialProfile {
+  id: string;
+  business_id: string;
+  platform: string;
+  url: string;
+  handle?: string;
+  follower_count?: number;
+  is_active: boolean;
+}
+
+export interface ReviewInfo {
+  id: string;
+  business_id: string;
+  source: string;
+  rating: number;
+  review_count: number;
+  sentiment_score?: number;
+  recent_snippet?: string;
+}
+
+export interface Analysis {
+  id: string;
+  business_id: string;
+  model: string;
+  digital_presence_score: number;
+  website_score: number;
+  social_score: number;
+  seo_score: number;
+  lead_capture_score: number;
+  reputation_score: number;
+  marketing_maturity: string;
+  strengths: string[];
+  weaknesses: string[];
+  opportunities: string[];
+  created_at: string;
+}
+
 export interface Opportunity {
   id: string;
   business_id: string;
@@ -140,33 +181,13 @@ export interface ActivityEvent {
   created_at: string;
 }
 
-export interface BusinessProfile {
-  id: string;
-  name: string;
-  normalized_name: string;
-  slug: string;
-  industry: string;
-  sub_industry?: string;
-  description?: string;
-  address?: string;
-  city?: string;
-  country: string;
-  phone?: string;
-  email?: string;
-  website?: string;
-  domain?: string;
-  rating?: number;
-  review_count: number;
-  has_website: boolean;
-  has_ssl: boolean;
-  is_mobile_friendly: boolean;
-  status: BusinessStatus;
-  priority: ClientPriority;
-  priority_score: number;
-  confidence: number;
-  data_completeness: number;
-  discovered_at: string;
+export interface BusinessProfile extends Business {
   contacts: Contact[];
+  technologies?: Technology[];
+  facts?: Fact[];
+  social_profiles?: SocialProfile[];
+  reviews?: ReviewInfo[];
+  analysis?: Analysis;
   opportunities: Opportunity[];
   activities: ActivityEvent[];
 }
