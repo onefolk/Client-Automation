@@ -398,68 +398,165 @@ export async function POST(req: Request) {
         const bizId = existingId || crypto.randomUUID();
         const bizCreatedAt = new Date().toISOString();
 
-        // 4. Deterministic Opportunity Engine
+        // 4. Dynamic Industry-Tailored Opportunity Detection Engine
         const oppList: Opportunity[] = [];
-        let priorityScore = 60;
+        let priorityScore = 55;
+        const ind = industry.toLowerCase();
+        const isHealthcare = ind.includes('health') || ind.includes('dent') || ind.includes('clinic') || ind.includes('medic');
+        const isRealEstate = ind.includes('real') || ind.includes('estate') || ind.includes('property');
+        const isLegal = ind.includes('law') || ind.includes('legal') || ind.includes('attorney');
+        const isHospitality = ind.includes('hotel') || ind.includes('resort') || ind.includes('spa') || ind.includes('hospitality');
 
-        if (!crawlData.has_booking_system) {
-          oppList.push({
-            id: crypto.randomUUID(),
-            business_id: bizId,
-            title: 'Direct Reservation Engine & Aggregator Fee Bypass',
-            description:
-              'No direct table reservation system detected on website. Client is at risk of paying 15-25% commission fees on third-party aggregators.',
-            category: 'Web & Conversion Architecture',
-            impact: 'HIGH',
-            onefolk_service: 'Direct Booking Engine & Custom Landing Architecture',
-            service_tier: 'ENTERPRISE',
-            confidence: 0.96,
-            estimated_revenue_potential: '$6,000 - $15,000/mo',
-            evidence: ['Live crawl confirmed: No OpenTable/SevenRooms/Resy widget installed'],
-            status: 'IDENTIFIED',
-            created_at: bizCreatedAt,
-          });
-          priorityScore += 20;
-        }
-
-        if (!crawlData.has_whatsapp) {
-          oppList.push({
-            id: crypto.randomUUID(),
-            business_id: bizId,
-            title: 'Automated WhatsApp VIP Lead Capture Flow',
-            description:
-              'No WhatsApp direct chat or VIP guest capture detected. Opportunity to deploy automated CRM loyalty campaigns and repeat booking flows.',
-            category: 'Automation & Retention',
-            impact: 'HIGH',
-            onefolk_service: 'WhatsApp CRM & Automated Guest Retention Engine',
-            service_tier: 'GROWTH',
-            confidence: 0.94,
-            estimated_revenue_potential: '$3,500 - $8,000/mo',
-            evidence: ['Live crawl confirmed: No wa.me or WhatsApp API link found on homepage'],
-            status: 'IDENTIFIED',
-            created_at: bizCreatedAt,
-          });
-          priorityScore += 15;
-        }
-
-        if (!crawlData.has_lead_form) {
-          oppList.push({
-            id: crypto.randomUUID(),
-            business_id: bizId,
-            title: 'High-Converting Inbound Inquiry Pipeline',
-            description:
-              'Missing dedicated lead generation form. Implementing conversion-optimized capture can increase inbound client volume by 35-50%.',
-            category: 'Lead Generation',
-            impact: 'MEDIUM',
-            onefolk_service: 'Inbound Lead Funnel Optimization',
-            service_tier: 'STANDARD',
-            confidence: 0.91,
-            estimated_revenue_potential: '$2,500 - $5,000',
-            evidence: ['Live crawl confirmed: Zero email input forms detected on homepage'],
-            status: 'IDENTIFIED',
-            created_at: bizCreatedAt,
-          });
-          priorityScore += 10;
+        if (isHealthcare) {
+          if (!crawlData.has_booking_system) {
+            oppList.push({
+              id: crypto.randomUUID(),
+              business_id: bizId,
+              title: 'Automated Patient Triage & Appointment Scheduling Engine',
+              description: 'No online patient booking detected. Clinic is losing high-intent patient appointments to local competitors offering instant scheduling.',
+              category: 'Healthcare Conversion',
+              impact: 'HIGH',
+              onefolk_service: 'Patient Online Intake & Booking Funnel',
+              service_tier: 'ENTERPRISE',
+              confidence: 0.96,
+              estimated_revenue_potential: '$5,000 - $12,000/mo',
+              evidence: ['Live crawl confirmed: No online appointment widget detected in DOM'],
+              status: 'IDENTIFIED',
+              created_at: bizCreatedAt,
+            });
+            priorityScore += 20;
+          }
+          if (!crawlData.has_whatsapp) {
+            oppList.push({
+              id: crypto.randomUUID(),
+              business_id: bizId,
+              title: 'SMS & WhatsApp Appointment Reminder / No-Show Reduction Flow',
+              description: 'Missing automated patient notification channel. Deploying automated reminder flows recovers $8,000+ monthly in missed clinic chair time.',
+              category: 'Patient Retention',
+              impact: 'HIGH',
+              onefolk_service: 'Automated Patient Retention & SMS Notification Engine',
+              service_tier: 'GROWTH',
+              confidence: 0.94,
+              estimated_revenue_potential: '$4,000 - $8,000/mo',
+              evidence: ['Live crawl confirmed: Zero instant messaging widgets active'],
+              status: 'IDENTIFIED',
+              created_at: bizCreatedAt,
+            });
+            priorityScore += 15;
+          }
+        } else if (isRealEstate) {
+          if (!crawlData.has_whatsapp) {
+            oppList.push({
+              id: crypto.randomUUID(),
+              business_id: bizId,
+              title: 'Instant 60-Second WhatsApp Speed-to-Lead Broker Routing',
+              description: 'Real estate buyer inquiries not routed to instant chat. 78% of high-net-worth property buyers transact with the first broker who responds within 5 minutes.',
+              category: 'Speed-to-Lead Automation',
+              impact: 'HIGH',
+              onefolk_service: 'Instant Broker Speed-to-Lead WhatsApp Routing',
+              service_tier: 'ENTERPRISE',
+              confidence: 0.97,
+              estimated_revenue_potential: '$7,500 - $20,000/mo',
+              evidence: ['Live crawl confirmed: No instant chat routing found on homepage'],
+              status: 'IDENTIFIED',
+              created_at: bizCreatedAt,
+            });
+            priorityScore += 25;
+          }
+          if (!crawlData.has_lead_form) {
+            oppList.push({
+              id: crypto.randomUUID(),
+              business_id: bizId,
+              title: 'VIP Buyer Brochure & Floor Plan Lead Magnet Architecture',
+              description: 'Missing high-converting brochure download capture. Implementing floor plan gates increases qualified investor capture by 40%.',
+              category: 'Lead Capture',
+              impact: 'HIGH',
+              onefolk_service: 'Luxury Property Inbound Lead Architecture',
+              service_tier: 'GROWTH',
+              confidence: 0.92,
+              estimated_revenue_potential: '$5,000 - $10,000',
+              evidence: ['Live crawl confirmed: No gated lead capture forms detected'],
+              status: 'IDENTIFIED',
+              created_at: bizCreatedAt,
+            });
+            priorityScore += 15;
+          }
+        } else if (isLegal) {
+          if (!crawlData.has_lead_form) {
+            oppList.push({
+              id: crypto.randomUUID(),
+              business_id: bizId,
+              title: '24/7 Confidential Case Intake & Automated Conflict-Check Pipeline',
+              description: 'Law firm website lacks direct case intake scheduler, resulting in high prospective client drop-off.',
+              category: 'Client Intake',
+              impact: 'HIGH',
+              onefolk_service: 'Legal Practice Automated Client Intake Architecture',
+              service_tier: 'ENTERPRISE',
+              confidence: 0.95,
+              estimated_revenue_potential: '$6,000 - $14,000/mo',
+              evidence: ['Live crawl confirmed: Generic static contact layout without intake triage'],
+              status: 'IDENTIFIED',
+              created_at: bizCreatedAt,
+            });
+            priorityScore += 25;
+          }
+        } else if (isHospitality) {
+          if (!crawlData.has_booking_system) {
+            oppList.push({
+              id: crypto.randomUUID(),
+              business_id: bizId,
+              title: 'Direct Room Booking Engine (OTA 20% Commission Bypass)',
+              description: 'No direct reservation engine detected. Hotel/resort is surrendering 18-22% of gross room revenue to third-party travel agencies.',
+              category: 'Direct Booking Architecture',
+              impact: 'HIGH',
+              onefolk_service: 'Direct Booking Engine & Custom Landing Architecture',
+              service_tier: 'ENTERPRISE',
+              confidence: 0.96,
+              estimated_revenue_potential: '$8,000 - $25,000/mo',
+              evidence: ['Live crawl confirmed: No direct room engine detected'],
+              status: 'IDENTIFIED',
+              created_at: bizCreatedAt,
+            });
+            priorityScore += 25;
+          }
+        } else {
+          // General / Restaurant / Services
+          if (!crawlData.has_booking_system) {
+            oppList.push({
+              id: crypto.randomUUID(),
+              business_id: bizId,
+              title: 'Direct Reservation Engine & Aggregator Fee Bypass',
+              description: 'No direct table booking system detected on website. Client is at risk of paying 15-25% commission fees on third-party aggregators.',
+              category: 'Web & Conversion Architecture',
+              impact: 'HIGH',
+              onefolk_service: 'Direct Booking Engine & Custom Landing Architecture',
+              service_tier: 'ENTERPRISE',
+              confidence: 0.96,
+              estimated_revenue_potential: '$4,500 - $9,000/mo',
+              evidence: ['Live crawl confirmed: No OpenTable/SevenRooms/Resy widget installed'],
+              status: 'IDENTIFIED',
+              created_at: bizCreatedAt,
+            });
+            priorityScore += 20;
+          }
+          if (!crawlData.has_whatsapp) {
+            oppList.push({
+              id: crypto.randomUUID(),
+              business_id: bizId,
+              title: 'Automated WhatsApp VIP Lead Capture Flow',
+              description: 'No WhatsApp direct chat or VIP guest capture detected. Opportunity to deploy automated CRM loyalty campaigns and repeat booking flows.',
+              category: 'Automation & Retention',
+              impact: 'HIGH',
+              onefolk_service: 'WhatsApp CRM & Automated Guest Retention Engine',
+              service_tier: 'GROWTH',
+              confidence: 0.94,
+              estimated_revenue_potential: '$3,500 - $8,000/mo',
+              evidence: ['Live crawl confirmed: No wa.me or WhatsApp API link found on homepage'],
+              status: 'IDENTIFIED',
+              created_at: bizCreatedAt,
+            });
+            priorityScore += 15;
+          }
         }
 
         const priority: 'HIGH' | 'MEDIUM' | 'LOW' = priorityScore >= 75 ? 'HIGH' : priorityScore >= 50 ? 'MEDIUM' : 'LOW';

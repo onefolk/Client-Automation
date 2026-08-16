@@ -48,7 +48,7 @@ export default function BusinessDetailPage() {
   const id = params?.id as string;
   const [activeTab, setActiveTab] = useState('overview');
   const [copiedEmail, setCopiedEmail] = useState(false);
-  const [estimatedMonthlyOrders, setEstimatedMonthlyOrders] = useState(650);
+  const [volumeSlider, setVolumeSlider] = useState(450);
   const queryClient = useQueryClient();
 
   const { data: profile, isLoading, error } = useQuery({
@@ -90,31 +90,76 @@ export default function BusinessDetailPage() {
   }
 
   const analysis = profile.analysis;
-  const rating = profile.rating || 4.1;
-  const reviewCount = profile.review_count || 110;
-  
-  // Calculate agency economics
-  const avgOrderValue = 45; // USD
-  const aggregatorFeePercent = 0.18; // 18% commission
-  const monthlyCommissionLoss = Math.round(estimatedMonthlyOrders * avgOrderValue * aggregatorFeePercent);
-  const annualCommissionLoss = monthlyCommissionLoss * 12;
+  const rating = profile.rating || 4.0;
+  const reviewCount = profile.review_count || 0;
 
-  // Generate personalized outreach email
-  const outreachPitchSubject = `Quick question regarding direct reservations for ${profile.name}`;
+  // DYNAMIC INDUSTRY METRICS & REVENUE CALCULATOR
+  const ind = (profile.industry || '').toLowerCase();
+  const isHealthcare = ind.includes('health') || ind.includes('dent') || ind.includes('clinic') || ind.includes('medic');
+  const isRealEstate = ind.includes('real') || ind.includes('estate') || ind.includes('property');
+  const isLegal = ind.includes('law') || ind.includes('legal') || ind.includes('attorney');
+  const isHospitality = ind.includes('hotel') || ind.includes('resort') || ind.includes('spa') || ind.includes('hospitality');
+
+  let volumeLabel = 'Monthly Guest Covers';
+  let unitValue = 45;
+  let lossLabel = 'Monthly Aggregator Commission Loss';
+  let lossDescription = 'Based on 18% marketplace take rate';
+  let monthlyLoss = Math.round(volumeSlider * unitValue * 0.18);
+  let recommendedRetainer = '$4,500 / mo + 5% rev-share';
+  let proposedSolution = 'Direct Table Booking Engine & WhatsApp VIP Retention';
+
+  if (isHealthcare) {
+    volumeLabel = 'Monthly Patient Inquiries';
+    unitValue = 350;
+    lossLabel = 'Monthly Lost Patient No-Show Revenue';
+    lossDescription = 'Based on ~15% unconfirmed appointment drop-off rate';
+    monthlyLoss = Math.round(volumeSlider * 0.15 * unitValue);
+    recommendedRetainer = '$5,000 / mo Fixed Retainer';
+    proposedSolution = 'Automated Patient Triage & SMS No-Show Reduction Funnel';
+  } else if (isRealEstate) {
+    volumeLabel = 'Monthly Buyer / Tenant Inquiries';
+    unitValue = 4500;
+    lossLabel = 'Monthly Lost Broker Commission Leakage';
+    lossDescription = 'Based on 8% uncontacted speed-to-lead drop-off';
+    monthlyLoss = Math.round(volumeSlider * 0.08 * unitValue);
+    recommendedRetainer = '$7,500 / mo + Performance Bonus';
+    proposedSolution = 'Instant 60-Second WhatsApp Speed-to-Lead Broker Routing';
+  } else if (isLegal) {
+    volumeLabel = 'Monthly Legal Case Inquiries';
+    unitValue = 2500;
+    lossLabel = 'Monthly Lost Retainer Revenue from Unresponsive Leads';
+    lossDescription = 'Based on slow intake follow-up loss';
+    monthlyLoss = Math.round(volumeSlider * 0.12 * unitValue);
+    recommendedRetainer = '$6,000 / mo Fixed Retainer';
+    proposedSolution = '24/7 Confidential Case Intake & Automated Conflict Check Funnel';
+  } else if (isHospitality) {
+    volumeLabel = 'Monthly Room Nights Booked';
+    unitValue = 180;
+    lossLabel = 'Monthly OTA Commission Take (Booking.com / Expedia)';
+    lossDescription = 'Based on 20% online travel agent commission';
+    monthlyLoss = Math.round(volumeSlider * unitValue * 0.20);
+    recommendedRetainer = '$6,500 / mo + Direct Booking Rev-Share';
+    proposedSolution = 'Direct Guest Booking Engine & WhatsApp Concierge Upsell';
+  }
+
+  const annualLoss = monthlyLoss * 12;
+
+  // DYNAMIC COLD OUTREACH PITCH
+  const outreachPitchSubject = `Quick question regarding ${proposedSolution.toLowerCase()} for ${profile.name}`;
   const outreachPitchBody = `Hi ${profile.name} team,
 
-I was reviewing top dining destinations in ${profile.city || 'Dubai'} and noticed your strong ★ ${rating.toFixed(1)} rating across ${reviewCount} customer reviews.
+I came across ${profile.name} while auditing high-reputation ${profile.industry || 'local'} establishments in ${profile.city || 'your area'}${rating > 0 ? ` (noted your ★ ${rating.toFixed(1)} rating across ${reviewCount} reviews)` : ''}.
 
-While analyzing your website (${profile.domain || 'online presence'}), I noticed you currently rely heavily on third-party aggregators rather than a commission-free direct booking flow. 
+When reviewing your website (${profile.domain || 'online presence'}), I noticed a significant opportunity to implement ${proposedSolution.toLowerCase()}.
 
-At ~${estimatedMonthlyOrders} monthly covers, your business is likely paying over $${monthlyCommissionLoss.toLocaleString()}/month in aggregator commission fees alone.
+For a business of your scale (~${volumeSlider} ${volumeLabel.toLowerCase()}), this gap typically accounts for over $${monthlyLoss.toLocaleString()}/month in avoidable losses.
 
-At OneFolk, we build automated direct guest booking & WhatsApp VIP retention funnels that recapture this revenue and boost repeat diner lifetime value.
+At OneFolk, we partner with premier ${profile.industry || 'service'} brands to deploy turnkey conversion systems that recapture this revenue within 60-90 days.
 
-Would you be open to a brief 10-minute walkthrough this Thursday on how to implement this?
+Would you have 10 minutes this week for a brief, high-level walkthrough of what this implementation looks like for ${profile.name}?
 
 Best regards,
-Agency Partnerships Lead | OneFolk Intelligence`;
+Agency Growth Team | OneFolk Client Intelligence`;
 
   const handleCopyPitch = () => {
     navigator.clipboard.writeText(`Subject: ${outreachPitchSubject}\n\n${outreachPitchBody}`);
@@ -247,7 +292,7 @@ Agency Partnerships Lead | OneFolk Intelligence`;
           <div className="space-y-5">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                Client Opportunity Economics & Retainer Sizing
+                {profile.industry} Client Economics & Retainer Sizing
               </h3>
               <span className="text-xs font-mono text-[#FFBD65] font-bold">
                 Value Potential: $4,500 - $9,000/mo
@@ -258,48 +303,48 @@ Agency Partnerships Lead | OneFolk Intelligence`;
             <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44] space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <span className="text-xs font-bold text-white">Estimated Monthly Online Guest Covers</span>
-                  <p className="text-[11px] text-slate-400">Adjust based on restaurant seat capacity and footfall</p>
+                  <span className="text-xs font-bold text-white">Estimated {volumeLabel}</span>
+                  <p className="text-[11px] text-slate-400">Adjust based on business volume and footfall capacity</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <input
                     type="range"
-                    min="200"
-                    max="2000"
-                    step="50"
-                    value={estimatedMonthlyOrders}
-                    onChange={(e) => setEstimatedMonthlyOrders(Number(e.target.value))}
+                    min="50"
+                    max="1500"
+                    step="25"
+                    value={volumeSlider}
+                    onChange={(e) => setVolumeSlider(Number(e.target.value))}
                     className="w-36 accent-[#02A0A0] cursor-pointer"
                   />
                   <span className="text-sm font-mono font-bold text-[#02A0A0] w-12 text-right">
-                    {estimatedMonthlyOrders}
+                    {volumeSlider}
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-[#1A3A44] text-xs">
                 <div className="p-3 bg-[#0D1E24] rounded-lg border border-[#1A3A44]">
-                  <span className="text-slate-400 block text-[11px]">Monthly Aggregator Commission Loss</span>
+                  <span className="text-slate-400 block text-[11px]">{lossLabel}</span>
                   <span className="text-lg font-bold text-rose-400 font-mono mt-0.5 block">
-                    ${monthlyCommissionLoss.toLocaleString()} / mo
+                    ${monthlyLoss.toLocaleString()} / mo
                   </span>
-                  <span className="text-[10px] text-slate-500">Based on 18% third-party marketplace take rate</span>
+                  <span className="text-[10px] text-slate-500">{lossDescription}</span>
                 </div>
 
                 <div className="p-3 bg-[#0D1E24] rounded-lg border border-[#1A3A44]">
                   <span className="text-slate-400 block text-[11px]">Annual Recoverable Revenue</span>
                   <span className="text-lg font-bold text-[#FFBD65] font-mono mt-0.5 block">
-                    ${annualCommissionLoss.toLocaleString()} / yr
+                    ${annualLoss.toLocaleString()} / yr
                   </span>
-                  <span className="text-[10px] text-slate-500">Recaptured via Direct Funnel & WhatsApp CRM</span>
+                  <span className="text-[10px] text-slate-500">Recaptured via {proposedSolution}</span>
                 </div>
 
                 <div className="p-3 bg-[#0D1E24] rounded-lg border border-[#1A3A44]">
                   <span className="text-slate-400 block text-[11px]">Recommended OneFolk Retainer</span>
                   <span className="text-lg font-bold text-[#02A0A0] font-mono mt-0.5 block">
-                    $4,500 / mo + 5% rev-share
+                    {recommendedRetainer}
                   </span>
-                  <span className="text-[10px] text-slate-500">ROI to client: 3.8x within 90 days</span>
+                  <span className="text-[10px] text-slate-500">Expected ROI: 3.5x - 5.0x within 90 days</span>
                 </div>
               </div>
             </div>
@@ -335,7 +380,7 @@ Agency Partnerships Lead | OneFolk Intelligence`;
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Personalized Agency Sales Pitch Brief
+                  Tailored {profile.industry} Sales Pitch Brief
                 </h3>
                 <p className="text-xs text-slate-400">Fact-grounded cold outreach email based on verified technical gaps</p>
               </div>
@@ -374,7 +419,9 @@ Agency Partnerships Lead | OneFolk Intelligence`;
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-white uppercase tracking-wider">Extracted Public Contacts & Channels</h3>
             {profile.contacts.length === 0 ? (
-              <p className="text-xs text-slate-400">No public contacts extracted yet.</p>
+              <div className="p-6 text-center border border-dashed border-[#1A3A44] rounded-xl bg-[#071317] text-slate-400 text-xs">
+                No direct mailto/tel contacts found in HTML. Click "Re-Crawl Website" to scan sub-pages.
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {profile.contacts.map((c) => (
@@ -424,7 +471,9 @@ Agency Partnerships Lead | OneFolk Intelligence`;
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-white uppercase tracking-wider">Fingerprinted Stack</h3>
             {!profile.technologies || profile.technologies.length === 0 ? (
-              <p className="text-xs text-slate-400">Click "Re-Crawl Website" above to fingerprint technologies from live HTML.</p>
+              <div className="p-6 text-center border border-dashed border-[#1A3A44] rounded-xl bg-[#071317] text-slate-400 text-xs">
+                No third-party tracking scripts detected on homepage. (Strong agency opportunity to deploy Meta Pixel / GA4).
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {profile.technologies.map((t) => (
@@ -513,22 +562,24 @@ Agency Partnerships Lead | OneFolk Intelligence`;
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44]">
                 <span className="text-[11px] text-slate-400 uppercase font-semibold">Average Rating</span>
-                <p className="text-2xl font-bold text-[#FFBD65] mt-1">★ {rating.toFixed(1)}</p>
+                <p className="text-2xl font-bold text-[#FFBD65] mt-1">★ {rating > 0 ? rating.toFixed(1) : 'N/A'}</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">From {reviewCount} verified reviews</p>
               </div>
 
               <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44]">
                 <span className="text-[11px] text-slate-400 uppercase font-semibold">Sentiment Health</span>
                 <p className="text-base font-bold text-[#02A0A0] mt-1">
-                  {rating >= 4.4 ? 'OVERWHELMINGLY POSITIVE' : 'GENERALLY POSITIVE'}
+                  {rating >= 4.4 ? 'OVERWHELMINGLY POSITIVE' : rating >= 3.8 ? 'GENERALLY POSITIVE' : 'EMERGING LOCAL BRAND'}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">High footfall density</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Local footfall density index</p>
               </div>
 
               <div className="p-4 rounded-xl bg-[#071317] border border-[#1A3A44]">
                 <span className="text-[11px] text-slate-400 uppercase font-semibold">Reputation Tier</span>
-                <p className="text-base font-bold text-[#FFBD65] mt-1">AUTHORITY TIER</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Trusted local brand</p>
+                <p className="text-base font-bold text-[#FFBD65] mt-1">
+                  {reviewCount > 100 ? 'AUTHORITY TIER' : reviewCount > 20 ? 'ESTABLISHED TIER' : 'GROWTH TIER'}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Verified public footprint</p>
               </div>
             </div>
           </div>
@@ -540,7 +591,7 @@ Agency Partnerships Lead | OneFolk Intelligence`;
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#02A0A0]" />
-                Fact-Grounded Grok AI Strategic Briefing
+                Fact-Grounded {profile.industry} Strategic Briefing
               </h3>
 
               {analysis && (
