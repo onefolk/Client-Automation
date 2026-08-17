@@ -98,6 +98,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION, header::ACCEPT]);
 
     let app = Router::new()
+        .route("/", get(root_handler))
         .route("/api/health", get(health_check))
         .route("/health", get(health_check))
         // Searches
@@ -127,6 +128,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 // ==============================================================================
 // Handlers
 // ==============================================================================
+
+async fn root_handler() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "service": "OneFolk Client Intelligence Engine (Rust Axum)",
+        "version": "2.0.0",
+        "status": "online",
+        "endpoints": {
+            "health": "/health",
+            "searches": "/api/searches",
+            "businesses": "/api/businesses",
+            "opportunities": "/api/opportunities",
+            "activities": "/api/activities"
+        },
+        "timestamp": Utc::now()
+    }))
+}
 
 async fn health_check() -> Json<serde_json::Value> {
     Json(serde_json::json!({
