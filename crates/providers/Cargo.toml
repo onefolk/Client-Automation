@@ -13,4 +13,5 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true }
+regex = { workspace = true }
 urlencoding = "2.1"

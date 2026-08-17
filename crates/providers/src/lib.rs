@@ -257,7 +257,7 @@ impl DiscoveryProvider for LiveWebSearchProvider {
     }
 
     fn category(&self) -> ProviderCategory {
-        ProviderCategory::SearchEngine
+        ProviderCategory::WebSearch
     }
 
     fn capabilities(&self) -> ProviderCapabilities {
