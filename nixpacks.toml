@@ -8,4 +8,4 @@ cmds = ["npm ci"]
 cmds = ["cd apps/web && npm run build"]
 
 [start]
-cmd = "cd apps/web && npx next start -p $PORT"
+cmd = "cd apps/web && npx next start"
