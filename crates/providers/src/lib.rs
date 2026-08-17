@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use domain::{DiscoveredBusiness, ProviderCategory, SearchFilters};
 use reqwest::Client;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -307,8 +308,8 @@ impl DiscoveryProvider for LiveWebSearchProvider {
 
         let mut results = Vec::new();
         // Parse result links and titles from live DuckDuckGo HTML
-        let link_regex = regex::Regex::new(r#"<a class="result__url" href="([^"]+)">([^<]+)</a>"#).unwrap();
-        let title_regex = regex::Regex::new(r#"<a class="result__snippet"[^>]*>([^<]+)</a>"#).unwrap();
+        let link_regex = Regex::new(r#"<a class="result__url" href="([^"]+)">([^<]+)</a>"#).unwrap();
+        let title_regex = Regex::new(r#"<a class="result__snippet"[^>]*>([^<]+)</a>"#).unwrap();
 
         let captures: Vec<_> = link_regex.captures_iter(&html).take(limit).collect();
         let snippet_captures: Vec<_> = title_regex.captures_iter(&html).take(limit).collect();
