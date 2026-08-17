@@ -2,8 +2,8 @@
 # OneFolk Client Intelligence - Rust Backend API Dockerfile (Railway & Production)
 # ==============================================================================
 
-# Build Stage
-FROM rust:1.78-slim-bookworm as builder
+# Build Stage (Use Rust 1.85+ for latest stable edition support)
+FROM rust:1.85-slim-bookworm as builder
 
 WORKDIR /app
 
