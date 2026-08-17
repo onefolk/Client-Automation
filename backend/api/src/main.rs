@@ -45,22 +45,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let database_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgres://onefolk:onefolk_secret_dev@localhost:5432/onefolk_intelligence".to_string());
 
+    // Support all common Railway and cloud Redis environment variable formats
     let redis_url = std::env::var("REDIS_URL")
+        .or_else(|_| std::env::var("REDISURL"))
+        .or_else(|_| std::env::var("REDIS_PRIVATE_URL"))
+        .or_else(|_| std::env::var("REDIS_PUBLIC_URL"))
         .unwrap_or_else(|_| "redis://localhost:6379".to_string());
 
     let port: u16 = std::env::var("PORT")
-        .unwrap_or_else(|_| "8000".to_string())
+        .unwrap_or_else(|_| "8080".to_string())
         .parse()
-        .unwrap_or(8000);
+        .unwrap_or(8080);
 
-    tracing::info!("Connecting to PostgreSQL: {}", database_url);
+    tracing::info!("Connecting to PostgreSQL...");
     let db = Database::connect(&database_url).await.expect("Failed to connect to PostgreSQL");
+    tracing::info!("Connected to PostgreSQL successfully");
 
-    tracing::info!("Connecting to Redis: {}", redis_url);
-    let queue = JobQueue::new(&redis_url).await.expect("Failed to connect to Redis queue");
-    queue.init_stream_groups().await.ok();
+    tracing::info!("Connecting to Redis at: {}", redis_url);
+    
+    // Connect to Redis with retry loop for cloud deployment resilience
+    let mut queue_opt = None;
+    let mut event_bus_opt = None;
 
-    let event_bus = EventBus::new(&redis_url).await.expect("Failed to connect to Redis EventBus");
+    for attempt in 1..=5 {
+        match (JobQueue::new(&redis_url).await, EventBus::new(&redis_url).await) {
+            (Ok(q), Ok(eb)) => {
+                q.init_stream_groups().await.ok();
+                queue_opt = Some(q);
+                event_bus_opt = Some(eb);
+                tracing::info!("Connected to Redis queue and EventBus successfully");
+                break;
+            }
+            (Err(e), _) | (_, Err(e)) => {
+                tracing::warn!("Redis connection attempt {}/5 failed: {}. Retrying in 2s...", attempt, e);
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        }
+    }
+
+    let queue = queue_opt.expect("Failed to connect to Redis after multiple attempts. Please ensure the REDIS_URL environment variable is set to your Railway Redis connection string.");
+    let event_bus = event_bus_opt.expect("Failed to connect to Redis EventBus.");
 
     let state = AppState {
         db,
@@ -75,6 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = Router::new()
         .route("/api/health", get(health_check))
+        .route("/health", get(health_check))
         // Searches
         .route("/api/searches", post(create_search).get(list_searches))
         .route("/api/searches/:id", get(get_search))
