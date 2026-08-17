@@ -1,11 +1,9 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use domain::{
-    ActivityEvent, Analysis, Business, BusinessProfile, BusinessStatus, ClientPriority, Contact,
-    DiscoveredBusiness, Fact, Opportunity, OpportunityImpact, ReviewInfo, SearchFilters,
-    SearchSession, SearchStatus, SocialProfile, Technology, WebsiteInfo,
+    ActivityEvent, Business, BusinessProfile, BusinessStatus, ClientPriority, Contact,
+    Opportunity, OpportunityImpact, SearchFilters, SearchSession, SearchStatus,
 };
-use sqlx::{postgres::PgPoolOptions, PgPool};
-use std::sync::Arc;
+use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -42,7 +40,7 @@ impl Database {
         let filters_json = serde_json::to_value(filters).unwrap_or_default();
         let errors_json = serde_json::json!([]);
 
-        let row = sqlx::query!(
+        let row = sqlx::query(
             r#"
             INSERT INTO searches (
                 id, query, filters, providers_selected, started_at, status,
@@ -53,50 +51,27 @@ impl Database {
                       status, total_discovered, total_saved, total_enriched, errors, duration_ms,
                       created_at, updated_at
             "#,
-            id,
-            query,
-            filters_json,
-            providers,
-            now,
-            "PENDING",
-            0,
-            0,
-            0,
-            errors_json,
-            now,
-            now
         )
+        .bind(id)
+        .bind(query)
+        .bind(filters_json)
+        .bind(providers)
+        .bind(now)
+        .bind("PENDING")
+        .bind(0i32)
+        .bind(0i32)
+        .bind(0i32)
+        .bind(errors_json)
+        .bind(now)
+        .bind(now)
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(SearchSession {
-            id: row.id,
-            user_id: row.user_id,
-            query: row.query,
-            filters: serde_json::from_value(row.filters).unwrap_or_default(),
-            providers_selected: row.providers_selected,
-            started_at: row.started_at,
-            completed_at: row.completed_at,
-            status: match row.status.as_str() {
-                "RUNNING" => SearchStatus::Running,
-                "COMPLETED" => SearchStatus::Completed,
-                "PARTIAL" => SearchStatus::Partial,
-                "FAILED" => SearchStatus::Failed,
-                "CANCELLED" => SearchStatus::Cancelled,
-                _ => SearchStatus::Pending,
-            },
-            total_discovered: row.total_discovered,
-            total_saved: row.total_saved,
-            total_enriched: row.total_enriched,
-            errors: serde_json::from_value(row.errors).unwrap_or_default(),
-            duration_ms: row.duration_ms,
-            created_at: row.created_at,
-            updated_at: row.updated_at,
-        })
+        Ok(self.map_search_session_row(&row))
     }
 
     pub async fn get_search(&self, id: Uuid) -> Result<Option<SearchSession>, sqlx::Error> {
-        let row = sqlx::query!(
+        let row = sqlx::query(
             r#"
             SELECT id, user_id, query, filters, providers_selected, started_at, completed_at,
                    status, total_discovered, total_saved, total_enriched, errors, duration_ms,
@@ -104,39 +79,16 @@ impl Database {
             FROM searches
             WHERE id = $1
             "#,
-            id
         )
+        .bind(id)
         .fetch_optional(&self.pool)
         .await?;
 
-        Ok(row.map(|r| SearchSession {
-            id: r.id,
-            user_id: r.user_id,
-            query: r.query,
-            filters: serde_json::from_value(r.filters).unwrap_or_default(),
-            providers_selected: r.providers_selected,
-            started_at: r.started_at,
-            completed_at: r.completed_at,
-            status: match r.status.as_str() {
-                "RUNNING" => SearchStatus::Running,
-                "COMPLETED" => SearchStatus::Completed,
-                "PARTIAL" => SearchStatus::Partial,
-                "FAILED" => SearchStatus::Failed,
-                "CANCELLED" => SearchStatus::Cancelled,
-                _ => SearchStatus::Pending,
-            },
-            total_discovered: r.total_discovered,
-            total_saved: r.total_saved,
-            total_enriched: r.total_enriched,
-            errors: serde_json::from_value(r.errors).unwrap_or_default(),
-            duration_ms: r.duration_ms,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
-        }))
+        Ok(row.as_ref().map(|r| self.map_search_session_row(r)))
     }
 
     pub async fn list_searches(&self, limit: i64) -> Result<Vec<SearchSession>, sqlx::Error> {
-        let rows = sqlx::query!(
+        let rows = sqlx::query(
             r#"
             SELECT id, user_id, query, filters, providers_selected, started_at, completed_at,
                    status, total_discovered, total_saved, total_enriched, errors, duration_ms,
@@ -145,38 +97,12 @@ impl Database {
             ORDER BY created_at DESC
             LIMIT $1
             "#,
-            limit
         )
+        .bind(limit)
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|r| SearchSession {
-                id: r.id,
-                user_id: r.user_id,
-                query: r.query,
-                filters: serde_json::from_value(r.filters).unwrap_or_default(),
-                providers_selected: r.providers_selected,
-                started_at: r.started_at,
-                completed_at: r.completed_at,
-                status: match r.status.as_str() {
-                    "RUNNING" => SearchStatus::Running,
-                    "COMPLETED" => SearchStatus::Completed,
-                    "PARTIAL" => SearchStatus::Partial,
-                    "FAILED" => SearchStatus::Failed,
-                    "CANCELLED" => SearchStatus::Cancelled,
-                    _ => SearchStatus::Pending,
-                },
-                total_discovered: r.total_discovered,
-                total_saved: r.total_saved,
-                total_enriched: r.total_enriched,
-                errors: serde_json::from_value(r.errors).unwrap_or_default(),
-                duration_ms: r.duration_ms,
-                created_at: r.created_at,
-                updated_at: r.updated_at,
-            })
-            .collect())
+        Ok(rows.iter().map(|r| self.map_search_session_row(r)).collect())
     }
 
     pub async fn update_search_progress(
@@ -194,7 +120,7 @@ impl Database {
             _ => None,
         };
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE searches
             SET status = $2,
@@ -205,14 +131,14 @@ impl Database {
                 updated_at = $7
             WHERE id = $1
             "#,
-            id,
-            status_str,
-            discovered,
-            saved,
-            enriched,
-            completed_at,
-            now
         )
+        .bind(id)
+        .bind(status_str)
+        .bind(discovered)
+        .bind(saved)
+        .bind(enriched)
+        .bind(completed_at)
+        .bind(now)
         .execute(&self.pool)
         .await?;
 
@@ -224,24 +150,24 @@ impl Database {
     // =========================================================================
 
     pub async fn find_business_by_domain(&self, domain: &str) -> Result<Option<Business>, sqlx::Error> {
-        let row = sqlx::query!(
+        let row = sqlx::query(
             r#"
             SELECT id, name, normalized_name, slug, industry, sub_industry, description,
                    address, city, state, postal_code, country, country_code, latitude, longitude,
                    phone, normalized_phone, email, website, domain,
-                   rating::FLOAT8 as "rating?", review_count, has_website, has_ssl, is_mobile_friendly,
-                   website_load_time_ms, status, priority, priority_score, confidence::FLOAT8 as "confidence!",
+                   rating, review_count, has_website, has_ssl, is_mobile_friendly,
+                   website_load_time_ms, status, priority, priority_score, confidence,
                    data_completeness, discovered_at, last_enriched_at, last_analyzed_at, created_at, updated_at
             FROM businesses
             WHERE domain = $1
             LIMIT 1
             "#,
-            domain
         )
+        .bind(domain)
         .fetch_optional(&self.pool)
         .await?;
 
-        Ok(row.map(|r| self.map_business_row(r)))
+        Ok(row.as_ref().map(|r| self.map_business_row(r)))
     }
 
     pub async fn find_business_by_normalized_name_and_city(
@@ -249,32 +175,32 @@ impl Database {
         name: &str,
         city: &str,
     ) -> Result<Option<Business>, sqlx::Error> {
-        let row = sqlx::query!(
+        let row = sqlx::query(
             r#"
             SELECT id, name, normalized_name, slug, industry, sub_industry, description,
                    address, city, state, postal_code, country, country_code, latitude, longitude,
                    phone, normalized_phone, email, website, domain,
-                   rating::FLOAT8 as "rating?", review_count, has_website, has_ssl, is_mobile_friendly,
-                   website_load_time_ms, status, priority, priority_score, confidence::FLOAT8 as "confidence!",
+                   rating, review_count, has_website, has_ssl, is_mobile_friendly,
+                   website_load_time_ms, status, priority, priority_score, confidence,
                    data_completeness, discovered_at, last_enriched_at, last_analyzed_at, created_at, updated_at
             FROM businesses
             WHERE normalized_name = $1 AND city ILIKE $2
             LIMIT 1
             "#,
-            name,
-            city
         )
+        .bind(name)
+        .bind(city)
         .fetch_optional(&self.pool)
         .await?;
 
-        Ok(row.map(|r| self.map_business_row(r)))
+        Ok(row.as_ref().map(|r| self.map_business_row(r)))
     }
 
     pub async fn save_business(&self, b: &Business) -> Result<Business, sqlx::Error> {
         let status_str = format!("{:?}", b.status).to_uppercase();
         let priority_str = b.priority.to_string();
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO businesses (
                 id, name, normalized_name, slug, industry, sub_industry, description,
@@ -304,43 +230,43 @@ impl Database {
                 data_completeness = EXCLUDED.data_completeness,
                 updated_at = EXCLUDED.updated_at
             "#,
-            b.id,
-            b.name,
-            b.normalized_name,
-            b.slug,
-            b.industry,
-            b.sub_industry,
-            b.description,
-            b.address,
-            b.city,
-            b.state,
-            b.postal_code,
-            b.country,
-            b.country_code,
-            b.latitude,
-            b.longitude,
-            b.phone,
-            b.normalized_phone,
-            b.email,
-            b.website,
-            b.domain,
-            b.rating.map(|r| rust_decimal::Decimal::from_f64_retain(r).unwrap_or_default()),
-            b.review_count,
-            b.has_website,
-            b.has_ssl,
-            b.is_mobile_friendly,
-            b.website_load_time_ms,
-            status_str,
-            priority_str,
-            b.priority_score,
-            rust_decimal::Decimal::from_f64_retain(b.confidence).unwrap_or_default(),
-            b.data_completeness,
-            b.discovered_at,
-            b.last_enriched_at,
-            b.last_analyzed_at,
-            b.created_at,
-            b.updated_at
         )
+        .bind(b.id)
+        .bind(&b.name)
+        .bind(&b.normalized_name)
+        .bind(&b.slug)
+        .bind(&b.industry)
+        .bind(&b.sub_industry)
+        .bind(&b.description)
+        .bind(&b.address)
+        .bind(&b.city)
+        .bind(&b.state)
+        .bind(&b.postal_code)
+        .bind(&b.country)
+        .bind(&b.country_code)
+        .bind(b.latitude)
+        .bind(b.longitude)
+        .bind(&b.phone)
+        .bind(&b.normalized_phone)
+        .bind(&b.email)
+        .bind(&b.website)
+        .bind(&b.domain)
+        .bind(b.rating)
+        .bind(b.review_count)
+        .bind(b.has_website)
+        .bind(b.has_ssl)
+        .bind(b.is_mobile_friendly)
+        .bind(b.website_load_time_ms)
+        .bind(status_str)
+        .bind(priority_str)
+        .bind(b.priority_score)
+        .bind(b.confidence)
+        .bind(b.data_completeness)
+        .bind(b.discovered_at)
+        .bind(b.last_enriched_at)
+        .bind(b.last_analyzed_at)
+        .bind(b.created_at)
+        .bind(b.updated_at)
         .execute(&self.pool)
         .await?;
 
@@ -354,17 +280,17 @@ impl Database {
         provider_id: &str,
         rank_order: i32,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO search_results (search_id, business_id, provider_id, rank_order)
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (search_id, business_id) DO NOTHING
             "#,
-            search_id,
-            business_id,
-            provider_id,
-            rank_order
         )
+        .bind(search_id)
+        .bind(business_id)
+        .bind(provider_id)
+        .bind(rank_order)
         .execute(&self.pool)
         .await?;
 
@@ -379,18 +305,17 @@ impl Database {
         raw_payload: &serde_json::Value,
         confidence: f64,
     ) -> Result<(), sqlx::Error> {
-        let conf_decimal = rust_decimal::Decimal::from_f64_retain(confidence).unwrap_or_default();
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO source_records (business_id, source_code, source_url, raw_payload, confidence)
             VALUES ($1, $2, $3, $4, $5)
             "#,
-            business_id,
-            source_code,
-            source_url,
-            raw_payload,
-            conf_decimal
         )
+        .bind(business_id)
+        .bind(source_code)
+        .bind(source_url)
+        .bind(raw_payload)
+        .bind(confidence)
         .execute(&self.pool)
         .await?;
 
@@ -404,13 +329,13 @@ impl Database {
         priority: Option<&str>,
         limit: i64,
     ) -> Result<Vec<Business>, sqlx::Error> {
-        let rows = sqlx::query!(
+        let rows = sqlx::query(
             r#"
             SELECT id, name, normalized_name, slug, industry, sub_industry, description,
                    address, city, state, postal_code, country, country_code, latitude, longitude,
                    phone, normalized_phone, email, website, domain,
-                   rating::FLOAT8 as "rating?", review_count, has_website, has_ssl, is_mobile_friendly,
-                   website_load_time_ms, status, priority, priority_score, confidence::FLOAT8 as "confidence!",
+                   rating, review_count, has_website, has_ssl, is_mobile_friendly,
+                   website_load_time_ms, status, priority, priority_score, confidence,
                    data_completeness, discovered_at, last_enriched_at, last_analyzed_at, created_at, updated_at
             FROM businesses
             WHERE ($1::TEXT IS NULL OR industry ILIKE $1)
@@ -419,31 +344,31 @@ impl Database {
             ORDER BY priority_score DESC, created_at DESC
             LIMIT $4
             "#,
-            industry,
-            city,
-            priority,
-            limit
         )
+        .bind(industry)
+        .bind(city)
+        .bind(priority)
+        .bind(limit)
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| self.map_business_row(r)).collect())
+        Ok(rows.iter().map(|r| self.map_business_row(r)).collect())
     }
 
     pub async fn get_business_profile(&self, id: Uuid) -> Result<Option<BusinessProfile>, sqlx::Error> {
-        let business_row = sqlx::query!(
+        let business_row = sqlx::query(
             r#"
             SELECT id, name, normalized_name, slug, industry, sub_industry, description,
                    address, city, state, postal_code, country, country_code, latitude, longitude,
                    phone, normalized_phone, email, website, domain,
-                   rating::FLOAT8 as "rating?", review_count, has_website, has_ssl, is_mobile_friendly,
-                   website_load_time_ms, status, priority, priority_score, confidence::FLOAT8 as "confidence!",
+                   rating, review_count, has_website, has_ssl, is_mobile_friendly,
+                   website_load_time_ms, status, priority, priority_score, confidence,
                    data_completeness, discovered_at, last_enriched_at, last_analyzed_at, created_at, updated_at
             FROM businesses
             WHERE id = $1
             "#,
-            id
         )
+        .bind(id)
         .fetch_optional(&self.pool)
         .await?;
 
@@ -451,95 +376,99 @@ impl Database {
             return Ok(None);
         };
 
-        let business = self.map_business_row(b_row);
+        let business = self.map_business_row(&b_row);
 
         // Fetch contacts
-        let contact_rows = sqlx::query!(
+        let contact_rows = sqlx::query(
             r#"
             SELECT id, business_id, contact_type, value, label, full_name, title, source_url,
-                   confidence::FLOAT8 as "confidence!", verified, created_at
+                   confidence, verified, created_at
             FROM contacts WHERE business_id = $1
             "#,
-            id
         )
+        .bind(id)
         .fetch_all(&self.pool)
         .await?;
 
         let contacts = contact_rows
             .into_iter()
             .map(|r| Contact {
-                id: r.id,
-                business_id: r.business_id,
-                contact_type: r.contact_type,
-                value: r.value,
-                label: r.label,
-                full_name: r.full_name,
-                title: r.title,
-                source_url: r.source_url,
-                confidence: r.confidence,
-                verified: r.verified.unwrap_or(false),
-                created_at: r.created_at,
+                id: r.get("id"),
+                business_id: r.get("business_id"),
+                contact_type: r.get("contact_type"),
+                value: r.get("value"),
+                label: r.get("label"),
+                full_name: r.get("full_name"),
+                title: r.get("title"),
+                source_url: r.get("source_url"),
+                confidence: r.get("confidence"),
+                verified: r.get::<Option<bool>, _>("verified").unwrap_or(false),
+                created_at: r.get("created_at"),
             })
             .collect();
 
         // Fetch opportunities
-        let opp_rows = sqlx::query!(
+        let opp_rows = sqlx::query(
             r#"
             SELECT id, business_id, title, description, category, impact, onefolk_service,
-                   service_tier, confidence::FLOAT8 as "confidence!", estimated_revenue_potential,
-                   evidence, status, created_at
+                service_tier, confidence, estimated_revenue_potential,
+                evidence, status, created_at
             FROM opportunities WHERE business_id = $1
             "#,
-            id
         )
+        .bind(id)
         .fetch_all(&self.pool)
         .await?;
 
         let opportunities = opp_rows
             .into_iter()
-            .map(|r| Opportunity {
-                id: r.id,
-                business_id: r.business_id,
-                title: r.title,
-                description: r.description,
-                category: r.category,
-                impact: match r.impact.as_str() {
-                    "LOW" => OpportunityImpact::Low,
-                    "MEDIUM" => OpportunityImpact::Medium,
-                    _ => OpportunityImpact::High,
-                },
-                onefolk_service: r.onefolk_service,
-                service_tier: r.service_tier.unwrap_or_else(|| "STANDARD".to_string()),
-                confidence: r.confidence,
-                estimated_revenue_potential: r.estimated_revenue_potential,
-                evidence: serde_json::from_value(r.evidence).unwrap_or_default(),
-                status: r.status,
-                created_at: r.created_at,
+            .map(|r| {
+                let impact_str: String = r.get("impact");
+                let evidence_val: serde_json::Value = r.get("evidence");
+                Opportunity {
+                    id: r.get("id"),
+                    business_id: r.get("business_id"),
+                    title: r.get("title"),
+                    description: r.get("description"),
+                    category: r.get("category"),
+                    impact: match impact_str.as_str() {
+                        "LOW" => OpportunityImpact::Low,
+                        "MEDIUM" => OpportunityImpact::Medium,
+                        _ => OpportunityImpact::High,
+                    },
+                    onefolk_service: r.get("onefolk_service"),
+                    service_tier: r.get::<Option<String>, _>("service_tier").unwrap_or_else(|| "STANDARD".to_string()),
+                    confidence: r.get("confidence"),
+                    estimated_revenue_potential: r.get("estimated_revenue_potential"),
+                    evidence: serde_json::from_value(evidence_val).unwrap_or_default(),
+                    status: r.get("status"),
+                    created_at: r.get("created_at"),
+                }
             })
             .collect();
 
         // Fetch activities
-        let act_rows = sqlx::query!(
+        let act_rows = sqlx::query(
             r#"
             SELECT id, business_id, search_id, event_type, title, description, metadata, created_at
             FROM activities WHERE business_id = $1 ORDER BY created_at DESC
             "#,
-            id
         )
+        .bind(id)
         .fetch_all(&self.pool)
         .await?;
 
         let activities = act_rows
             .into_iter()
             .map(|r| ActivityEvent {
-                id: r.id,
-                business_id: r.business_id,
-                search_id: r.search_id,
-                event_type: r.event_type,
-                title: r.title,
-                description: r.description,
-                metadata: r.metadata,
-                created_at: r.created_at,
+                id: r.get("id"),
+                business_id: r.get("business_id"),
+                search_id: r.get("search_id"),
+                event_type: r.get("event_type"),
+                title: r.get("title"),
+                description: r.get("description"),
+                metadata: r.get("metadata"),
+                created_at: r.get("created_at"),
             })
             .collect();
 
@@ -569,20 +498,20 @@ impl Database {
         let id = Uuid::new_v4();
         let now = Utc::now();
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO activities (id, business_id, search_id, event_type, title, description, metadata, created_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             "#,
-            id,
-            business_id,
-            search_id,
-            event_type,
-            title,
-            description,
-            metadata,
-            now
         )
+        .bind(id)
+        .bind(business_id)
+        .bind(search_id)
+        .bind(event_type)
+        .bind(title)
+        .bind(description)
+        .bind(metadata)
+        .bind(now)
         .execute(&self.pool)
         .await?;
 
@@ -599,25 +528,24 @@ impl Database {
     }
 
     pub async fn save_contact(&self, c: &Contact) -> Result<(), sqlx::Error> {
-        let conf = rust_decimal::Decimal::from_f64_retain(c.confidence).unwrap_or_default();
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO contacts (id, business_id, contact_type, value, label, full_name, title, source_url, confidence, verified, created_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             ON CONFLICT (id) DO NOTHING
             "#,
-            c.id,
-            c.business_id,
-            c.contact_type,
-            c.value,
-            c.label,
-            c.full_name,
-            c.title,
-            c.source_url,
-            conf,
-            c.verified,
-            c.created_at
         )
+        .bind(c.id)
+        .bind(c.business_id)
+        .bind(&c.contact_type)
+        .bind(&c.value)
+        .bind(&c.label)
+        .bind(&c.full_name)
+        .bind(&c.title)
+        .bind(&c.source_url)
+        .bind(c.confidence)
+        .bind(c.verified)
+        .bind(c.created_at)
         .execute(&self.pool)
         .await?;
 
@@ -625,11 +553,10 @@ impl Database {
     }
 
     pub async fn save_opportunity(&self, opp: &Opportunity) -> Result<(), sqlx::Error> {
-        let conf = rust_decimal::Decimal::from_f64_retain(opp.confidence).unwrap_or_default();
         let impact_str = format!("{:?}", opp.impact).to_uppercase();
         let evidence_json = serde_json::to_value(&opp.evidence).unwrap_or_default();
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO opportunities (
                 id, business_id, title, description, category, impact, onefolk_service,
@@ -638,20 +565,20 @@ impl Database {
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             ON CONFLICT (id) DO NOTHING
             "#,
-            opp.id,
-            opp.business_id,
-            opp.title,
-            opp.description,
-            opp.category,
-            impact_str,
-            opp.onefolk_service,
-            opp.service_tier,
-            conf,
-            opp.estimated_revenue_potential,
-            evidence_json,
-            opp.status,
-            opp.created_at
         )
+        .bind(opp.id)
+        .bind(opp.business_id)
+        .bind(&opp.title)
+        .bind(&opp.description)
+        .bind(&opp.category)
+        .bind(impact_str)
+        .bind(&opp.onefolk_service)
+        .bind(&opp.service_tier)
+        .bind(opp.confidence)
+        .bind(&opp.estimated_revenue_potential)
+        .bind(evidence_json)
+        .bind(&opp.status)
+        .bind(opp.created_at)
         .execute(&self.pool)
         .await?;
 
@@ -659,104 +586,139 @@ impl Database {
     }
 
     pub async fn list_opportunities(&self, limit: i64) -> Result<Vec<Opportunity>, sqlx::Error> {
-        let rows = sqlx::query!(
+        let rows = sqlx::query(
             r#"
             SELECT id, business_id, title, description, category, impact, onefolk_service,
-                   service_tier, confidence::FLOAT8 as "confidence!", estimated_revenue_potential,
-                   evidence, status, created_at
+                service_tier, confidence, estimated_revenue_potential,
+                evidence, status, created_at
             FROM opportunities
             ORDER BY created_at DESC
             LIMIT $1
             "#,
-            limit
         )
+        .bind(limit)
         .fetch_all(&self.pool)
         .await?;
 
         Ok(rows
             .into_iter()
-            .map(|r| Opportunity {
-                id: r.id,
-                business_id: r.business_id,
-                title: r.title,
-                description: r.description,
-                category: r.category,
-                impact: match r.impact.as_str() {
-                    "LOW" => OpportunityImpact::Low,
-                    "MEDIUM" => OpportunityImpact::Medium,
-                    _ => OpportunityImpact::High,
-                },
-                onefolk_service: r.onefolk_service,
-                service_tier: r.service_tier.unwrap_or_else(|| "STANDARD".to_string()),
-                confidence: r.confidence,
-                estimated_revenue_potential: r.estimated_revenue_potential,
-                evidence: serde_json::from_value(r.evidence).unwrap_or_default(),
-                status: r.status,
-                created_at: r.created_at,
+            .map(|r| {
+                let impact_str: String = r.get("impact");
+                let evidence_val: serde_json::Value = r.get("evidence");
+                Opportunity {
+                    id: r.get("id"),
+                    business_id: r.get("business_id"),
+                    title: r.get("title"),
+                    description: r.get("description"),
+                    category: r.get("category"),
+                    impact: match impact_str.as_str() {
+                        "LOW" => OpportunityImpact::Low,
+                        "MEDIUM" => OpportunityImpact::Medium,
+                        _ => OpportunityImpact::High,
+                    },
+                    onefolk_service: r.get("onefolk_service"),
+                    service_tier: r.get::<Option<String>, _>("service_tier").unwrap_or_else(|| "STANDARD".to_string()),
+                    confidence: r.get("confidence"),
+                    estimated_revenue_potential: r.get("estimated_revenue_potential"),
+                    evidence: serde_json::from_value(evidence_val).unwrap_or_default(),
+                    status: r.get("status"),
+                    created_at: r.get("created_at"),
+                }
             })
             .collect())
     }
 
     pub async fn list_activities(&self, limit: i64) -> Result<Vec<ActivityEvent>, sqlx::Error> {
-        let rows = sqlx::query!(
+        let rows = sqlx::query(
             r#"
             SELECT id, business_id, search_id, event_type, title, description, metadata, created_at
             FROM activities
             ORDER BY created_at DESC
             LIMIT $1
             "#,
-            limit
         )
+        .bind(limit)
         .fetch_all(&self.pool)
         .await?;
 
         Ok(rows
             .into_iter()
             .map(|r| ActivityEvent {
-                id: r.id,
-                business_id: r.business_id,
-                search_id: r.search_id,
-                event_type: r.event_type,
-                title: r.title,
-                description: r.description,
-                metadata: r.metadata,
-                created_at: r.created_at,
+                id: r.get("id"),
+                business_id: r.get("business_id"),
+                search_id: r.get("search_id"),
+                event_type: r.get("event_type"),
+                title: r.get("title"),
+                description: r.get("description"),
+                metadata: r.get("metadata"),
+                created_at: r.get("created_at"),
             })
             .collect())
     }
 
-    fn map_business_row(
-        &self,
-        r: sqlx_business_row::RowData,
-    ) -> Business {
+    fn map_search_session_row(&self, r: &sqlx::postgres::PgRow) -> SearchSession {
+        let filters_val: serde_json::Value = r.get("filters");
+        let errors_val: serde_json::Value = r.get("errors");
+        let status_str: String = r.get("status");
+
+        SearchSession {
+            id: r.get("id"),
+            user_id: r.get("user_id"),
+            query: r.get("query"),
+            filters: serde_json::from_value(filters_val).unwrap_or_default(),
+            providers_selected: r.get("providers_selected"),
+            started_at: r.get("started_at"),
+            completed_at: r.get("completed_at"),
+            status: match status_str.as_str() {
+                "RUNNING" => SearchStatus::Running,
+                "COMPLETED" => SearchStatus::Completed,
+                "PARTIAL" => SearchStatus::Partial,
+                "FAILED" => SearchStatus::Failed,
+                "CANCELLED" => SearchStatus::Cancelled,
+                _ => SearchStatus::Pending,
+            },
+            total_discovered: r.get("total_discovered"),
+            total_saved: r.get("total_saved"),
+            total_enriched: r.get("total_enriched"),
+            errors: serde_json::from_value(errors_val).unwrap_or_default(),
+            duration_ms: r.get("duration_ms"),
+            created_at: r.get("created_at"),
+            updated_at: r.get("updated_at"),
+        }
+    }
+
+    fn map_business_row(&self, r: &sqlx::postgres::PgRow) -> Business {
+        let status_str: String = r.get("status");
+        let priority_str: String = r.get("priority");
+
         Business {
-            id: r.id,
-            name: r.name,
-            normalized_name: r.normalized_name,
-            slug: r.slug,
-            industry: r.industry,
-            sub_industry: r.sub_industry,
-            description: r.description,
-            address: r.address,
-            city: r.city,
-            state: r.state,
-            postal_code: r.postal_code,
-            country: r.country,
-            country_code: r.country_code,
-            latitude: r.latitude,
-            longitude: r.longitude,
-            phone: r.phone,
-            normalized_phone: r.normalized_phone,
-            email: r.email,
-            website: r.website,
-            domain: r.domain,
-            rating: r.rating,
-            review_count: r.review_count.unwrap_or(0),
-            has_website: r.has_website.unwrap_or(false),
-            has_ssl: r.has_ssl.unwrap_or(false),
-            is_mobile_friendly: r.is_mobile_friendly.unwrap_or(false),
-            website_load_time_ms: r.website_load_time_ms,
-            status: match r.status.as_str() {
+            id: r.get("id"),
+            name: r.get("name"),
+            normalized_name: r.get("normalized_name"),
+            slug: r.get("slug"),
+            industry: r.get("industry"),
+            sub_industry: r.get("sub_industry"),
+            description: r.get("description"),
+            address: r.get("address"),
+            city: r.get("city"),
+            state: r.get("state"),
+            postal_code: r.get("postal_code"),
+            country: r.get("country"),
+            country_code: r.get("country_code"),
+            latitude: r.get("latitude"),
+            longitude: r.get("longitude"),
+            phone: r.get("phone"),
+            normalized_phone: r.get("normalized_phone"),
+            email: r.get("email"),
+            website: r.get("website"),
+            domain: r.get("domain"),
+            rating: r.get("rating"),
+            review_count: r.get::<Option<i32>, _>("review_count").unwrap_or(0),
+            has_website: r.get::<Option<bool>, _>("has_website").unwrap_or(false),
+            has_ssl: r.get::<Option<bool>, _>("has_ssl").unwrap_or(false),
+            is_mobile_friendly: r.get::<Option<bool>, _>("is_mobile_friendly").unwrap_or(false),
+            website_load_time_ms: r.get("website_load_time_ms"),
+            status: match status_str.as_str() {
                 "DISCOVERED" => BusinessStatus::Discovered,
                 "ENRICHING" => BusinessStatus::Enriching,
                 "ENRICHED" => BusinessStatus::Enriched,
@@ -768,64 +730,19 @@ impl Database {
                 "BLOCKED" => BusinessStatus::Blocked,
                 _ => BusinessStatus::New,
             },
-            priority: match r.priority.as_str() {
+            priority: match priority_str.as_str() {
                 "HIGH" => ClientPriority::High,
                 "LOW" => ClientPriority::Low,
                 _ => ClientPriority::Medium,
             },
-            priority_score: r.priority_score,
-            confidence: r.confidence,
-            data_completeness: r.data_completeness,
-            discovered_at: r.discovered_at,
-            last_enriched_at: r.last_enriched_at,
-            last_analyzed_at: r.last_analyzed_at,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
+            priority_score: r.get("priority_score"),
+            confidence: r.get("confidence"),
+            data_completeness: r.get("data_completeness"),
+            discovered_at: r.get("discovered_at"),
+            last_enriched_at: r.get("last_enriched_at"),
+            last_analyzed_at: r.get("last_analyzed_at"),
+            created_at: r.get("created_at"),
+            updated_at: r.get("updated_at"),
         }
-    }
-}
-
-// Internal row mapping helper module
-mod sqlx_business_row {
-    use chrono::{DateTime, Utc};
-    use uuid::Uuid;
-
-    pub struct RowData {
-        pub id: Uuid,
-        pub name: String,
-        pub normalized_name: String,
-        pub slug: String,
-        pub industry: String,
-        pub sub_industry: Option<String>,
-        pub description: Option<String>,
-        pub address: Option<String>,
-        pub city: Option<String>,
-        pub state: Option<String>,
-        pub postal_code: Option<String>,
-        pub country: String,
-        pub country_code: Option<String>,
-        pub latitude: Option<f64>,
-        pub longitude: Option<f64>,
-        pub phone: Option<String>,
-        pub normalized_phone: Option<String>,
-        pub email: Option<String>,
-        pub website: Option<String>,
-        pub domain: Option<String>,
-        pub rating: Option<f64>,
-        pub review_count: Option<i32>,
-        pub has_website: Option<bool>,
-        pub has_ssl: Option<bool>,
-        pub is_mobile_friendly: Option<bool>,
-        pub website_load_time_ms: Option<i32>,
-        pub status: String,
-        pub priority: String,
-        pub priority_score: i32,
-        pub confidence: f64,
-        pub data_completeness: i32,
-        pub discovered_at: DateTime<Utc>,
-        pub last_enriched_at: Option<DateTime<Utc>>,
-        pub last_analyzed_at: Option<DateTime<Utc>>,
-        pub created_at: DateTime<Utc>,
-        pub updated_at: DateTime<Utc>,
     }
 }
