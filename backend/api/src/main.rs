@@ -12,8 +12,9 @@ use chrono::Utc;
 use database::Database;
 use discovery::IntentParser;
 use domain::{
-    Business, BusinessProfile, CreateSearchRequest, Opportunity, SearchFilters, SearchIntent,
-    SearchResponse, SearchSession, SearchStatus,
+    Business, BusinessProfile, CreateSearchRequest, OneFolkConfig, OneFolkServiceDef, Opportunity,
+    OpportunityDef, ResourceDef, SearchFilters, SearchIntent, SearchResponse, SearchSession,
+    SearchStatus,
 };
 use events::{EventBus, SystemEvent};
 use futures::Stream;
@@ -30,6 +31,7 @@ pub struct AppState {
     pub db: Database,
     pub queue: JobQueue,
     pub event_bus: EventBus,
+    pub config: Arc<OneFolkConfig>,
 }
 
 #[tokio::main]
@@ -86,11 +88,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let queue = queue_opt.expect("Failed to connect to Redis after multiple attempts. Please ensure the REDIS_URL environment variable is set to your Railway Redis connection string.");
     let event_bus = event_bus_opt.expect("Failed to connect to Redis EventBus.");
+    let config = Arc::new(OneFolkConfig::default());
 
     let state = AppState {
         db,
         queue,
         event_bus,
+        config,
     };
 
     let cors = CorsLayer::new()
@@ -102,8 +106,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(root_handler))
         .route("/api/health", get(health_check))
         .route("/health", get(health_check))
-        // Intent & Discovery
+        // Intent & Config Registry
         .route("/api/intent/parse", post(parse_intent_handler))
+        .route("/api/config/services", get(list_services_handler))
+        .route("/api/config/opportunities", get(list_opportunities_config_handler))
+        .route("/api/config/resources", get(list_resources_config_handler))
         // Searches
         .route("/api/searches", post(create_search).get(list_searches))
         .route("/api/searches/:id", get(get_search))
@@ -164,10 +171,25 @@ pub struct ParseIntentRequest {
 }
 
 async fn parse_intent_handler(
+    State(state): State<AppState>,
     Json(req): Json<ParseIntentRequest>,
 ) -> Json<SearchIntent> {
-    let intent = IntentParser::parse(&req.query, &req.filters);
+    let intent = IntentParser::parse_with_config(&req.query, &req.filters, &state.config);
     Json(intent)
+}
+
+async fn list_services_handler(State(state): State<AppState>) -> Json<Vec<OneFolkServiceDef>> {
+    Json(state.config.services.clone())
+}
+
+async fn list_opportunities_config_handler(
+    State(state): State<AppState>,
+) -> Json<Vec<OpportunityDef>> {
+    Json(state.config.opportunities.clone())
+}
+
+async fn list_resources_config_handler(State(state): State<AppState>) -> Json<Vec<ResourceDef>> {
+    Json(state.config.resources.clone())
 }
 
 async fn create_search(
@@ -176,8 +198,8 @@ async fn create_search(
 ) -> Result<Json<SearchResponse>, (StatusCode, String)> {
     tracing::info!(query = %req.query, "Received new discovery search request");
 
-    // 1. Parse Search Intent
-    let intent = IntentParser::parse(&req.query, &req.filters);
+    // 1. Parse Search Intent with OneFolk Registry
+    let intent = IntentParser::parse_with_config(&req.query, &req.filters, &state.config);
 
     // 2. Create Search Session in PostgreSQL
     let session = state
@@ -216,7 +238,7 @@ async fn create_search(
             "search.created",
             "Discovery Session Initiated",
             Some(&format!(
-                "Target: '{}' | Opportunity: '{:?}' | Location: '{}'",
+                "Target: '{}' | Opportunity: '{}' | Location: '{}'",
                 intent.target_entity,
                 intent.opportunity_type,
                 intent.location.as_deref().unwrap_or("Any")

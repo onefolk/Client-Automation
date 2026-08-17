@@ -2,7 +2,7 @@ use chrono::Utc;
 use crawler::HttpCrawler;
 use database::Database;
 use discovery::{DiscoveryPlanner, SearchValidator};
-use domain::{Contact, SearchStatus};
+use domain::{Contact, OneFolkConfig, SearchStatus};
 use enrichment::EnrichmentPipeline;
 use entity_resolution::{EntityResolver, ResolutionResult};
 use events::{EventBus, SystemEvent};
@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let redis_url = std::env::var("REDIS_URL")
         .unwrap_or_else(|_| "redis://localhost:6379".to_string());
 
-    tracing::info!("Starting Universal Client Opportunity Discovery Worker...");
+    tracing::info!("Starting Universal OneFolk Client Opportunity Discovery Worker...");
     tracing::info!("Connecting to PostgreSQL at {}", database_url);
     let db = Database::connect(&database_url).await.expect("Failed to connect to PostgreSQL");
 
@@ -39,6 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let event_bus = EventBus::new(&redis_url).await.expect("Failed to connect to EventBus");
     let crawler = HttpCrawler::new();
+    let config = OneFolkConfig::default();
 
     let mut provider_registry = ProviderRegistry::new();
     provider_registry.register(Arc::new(PublicRegistryProvider::new()));
@@ -65,17 +66,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .update_search_progress(payload.search_id, SearchStatus::Running, 0, 0, 0)
                         .await;
 
-                    // 1. Universal Intent Parsing & Discovery Planning
-                    let plan = DiscoveryPlanner::create_plan(
+                    // 1. Universal Linguistic Intent Parsing & Target-Centric Planning (Data-Driven)
+                    let plan = DiscoveryPlanner::create_plan_with_config(
                         &payload.query,
                         &payload.filters,
                         &payload.providers,
+                        &config,
                     );
 
                     tracing::info!(
                         target_entity = %plan.intent.target_entity,
                         opportunity_type = %plan.intent.opportunity_type,
-                        is_vendor = plan.intent.is_vendor_search,
+                        intent_type = %plan.intent.intent_type,
                         "Parsed user search intent"
                     );
 
@@ -110,11 +112,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                                 match provider.search(&variation, &payload.filters, strategy.limit).await {
                                     Ok(discovered_list) => {
-                                        // 2. Search Validation & Noise Suppression
+                                        // 2. Candidate Validation & Dynamic Noise Suppression
                                         let (valid_candidates, val_summary) =
-                                            SearchValidator::validate_candidates(
+                                            SearchValidator::validate_candidates_with_config(
                                                 discovered_list,
                                                 &plan.intent,
+                                                &config,
                                             );
 
                                         let _ = event_bus
@@ -144,12 +147,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 ResolutionResult::NewEntity(b) => (b, true),
                                             };
 
-                                            // 4. Intent-Aware Enrichment & Dynamic Opportunity Evaluation
-                                            let enrich_res = EnrichmentPipeline::process_business_with_intent(
+                                            // 4. Intent-Aware Progressive Research & Evidence Extraction
+                                            let enrich_res = EnrichmentPipeline::process_business_with_config(
                                                 &db,
                                                 &crawler,
                                                 &mut business,
                                                 &plan.intent,
+                                                &config,
                                             )
                                             .await;
 

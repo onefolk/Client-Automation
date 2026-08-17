@@ -1,100 +1,230 @@
 use chrono::Utc;
 use domain::{
-    Business, ClientPriority, EvidenceSignal, EvidenceStatus, Fact, Opportunity,
-    OpportunityEvaluation, OpportunityImpact, OpportunityType, SearchIntent, Technology,
+    Business, ClientPriority, EvidenceSignal, EvidenceStatus, Freshness, OneFolkConfig,
+    OneFolkServiceDef, Opportunity, OpportunityDef, OpportunityEvaluation, OpportunityImpact,
+    SearchIntent, Technology,
 };
+use std::collections::HashMap;
 use uuid::Uuid;
 
 pub struct OpportunityEngine;
 
 impl OpportunityEngine {
-    /// Evaluates a business against the parsed search intent and detected technical/public evidence
-    pub fn evaluate_business_with_intent(
+    /// Fully generic, data-driven opportunity evaluator and OneFolk capability matcher
+    /// ZERO hardcoded industry or product special-casing!
+    pub fn evaluate_business_with_config(
         business: &Business,
         intent: &SearchIntent,
         technologies: &[Technology],
-        _facts: &[Fact],
+        collected_evidence: &[EvidenceSignal],
+        config: &OneFolkConfig,
     ) -> (OpportunityEvaluation, Vec<Opportunity>, ClientPriority, i32) {
-        let mut evidence_signals = Vec::new();
+        let mut evidence_signals = collected_evidence.to_vec();
         let mut opportunities = Vec::new();
-        let mut score = 50; // Base baseline score
 
-        let tech_names_lower: Vec<String> =
-            technologies.iter().map(|t| t.name.to_lowercase()).collect();
-        let tech_cats_lower: Vec<String> =
-            technologies.iter().map(|t| t.category.to_lowercase()).collect();
+        // 1. Resolve Opportunity Definition from Registry
+        let opp_def_opt = intent
+            .opportunity_id
+            .as_deref()
+            .and_then(|id| config.opportunities.iter().find(|o| o.opportunity_id == id))
+            .or_else(|| {
+                config.opportunities.iter().find(|o| {
+                    o.keywords.iter().any(|kw| {
+                        intent.raw_query.to_lowercase().contains(&kw.to_lowercase())
+                            || intent.opportunity_type.to_lowercase().contains(&kw.to_lowercase())
+                    })
+                })
+            });
 
-        // Contact Signals (Universal)
-        let has_contact = business.email.is_some() || business.phone.is_some();
-        if has_contact {
-            score += 10;
-        }
-
-        // Reputation Momentum (Universal)
-        let rating = business.rating.unwrap_or(0.0);
+        // 2. Evaluate Base Evidence & Gap Analysis
+        let has_website = business.has_website && business.website.is_some();
+        let has_contacts = business.email.is_some() || business.phone.is_some();
         let review_count = business.review_count;
-        let strong_reputation = review_count >= 15 && rating >= 4.0;
+        let rating = business.rating.unwrap_or(4.0);
 
-        let (eval, opp) = match intent.opportunity_type {
-            OpportunityType::Erp => {
-                Self::evaluate_erp(business, technologies, &tech_names_lower, &tech_cats_lower, &mut evidence_signals, &mut score)
-            }
-            OpportunityType::Booking => {
-                Self::evaluate_booking(business, technologies, &tech_names_lower, &tech_cats_lower, &mut evidence_signals, &mut score)
-            }
-            OpportunityType::Crm => {
-                Self::evaluate_crm(business, technologies, &tech_names_lower, &tech_cats_lower, &mut evidence_signals, &mut score)
-            }
-            OpportunityType::Automation => {
-                Self::evaluate_automation(business, technologies, &tech_names_lower, &tech_cats_lower, &mut evidence_signals, &mut score)
-            }
-            OpportunityType::Seo => {
-                Self::evaluate_seo(business, technologies, &tech_names_lower, &tech_cats_lower, &mut evidence_signals, &mut score)
-            }
-            OpportunityType::Website => {
-                Self::evaluate_website(business, technologies, &tech_names_lower, &tech_cats_lower, &mut evidence_signals, &mut score)
-            }
-            OpportunityType::Custom => {
-                Self::evaluate_custom(business, technologies, &tech_names_lower, &tech_cats_lower, intent, &mut evidence_signals, &mut score)
-            }
-        };
-
-        opportunities.push(opp);
-
-        // Secondary Opportunity: High Reputation Without Retention Engine
-        if strong_reputation && intent.opportunity_type != OpportunityType::Automation {
-            opportunities.push(Opportunity {
-                id: Uuid::new_v4(),
-                business_id: business.id,
-                title: "Automated VIP Client Retention & Review Monetization".to_string(),
-                description: format!(
-                    "High customer volume (★ {:.1} across {} reviews) ready for automated re-engagement.",
-                    rating, review_count
-                ),
-                category: "Automation & Retention".to_string(),
-                impact: OpportunityImpact::Medium,
-                onefolk_service: "Omnichannel Client Retention Engine".to_string(),
-                service_tier: "GROWTH".to_string(),
-                confidence: 0.88,
-                estimated_revenue_potential: Some("$2,500 - $6,000/mo".to_string()),
-                evidence: vec![format!("{} verified public reviews with {:.1} rating", review_count, rating)],
-                status: "IDENTIFIED".to_string(),
-                created_at: Utc::now(),
+        // Add standard digital foundation evidence if not already present
+        if !evidence_signals.iter().any(|e| e.key == "primary_domain") {
+            evidence_signals.push(EvidenceSignal {
+                key: "primary_domain".to_string(),
+                label: "Official Digital Presence".to_string(),
+                status: if has_website {
+                    EvidenceStatus::Detected
+                } else {
+                    EvidenceStatus::NotDetected
+                },
+                details: business.website.clone(),
+                confidence: 0.98,
+                source: "crawler_inspection".to_string(),
+                freshness: Freshness::Current,
+                timestamp: Utc::now(),
             });
         }
 
-        let priority = if score >= 80 {
+        if !evidence_signals.iter().any(|e| e.key == "ssl_security") {
+            evidence_signals.push(EvidenceSignal {
+                key: "ssl_security".to_string(),
+                label: "HTTPS SSL Certificate".to_string(),
+                status: if business.has_ssl {
+                    EvidenceStatus::Detected
+                } else if has_website {
+                    EvidenceStatus::NotDetected
+                } else {
+                    EvidenceStatus::Unknown
+                },
+                details: Some(format!("SSL status: {}", business.has_ssl)),
+                confidence: 0.99,
+                source: "crawler_inspection".to_string(),
+                freshness: Freshness::Current,
+                timestamp: Utc::now(),
+            });
+        }
+
+        // 3. Generic Factor Scoring (All Weights from Config)
+        let weights = opp_def_opt
+            .map(|o| &o.scoring_weights)
+            .unwrap_or(&config.scoring_profiles.get("default").cloned().unwrap_or_default());
+
+        let target_match_score = 90.0; // High confidence in validated candidate
+
+        let positive_gaps_count = evidence_signals
+            .iter()
+            .filter(|e| e.status == EvidenceStatus::Detected || e.status == EvidenceStatus::NotDetected)
+            .count();
+        let digital_gap_score = if !has_website {
+            95.0
+        } else if !business.has_ssl {
+            80.0
+        } else {
+            65.0
+        };
+
+        let avg_confidence = if !evidence_signals.is_empty() {
+            evidence_signals.iter().map(|e| e.confidence).sum::<f64>()
+                / evidence_signals.len() as f64
+        } else {
+            0.85
+        };
+        let evidence_quality_score = avg_confidence * 100.0;
+
+        let scale_score = ((review_count as f64 / 20.0).min(50.0) + (rating / 5.0) * 50.0).min(100.0);
+        let contact_bonus = if has_contacts { 15.0 } else { 0.0 };
+
+        let composite_score = (weights.target_match_weight * target_match_score
+            + weights.digital_gap_weight * digital_gap_score
+            + weights.evidence_quality_weight * evidence_quality_score
+            + weights.business_scale_weight * scale_score
+            + contact_bonus)
+            .round() as i32;
+
+        let final_score = composite_score.clamp(30, 98);
+
+        // 4. Resolve Matching OneFolk Service Capability from ServiceRegistry
+        let matched_service: Option<&OneFolkServiceDef> = if let Some(opp_def) = opp_def_opt {
+            opp_def
+                .matching_service_ids
+                .first()
+                .and_then(|sid| config.services.iter().find(|s| &s.service_id == sid))
+        } else {
+            config.services.first()
+        };
+
+        let service_name = matched_service
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| format!("OneFolk Growth & AI Modernization for {}", intent.target_entity));
+
+        let service_tier = matched_service
+            .map(|s| s.service_tier.clone())
+            .unwrap_or_else(|| "ENTERPRISE".to_string());
+
+        let estimated_value = matched_service
+            .and_then(|s| s.estimated_value.clone())
+            .or_else(|| Some("$5,000 - $15,000".to_string()));
+
+        // 5. Dynamic Reason Formatting
+        let reason = if let Some(opp_def) = opp_def_opt {
+            opp_def
+                .reason_template
+                .replace("{entity_name}", &business.name)
+                .replace("{target_entity}", &intent.target_entity)
+                .replace("{opportunity_name}", &opp_def.name)
+        } else {
+            format!(
+                "{} has high potential for {} modernization and digital revenue acceleration.",
+                business.name, intent.opportunity_type
+            )
+        };
+
+        let opp_category = opp_def_opt
+            .map(|o| o.category.clone())
+            .unwrap_or_else(|| "Digital Transformation".to_string());
+
+        let opp_title = opp_def_opt
+            .map(|o| o.name.clone())
+            .unwrap_or_else(|| service_name.clone());
+
+        let impact = if final_score >= 75 {
+            OpportunityImpact::High
+        } else if final_score >= 55 {
+            OpportunityImpact::Medium
+        } else {
+            OpportunityImpact::Low
+        };
+
+        let primary_opp = Opportunity {
+            id: Uuid::new_v4(),
+            business_id: business.id,
+            title: opp_title,
+            description: reason.clone(),
+            category: opp_category,
+            impact,
+            onefolk_service: service_name.clone(),
+            service_tier: service_tier.clone(),
+            confidence: avg_confidence,
+            estimated_revenue_potential: estimated_value.clone(),
+            evidence: evidence_signals
+                .iter()
+                .map(|e| format!("{}: {}", e.label, e.status))
+                .collect(),
+            status: "IDENTIFIED".to_string(),
+            created_at: Utc::now(),
+        };
+
+        opportunities.push(primary_opp);
+
+        let priority = if final_score >= 75 {
             ClientPriority::High
-        } else if score >= 60 {
+        } else if final_score >= 50 {
             ClientPriority::Medium
         } else {
             ClientPriority::Low
         };
 
-        (eval, opportunities, priority, score)
+        let evaluation = OpportunityEvaluation {
+            score: final_score,
+            confidence: avg_confidence,
+            reason,
+            evidence_signals,
+            recommended_service: service_name,
+            service_tier,
+            estimated_value,
+            matched_service_id: matched_service.map(|s| s.service_id.clone()),
+        };
+
+        (evaluation, opportunities, priority, final_score)
     }
 
-    /// Legacy backward-compatible evaluation
+    /// Convenience evaluator using default OneFolkConfig
+    pub fn evaluate_business_with_intent(
+        business: &Business,
+        intent: &SearchIntent,
+        technologies: &[Technology],
+        facts: &[domain::Fact],
+    ) -> (OpportunityEvaluation, Vec<Opportunity>, ClientPriority, i32) {
+        let config = OneFolkConfig::default();
+        Self::evaluate_business_with_config(business, intent, technologies, &[], &config)
+    }
+
+    /// Backward compatibility fallback
     pub fn evaluate_business(business: &Business) -> (Vec<Opportunity>, ClientPriority, i32) {
         let dummy_intent = SearchIntent {
             raw_query: "general discovery".to_string(),
@@ -102,618 +232,18 @@ impl OpportunityEngine {
             industry: business.industry.clone(),
             category: business.sub_industry.clone(),
             location: business.city.clone(),
-            opportunity_type: OpportunityType::Custom,
+            opportunity_query: "Modernization".to_string(),
+            opportunity_id: None,
+            opportunity_type: "Digital Modernization".to_string(),
             opportunity_keywords: vec![],
             qualification_conditions: vec![],
+            intent_type: domain::IntentType::ClientDiscovery,
             is_vendor_search: false,
+            matched_service_ids: vec![],
         };
 
         let (_eval, opps, priority, score) =
             Self::evaluate_business_with_intent(business, &dummy_intent, &[], &[]);
         (opps, priority, score)
-    }
-
-    // --------------------------------------------------------------------------
-    // Specialized Opportunity Evaluators with 3-State Evidence
-    // --------------------------------------------------------------------------
-
-    fn evaluate_erp(
-        business: &Business,
-        _techs: &[Technology],
-        names: &[String],
-        cats: &[String],
-        evidence: &mut Vec<EvidenceSignal>,
-        score: &mut i32,
-    ) -> (OpportunityEvaluation, Opportunity) {
-        let has_erp = cats.contains(&"erp".to_string()) || names.iter().any(|n| n.contains("erp") || n.contains("powerschool") || n.contains("sap") || n.contains("odoo"));
-        let has_portal = cats.contains(&"portal".to_string()) || names.iter().any(|n| n.contains("portal"));
-        let has_lms = cats.contains(&"lms".to_string()) || names.iter().any(|n| n.contains("canvas") || n.contains("blackboard") || n.contains("moodle"));
-
-        if has_erp || (has_portal && has_lms) {
-            evidence.push(EvidenceSignal {
-                key: "erp_infrastructure".to_string(),
-                label: "Enterprise ERP System".to_string(),
-                status: EvidenceStatus::Detected,
-                details: Some("Identified active administrative ERP stack".to_string()),
-                confidence: 0.95,
-                source: "technology_fingerprint".to_string(),
-            });
-            *score += 10;
-        } else if business.has_website {
-            evidence.push(EvidenceSignal {
-                key: "erp_infrastructure".to_string(),
-                label: "Integrated ERP / SIS System".to_string(),
-                status: EvidenceStatus::NotDetected,
-                details: Some("No centralized administrative ERP or student portal discovered".to_string()),
-                confidence: 0.90,
-                source: "crawler_inspection".to_string(),
-            });
-            evidence.push(EvidenceSignal {
-                key: "digital_fee_portal".to_string(),
-                label: "Automated Fee & Enrollment Portal".to_string(),
-                status: EvidenceStatus::NotDetected,
-                details: Some("Administrative workflows rely on manual or disconnected touchpoints".to_string()),
-                confidence: 0.85,
-                source: "crawler_inspection".to_string(),
-            });
-            *score += 35;
-        } else {
-            evidence.push(EvidenceSignal {
-                key: "erp_infrastructure".to_string(),
-                label: "Integrated ERP / SIS System".to_string(),
-                status: EvidenceStatus::Unknown,
-                details: Some("No primary web presence available to verify internal systems".to_string()),
-                confidence: 0.60,
-                source: "public_registry".to_string(),
-            });
-            *score += 25;
-        }
-
-        let reason = if !has_erp {
-            format!(
-                "{} lacks a modern integrated ERP / administrative portal, leading to operational friction and manual management overhead.",
-                business.name
-            )
-        } else {
-            format!(
-                "{} has established administrative software; opportunity to upgrade integration and parent/client portals.",
-                business.name
-            )
-        };
-
-        let opp = Opportunity {
-            id: Uuid::new_v4(),
-            business_id: business.id,
-            title: "Unified Cloud ERP & Client Portal Architecture".to_string(),
-            description: reason.clone(),
-            category: "Enterprise Systems & ERP".to_string(),
-            impact: OpportunityImpact::High,
-            onefolk_service: "Custom Cloud ERP & Digital Portal Implementation".to_string(),
-            service_tier: "ENTERPRISE".to_string(),
-            confidence: 0.92,
-            estimated_revenue_potential: Some("$15,000 - $45,000".to_string()),
-            evidence: evidence.iter().map(|e| format!("{}: {}", e.label, e.status)).collect(),
-            status: "IDENTIFIED".to_string(),
-            created_at: Utc::now(),
-        };
-
-        (
-            OpportunityEvaluation {
-                score: *score,
-                confidence: 0.92,
-                reason,
-                evidence_signals: evidence.clone(),
-                recommended_service: "Custom Cloud ERP & Digital Portal Architecture".to_string(),
-                service_tier: "ENTERPRISE".to_string(),
-                estimated_value: Some("$15,000 - $45,000".to_string()),
-            },
-            opp,
-        )
-    }
-
-    fn evaluate_booking(
-        business: &Business,
-        _techs: &[Technology],
-        _names: &[String],
-        cats: &[String],
-        evidence: &mut Vec<EvidenceSignal>,
-        score: &mut i32,
-    ) -> (OpportunityEvaluation, Opportunity) {
-        let has_booking = cats.contains(&"booking".to_string()) || cats.contains(&"scheduling".to_string());
-
-        if has_booking {
-            evidence.push(EvidenceSignal {
-                key: "online_booking".to_string(),
-                label: "Online Booking / Scheduling Engine".to_string(),
-                status: EvidenceStatus::Detected,
-                details: Some("Active third-party booking integration detected".to_string()),
-                confidence: 0.95,
-                source: "technology_fingerprint".to_string(),
-            });
-            *score += 15;
-        } else if business.has_website {
-            evidence.push(EvidenceSignal {
-                key: "online_booking".to_string(),
-                label: "Direct Online Booking Flow".to_string(),
-                status: EvidenceStatus::NotDetected,
-                details: Some("Inquiries rely on static phone numbers or email with high drop-off rates".to_string()),
-                confidence: 0.92,
-                source: "crawler_inspection".to_string(),
-            });
-            *score += 35;
-        } else {
-            evidence.push(EvidenceSignal {
-                key: "online_booking".to_string(),
-                label: "Direct Online Booking Flow".to_string(),
-                status: EvidenceStatus::Unknown,
-                details: Some("No online booking endpoints found in public directories".to_string()),
-                confidence: 0.65,
-                source: "public_registry".to_string(),
-            });
-            *score += 25;
-        }
-
-        let reason = if !has_booking {
-            format!(
-                "{} has no direct 24/7 online reservation/scheduling funnel, losing high-intent prospective clients.",
-                business.name
-            )
-        } else {
-            format!(
-                "{} utilizes external booking aggregators; opportunity to deploy custom direct zero-commission booking.",
-                business.name
-            )
-        };
-
-        let opp = Opportunity {
-            id: Uuid::new_v4(),
-            business_id: business.id,
-            title: "Direct Conversion & Real-Time Booking Engine".to_string(),
-            description: reason.clone(),
-            category: "Booking & Conversion".to_string(),
-            impact: OpportunityImpact::High,
-            onefolk_service: "Custom Direct Booking Architecture".to_string(),
-            service_tier: "GROWTH".to_string(),
-            confidence: 0.94,
-            estimated_revenue_potential: Some("$4,500 - $10,000".to_string()),
-            evidence: evidence.iter().map(|e| format!("{}: {}", e.label, e.status)).collect(),
-            status: "IDENTIFIED".to_string(),
-            created_at: Utc::now(),
-        };
-
-        (
-            OpportunityEvaluation {
-                score: *score,
-                confidence: 0.94,
-                reason,
-                evidence_signals: evidence.clone(),
-                recommended_service: "Custom Direct Booking Architecture".to_string(),
-                service_tier: "GROWTH".to_string(),
-                estimated_value: Some("$4,500 - $10,000".to_string()),
-            },
-            opp,
-        )
-    }
-
-    fn evaluate_crm(
-        business: &Business,
-        _techs: &[Technology],
-        _names: &[String],
-        cats: &[String],
-        evidence: &mut Vec<EvidenceSignal>,
-        score: &mut i32,
-    ) -> (OpportunityEvaluation, Opportunity) {
-        let has_crm = cats.contains(&"crm".to_string());
-        let has_lead_capture = cats.contains(&"lead capture".to_string());
-
-        if has_crm {
-            evidence.push(EvidenceSignal {
-                key: "crm_system".to_string(),
-                label: "Active CRM Stack".to_string(),
-                status: EvidenceStatus::Detected,
-                details: Some("Enterprise CRM tracker active on domain".to_string()),
-                confidence: 0.98,
-                source: "technology_fingerprint".to_string(),
-            });
-            *score += 15;
-        } else if business.has_website {
-            evidence.push(EvidenceSignal {
-                key: "crm_system".to_string(),
-                label: "Automated CRM & Pipeline".to_string(),
-                status: EvidenceStatus::NotDetected,
-                details: Some("No automated CRM lead tracking or nurture workflow detected".to_string()),
-                confidence: 0.90,
-                source: "crawler_inspection".to_string(),
-            });
-            *score += 35;
-        } else {
-            evidence.push(EvidenceSignal {
-                key: "crm_system".to_string(),
-                label: "Automated CRM & Pipeline".to_string(),
-                status: EvidenceStatus::Unknown,
-                details: Some("CRM infrastructure status unknown without web audit".to_string()),
-                confidence: 0.60,
-                source: "public_registry".to_string(),
-            });
-            *score += 20;
-        }
-
-        if has_lead_capture {
-            evidence.push(EvidenceSignal {
-                key: "lead_form".to_string(),
-                label: "Interactive Lead Funnel".to_string(),
-                status: EvidenceStatus::Detected,
-                details: Some("Interactive form embed identified".to_string()),
-                confidence: 0.95,
-                source: "technology_fingerprint".to_string(),
-            });
-        } else if business.has_website {
-            evidence.push(EvidenceSignal {
-                key: "lead_form".to_string(),
-                label: "Interactive Lead Funnel".to_string(),
-                status: EvidenceStatus::NotDetected,
-                details: Some("Missing multi-step qualification lead capture".to_string()),
-                confidence: 0.88,
-                source: "crawler_inspection".to_string(),
-            });
-        }
-
-        let reason = format!(
-            "{} does not have automated CRM lead capture, risking lead leakage and slow response times.",
-            business.name
-        );
-
-        let opp = Opportunity {
-            id: Uuid::new_v4(),
-            business_id: business.id,
-            title: "Omnichannel CRM & Automated Lead Nurture Pipeline".to_string(),
-            description: reason.clone(),
-            category: "CRM & Sales Operations".to_string(),
-            impact: OpportunityImpact::High,
-            onefolk_service: "Omnichannel CRM & Lead Automation Pipeline".to_string(),
-            service_tier: "ENTERPRISE".to_string(),
-            confidence: 0.91,
-            estimated_revenue_potential: Some("$5,000 - $14,000".to_string()),
-            evidence: evidence.iter().map(|e| format!("{}: {}", e.label, e.status)).collect(),
-            status: "IDENTIFIED".to_string(),
-            created_at: Utc::now(),
-        };
-
-        (
-            OpportunityEvaluation {
-                score: *score,
-                confidence: 0.91,
-                reason,
-                evidence_signals: evidence.clone(),
-                recommended_service: "Omnichannel CRM & Lead Automation Pipeline".to_string(),
-                service_tier: "ENTERPRISE".to_string(),
-                estimated_value: Some("$5,000 - $14,000".to_string()),
-            },
-            opp,
-        )
-    }
-
-    fn evaluate_automation(
-        business: &Business,
-        _techs: &[Technology],
-        _names: &[String],
-        cats: &[String],
-        evidence: &mut Vec<EvidenceSignal>,
-        score: &mut i32,
-    ) -> (OpportunityEvaluation, Opportunity) {
-        let has_chat = cats.contains(&"messaging".to_string()) || cats.contains(&"live chat".to_string());
-
-        if has_chat {
-            evidence.push(EvidenceSignal {
-                key: "instant_messaging".to_string(),
-                label: "Direct Instant Messaging Channel".to_string(),
-                status: EvidenceStatus::Detected,
-                details: Some("WhatsApp / Live Chat link identified".to_string()),
-                confidence: 0.95,
-                source: "technology_fingerprint".to_string(),
-            });
-            *score += 15;
-        } else {
-            evidence.push(EvidenceSignal {
-                key: "instant_messaging".to_string(),
-                label: "Automated Instant Messaging & AI Chat".to_string(),
-                status: EvidenceStatus::NotDetected,
-                details: Some("No instant messaging or AI customer assistant active".to_string()),
-                confidence: 0.92,
-                source: "crawler_inspection".to_string(),
-            });
-            *score += 35;
-        }
-
-        let reason = format!(
-            "{} relies on manual communication workflows without AI auto-responders or instant WhatsApp lead routing.",
-            business.name
-        );
-
-        let opp = Opportunity {
-            id: Uuid::new_v4(),
-            business_id: business.id,
-            title: "AI Receptionist & WhatsApp Workflow Automation".to_string(),
-            description: reason.clone(),
-            category: "Operations & Automation".to_string(),
-            impact: OpportunityImpact::High,
-            onefolk_service: "AI Receptionist & WhatsApp Workflow Automation".to_string(),
-            service_tier: "GROWTH".to_string(),
-            confidence: 0.93,
-            estimated_revenue_potential: Some("$3,000 - $8,500".to_string()),
-            evidence: evidence.iter().map(|e| format!("{}: {}", e.label, e.status)).collect(),
-            status: "IDENTIFIED".to_string(),
-            created_at: Utc::now(),
-        };
-
-        (
-            OpportunityEvaluation {
-                score: *score,
-                confidence: 0.93,
-                reason,
-                evidence_signals: evidence.clone(),
-                recommended_service: "AI Receptionist & WhatsApp Workflow Automation".to_string(),
-                service_tier: "GROWTH".to_string(),
-                estimated_value: Some("$3,000 - $8,500".to_string()),
-            },
-            opp,
-        )
-    }
-
-    fn evaluate_seo(
-        business: &Business,
-        _techs: &[Technology],
-        _names: &[String],
-        cats: &[String],
-        evidence: &mut Vec<EvidenceSignal>,
-        score: &mut i32,
-    ) -> (OpportunityEvaluation, Opportunity) {
-        let has_schema = cats.contains(&"seo".to_string());
-
-        if has_schema {
-            evidence.push(EvidenceSignal {
-                key: "schema_markup".to_string(),
-                label: "Schema.org Rich Snippet Markup".to_string(),
-                status: EvidenceStatus::Detected,
-                details: Some("Structured JSON-LD entity data active".to_string()),
-                confidence: 0.95,
-                source: "technology_fingerprint".to_string(),
-            });
-            *score += 10;
-        } else if business.has_website {
-            evidence.push(EvidenceSignal {
-                key: "schema_markup".to_string(),
-                label: "Schema.org Rich Snippet Markup".to_string(),
-                status: EvidenceStatus::NotDetected,
-                details: Some("Missing structured schema markup for search engines".to_string()),
-                confidence: 0.92,
-                source: "crawler_inspection".to_string(),
-            });
-            *score += 30;
-        } else {
-            evidence.push(EvidenceSignal {
-                key: "schema_markup".to_string(),
-                label: "Schema.org Rich Snippet Markup".to_string(),
-                status: EvidenceStatus::Unknown,
-                details: Some("Website unverified".to_string()),
-                confidence: 0.50,
-                source: "public_registry".to_string(),
-            });
-        }
-
-        let reason = format!(
-            "{} has unoptimized technical search visibility and missing structured schema markup.",
-            business.name
-        );
-
-        let opp = Opportunity {
-            id: Uuid::new_v4(),
-            business_id: business.id,
-            title: "Technical SEO & Search Visibility Architecture".to_string(),
-            description: reason.clone(),
-            category: "Search & Visibility".to_string(),
-            impact: OpportunityImpact::Medium,
-            onefolk_service: "Autonomous Technical SEO & Content Optimization".to_string(),
-            service_tier: "GROWTH".to_string(),
-            confidence: 0.89,
-            estimated_revenue_potential: Some("$2,500 - $6,000/mo".to_string()),
-            evidence: evidence.iter().map(|e| format!("{}: {}", e.label, e.status)).collect(),
-            status: "IDENTIFIED".to_string(),
-            created_at: Utc::now(),
-        };
-
-        (
-            OpportunityEvaluation {
-                score: *score,
-                confidence: 0.89,
-                reason,
-                evidence_signals: evidence.clone(),
-                recommended_service: "Autonomous Technical SEO & Content Optimization".to_string(),
-                service_tier: "GROWTH".to_string(),
-                estimated_value: Some("$2,500 - $6,000/mo".to_string()),
-            },
-            opp,
-        )
-    }
-
-    fn evaluate_website(
-        business: &Business,
-        _techs: &[Technology],
-        names: &[String],
-        _cats: &[String],
-        evidence: &mut Vec<EvidenceSignal>,
-        score: &mut i32,
-    ) -> (OpportunityEvaluation, Opportunity) {
-        if !business.has_website || business.website.is_none() {
-            evidence.push(EvidenceSignal {
-                key: "primary_website".to_string(),
-                label: "Official Digital Web Experience".to_string(),
-                status: EvidenceStatus::NotDetected,
-                details: Some("No active dedicated domain registered".to_string()),
-                confidence: 0.98,
-                source: "crawler_inspection".to_string(),
-            });
-            *score += 40;
-        } else {
-            evidence.push(EvidenceSignal {
-                key: "primary_website".to_string(),
-                label: "Official Web Presence".to_string(),
-                status: EvidenceStatus::Detected,
-                details: Some("Active domain registered".to_string()),
-                confidence: 0.99,
-                source: "crawler_inspection".to_string(),
-            });
-
-            if business.has_ssl {
-                evidence.push(EvidenceSignal {
-                    key: "ssl_security".to_string(),
-                    label: "HTTPS SSL Certificate".to_string(),
-                    status: EvidenceStatus::Detected,
-                    details: Some("Encrypted HTTPS connection active".to_string()),
-                    confidence: 0.99,
-                    source: "crawler_inspection".to_string(),
-                });
-            } else {
-                evidence.push(EvidenceSignal {
-                    key: "ssl_security".to_string(),
-                    label: "HTTPS SSL Certificate".to_string(),
-                    status: EvidenceStatus::NotDetected,
-                    details: Some("Missing SSL security certificate".to_string()),
-                    confidence: 0.99,
-                    source: "crawler_inspection".to_string(),
-                });
-                *score += 20;
-            }
-
-            let is_modern = names.iter().any(|n| n.contains("next.js") || n.contains("webflow"));
-            if is_modern {
-                evidence.push(EvidenceSignal {
-                    key: "modern_framework".to_string(),
-                    label: "Modern Fast Web Architecture".to_string(),
-                    status: EvidenceStatus::Detected,
-                    details: Some("High-performance modern framework detected".to_string()),
-                    confidence: 0.95,
-                    source: "technology_fingerprint".to_string(),
-                });
-            } else {
-                evidence.push(EvidenceSignal {
-                    key: "modern_framework".to_string(),
-                    label: "Modern Fast Web Architecture".to_string(),
-                    status: EvidenceStatus::NotDetected,
-                    details: Some("Built on legacy CMS or template builder with slow mobile response".to_string()),
-                    confidence: 0.90,
-                    source: "technology_fingerprint".to_string(),
-                });
-                *score += 25;
-            }
-        }
-
-        let reason = if !business.has_website {
-            format!(
-                "{} lacks an official modern website, losing direct traffic to third-party aggregator directories.",
-                business.name
-            )
-        } else {
-            format!(
-                "{} has an outdated web stack with opportunities for high-converting mobile redesign and performance optimization.",
-                business.name
-            )
-        };
-
-        let opp = Opportunity {
-            id: Uuid::new_v4(),
-            business_id: business.id,
-            title: "High-Performance Modern Web Architecture & Redesign".to_string(),
-            description: reason.clone(),
-            category: "Web & Digital Presence".to_string(),
-            impact: OpportunityImpact::High,
-            onefolk_service: "High-Performance Web Architecture & Conversion Redesign".to_string(),
-            service_tier: "ENTERPRISE".to_string(),
-            confidence: 0.96,
-            estimated_revenue_potential: Some("$6,000 - $18,000".to_string()),
-            evidence: evidence.iter().map(|e| format!("{}: {}", e.label, e.status)).collect(),
-            status: "IDENTIFIED".to_string(),
-            created_at: Utc::now(),
-        };
-
-        (
-            OpportunityEvaluation {
-                score: *score,
-                confidence: 0.96,
-                reason,
-                evidence_signals: evidence.clone(),
-                recommended_service: "High-Performance Web Architecture & Conversion Redesign".to_string(),
-                service_tier: "ENTERPRISE".to_string(),
-                estimated_value: Some("$6,000 - $18,000".to_string()),
-            },
-            opp,
-        )
-    }
-
-    fn evaluate_custom(
-        business: &Business,
-        _techs: &[Technology],
-        _names: &[String],
-        _cats: &[String],
-        intent: &SearchIntent,
-        evidence: &mut Vec<EvidenceSignal>,
-        score: &mut i32,
-    ) -> (OpportunityEvaluation, Opportunity) {
-        if business.has_website {
-            evidence.push(EvidenceSignal {
-                key: "digital_foundation".to_string(),
-                label: "Active Digital Foundation".to_string(),
-                status: EvidenceStatus::Detected,
-                details: Some("Domain and digital presence identified".to_string()),
-                confidence: 0.95,
-                source: "crawler_inspection".to_string(),
-            });
-            *score += 15;
-        } else {
-            evidence.push(EvidenceSignal {
-                key: "digital_foundation".to_string(),
-                label: "Active Digital Foundation".to_string(),
-                status: EvidenceStatus::NotDetected,
-                details: Some("No verified digital properties found".to_string()),
-                confidence: 0.90,
-                source: "crawler_inspection".to_string(),
-            });
-            *score += 30;
-        }
-
-        let service_name = format!("Custom AI & Digital Acceleration for {}", intent.target_entity);
-        let reason = format!(
-            "Identified growth and digital modernization opportunities tailored for {} in {}.",
-            business.name, intent.target_entity
-        );
-
-        let opp = Opportunity {
-            id: Uuid::new_v4(),
-            business_id: business.id,
-            title: service_name.clone(),
-            description: reason.clone(),
-            category: "Digital Transformation".to_string(),
-            impact: OpportunityImpact::High,
-            onefolk_service: service_name.clone(),
-            service_tier: "GROWTH".to_string(),
-            confidence: 0.88,
-            estimated_revenue_potential: Some("$5,000 - $15,000".to_string()),
-            evidence: evidence.iter().map(|e| format!("{}: {}", e.label, e.status)).collect(),
-            status: "IDENTIFIED".to_string(),
-            created_at: Utc::now(),
-        };
-
-        (
-            OpportunityEvaluation {
-                score: *score,
-                confidence: 0.88,
-                reason,
-                evidence_signals: evidence.clone(),
-                recommended_service: service_name,
-                service_tier: "GROWTH".to_string(),
-                estimated_value: Some("$5,000 - $15,000".to_string()),
-            },
-            opp,
-        )
     }
 }

@@ -84,6 +84,9 @@ pub enum ProviderCategory {
     ReviewSource,
 }
 
+pub mod registry;
+pub use registry::*;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum EvidenceStatus {
@@ -110,32 +113,18 @@ pub struct EvidenceSignal {
     pub details: Option<String>,
     pub confidence: f64,
     pub source: String,
+    #[serde(default = "default_freshness")]
+    pub freshness: Freshness,
+    #[serde(default = "default_utc_now")]
+    pub timestamp: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum OpportunityType {
-    Erp,
-    Website,
-    Crm,
-    Booking,
-    Automation,
-    Seo,
-    Custom,
+fn default_freshness() -> Freshness {
+    Freshness::Current
 }
 
-impl std::fmt::Display for OpportunityType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Erp => write!(f, "ERP"),
-            Self::Website => write!(f, "WEBSITE"),
-            Self::Crm => write!(f, "CRM"),
-            Self::Booking => write!(f, "BOOKING"),
-            Self::Automation => write!(f, "AUTOMATION"),
-            Self::Seo => write!(f, "SEO"),
-            Self::Custom => write!(f, "CUSTOM"),
-        }
-    }
+fn default_utc_now() -> DateTime<Utc> {
+    Utc::now()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,10 +134,15 @@ pub struct SearchIntent {
     pub industry: String,
     pub category: Option<String>,
     pub location: Option<String>,
-    pub opportunity_type: OpportunityType,
+    pub opportunity_query: String,
+    pub opportunity_id: Option<String>,
+    pub opportunity_type: String,
     pub opportunity_keywords: Vec<String>,
     pub qualification_conditions: Vec<String>,
+    pub intent_type: IntentType,
     pub is_vendor_search: bool,
+    #[serde(default)]
+    pub matched_service_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -160,6 +154,8 @@ pub struct OpportunityEvaluation {
     pub recommended_service: String,
     pub service_tier: String,
     pub estimated_value: Option<String>,
+    #[serde(default)]
+    pub matched_service_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

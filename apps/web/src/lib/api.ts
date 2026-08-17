@@ -1,6 +1,35 @@
-import { Business, BusinessProfile, Opportunity, ActivityEvent, SearchFilters, SearchIntent, SearchSession } from './types';
+import {
+  Business,
+  BusinessProfile,
+  Opportunity,
+  ActivityEvent,
+  SearchFilters,
+  SearchIntent,
+  SearchSession,
+  OneFolkServiceDef,
+  OpportunityDef,
+  ResourceDef,
+} from './types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
+export async function listOneFolkServices(): Promise<OneFolkServiceDef[]> {
+  const res = await fetch(`${API_BASE_URL}/api/config/services`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function listOpportunityDefs(): Promise<OpportunityDef[]> {
+  const res = await fetch(`${API_BASE_URL}/api/config/opportunities`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function listResourceDefs(): Promise<ResourceDef[]> {
+  const res = await fetch(`${API_BASE_URL}/api/config/resources`);
+  if (!res.ok) return [];
+  return res.json();
+}
 
 export async function parseIntent(
   query: string,

@@ -2,8 +2,54 @@ export type SearchStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CAN
 export type BusinessStatus = 'DISCOVERED' | 'ENRICHED' | 'ANALYZED' | 'OPPORTUNITY_FOUND' | 'CONTACTED' | 'REJECTED';
 export type ClientPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 export type OpportunityImpact = 'HIGH' | 'MEDIUM' | 'LOW';
-export type OpportunityType = 'ERP' | 'WEBSITE' | 'CRM' | 'BOOKING' | 'AUTOMATION' | 'SEO' | 'CUSTOM';
 export type EvidenceStatus = 'DETECTED' | 'NOT_DETECTED' | 'UNKNOWN';
+export type Freshness = 'CURRENT' | 'RECENTLY_VERIFIED' | 'STALE' | 'UNKNOWN';
+export type IntentType = 'CLIENT_DISCOVERY' | 'VENDOR_DISCOVERY' | 'GENERAL_RESEARCH';
+
+export interface SignalMatcher {
+  signal_key: string;
+  label: string;
+  matcher_type: string;
+  pattern: string;
+  expected_value?: any;
+  confidence_weight: number;
+}
+
+export interface OneFolkServiceDef {
+  service_id: string;
+  name: string;
+  description: string;
+  category: string;
+  capabilities: string[];
+  target_signals: string[];
+  qualification_signals: string[];
+  negative_signals: string[];
+  recommended_evidence: string[];
+  service_tier: string;
+  estimated_value?: string;
+}
+
+export interface OpportunityDef {
+  opportunity_id: string;
+  name: string;
+  category: string;
+  keywords: string[];
+  target_entity_types: string[];
+  matching_service_ids: string[];
+  reason_template: string;
+}
+
+export interface ResourceDef {
+  resource_id: string;
+  name: string;
+  resource_type: string;
+  supported_entity_types: string[];
+  supported_industries: string[];
+  geographic_coverage: string[];
+  discovery_support: boolean;
+  research_support: boolean;
+  reliability_score: number;
+}
 
 export interface EvidenceSignal {
   key: string;
@@ -12,6 +58,8 @@ export interface EvidenceSignal {
   details?: string;
   confidence: number;
   source: string;
+  freshness?: Freshness;
+  timestamp?: string;
 }
 
 export interface SearchIntent {
@@ -20,10 +68,14 @@ export interface SearchIntent {
   industry: string;
   category?: string;
   location?: string;
-  opportunity_type: OpportunityType;
+  opportunity_query: string;
+  opportunity_id?: string;
+  opportunity_type: string;
   opportunity_keywords: string[];
   qualification_conditions: string[];
+  intent_type: IntentType;
   is_vendor_search: boolean;
+  matched_service_ids?: string[];
 }
 
 export interface ValidationSummary {
@@ -43,6 +95,7 @@ export interface OpportunityEvaluation {
   recommended_service: string;
   service_tier: string;
   estimated_value?: string;
+  matched_service_id?: string;
 }
 
 export interface SearchFilters {

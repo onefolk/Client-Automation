@@ -41,7 +41,6 @@ import {
   EvidenceSignal,
   EvidenceStatus,
   Opportunity,
-  OpportunityType,
   SearchFilters,
   SearchIntent,
   SystemEvent,
