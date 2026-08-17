@@ -1,10 +1,11 @@
 use chrono::Utc;
+use crawler::HttpCrawler;
 use database::Database;
-use discovery::SearchPlanner;
+use discovery::{DiscoveryPlanner, SearchValidator};
 use domain::{Contact, SearchStatus};
+use enrichment::EnrichmentPipeline;
 use entity_resolution::{EntityResolver, ResolutionResult};
 use events::{EventBus, SystemEvent};
-use opportunities::OpportunityEngine;
 use providers::{LiveWebSearchProvider, ProviderRegistry, PublicRegistryProvider};
 use queue::JobQueue;
 use std::{sync::Arc, time::Duration};
@@ -17,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            "info,worker=debug,discovery=debug,providers=debug,normalization=debug,entity_resolution=debug".into()
+            "info,worker=debug,discovery=debug,providers=debug,normalization=debug,entity_resolution=debug,opportunities=debug,enrichment=debug".into()
         }))
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -28,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let redis_url = std::env::var("REDIS_URL")
         .unwrap_or_else(|_| "redis://localhost:6379".to_string());
 
-    tracing::info!("Starting OneFolk Client Intelligence Background Worker...");
+    tracing::info!("Starting Universal Client Opportunity Discovery Worker...");
     tracing::info!("Connecting to PostgreSQL at {}", database_url);
     let db = Database::connect(&database_url).await.expect("Failed to connect to PostgreSQL");
 
@@ -37,13 +38,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     queue.init_stream_groups().await.ok();
 
     let event_bus = EventBus::new(&redis_url).await.expect("Failed to connect to EventBus");
+    let crawler = HttpCrawler::new();
 
     let mut provider_registry = ProviderRegistry::new();
     provider_registry.register(Arc::new(PublicRegistryProvider::new()));
     provider_registry.register(Arc::new(LiveWebSearchProvider::new()));
 
     let consumer_name = format!("worker_{}", Uuid::new_v4().simple());
-    tracing::info!(consumer = %consumer_name, "OneFolk Worker loop ready for Redis Streams jobs");
+    tracing::info!(consumer = %consumer_name, "Universal Discovery Worker loop ready for Redis Streams jobs");
 
     loop {
         match queue.read_discovery_jobs(&consumer_name, 5).await {
@@ -53,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         job_id = %payload.job_id,
                         search_id = %payload.search_id,
                         query = %payload.query,
-                        "Processing discovery job"
+                        "Processing universal discovery job"
                     );
 
                     let start_instant = std::time::Instant::now();
@@ -63,15 +65,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .update_search_progress(payload.search_id, SearchStatus::Running, 0, 0, 0)
                         .await;
 
-                    // 1. Create Search Plan
-                    let plan = SearchPlanner::create_plan(
+                    // 1. Universal Intent Parsing & Discovery Planning
+                    let plan = DiscoveryPlanner::create_plan(
                         &payload.query,
                         &payload.filters,
                         &payload.providers,
                     );
 
+                    tracing::info!(
+                        target_entity = %plan.intent.target_entity,
+                        opportunity_type = %plan.intent.opportunity_type,
+                        is_vendor = plan.intent.is_vendor_search,
+                        "Parsed user search intent"
+                    );
+
+                    // Broadcast IntentParsed event
+                    let _ = event_bus
+                        .publish_search_event(
+                            payload.search_id,
+                            SystemEvent::IntentParsed {
+                                search_id: payload.search_id,
+                                intent: plan.intent.clone(),
+                            },
+                        )
+                        .await;
+
                     let mut total_discovered = 0;
                     let mut total_saved = 0;
+                    let mut total_enriched = 0;
 
                     for strategy in plan.strategies {
                         if let Some(provider) = provider_registry.get(&strategy.provider_id) {
@@ -89,10 +110,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                                 match provider.search(&variation, &payload.filters, strategy.limit).await {
                                     Ok(discovered_list) => {
-                                        for (rank, discovered) in discovered_list.into_iter().enumerate() {
+                                        // 2. Search Validation & Noise Suppression
+                                        let (valid_candidates, val_summary) =
+                                            SearchValidator::validate_candidates(
+                                                discovered_list,
+                                                &plan.intent,
+                                            );
+
+                                        let _ = event_bus
+                                            .publish_search_event(
+                                                payload.search_id,
+                                                SystemEvent::ValidationCompleted {
+                                                    search_id: payload.search_id,
+                                                    validation: val_summary,
+                                                },
+                                            )
+                                            .await;
+
+                                        for (rank, discovered) in valid_candidates.into_iter().enumerate() {
                                             total_discovered += 1;
 
-                                            // 2. Entity Resolution & Deduplication
+                                            // 3. Entity Resolution & Deduplication
                                             let res = match EntityResolver::resolve(&db, &discovered).await {
                                                 Ok(r) => r,
                                                 Err(e) => {
@@ -106,13 +144,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 ResolutionResult::NewEntity(b) => (b, true),
                                             };
 
-                                            // 3. Evaluate Opportunities & Calculate Priority
-                                            let (opps, priority, score) = OpportunityEngine::evaluate_business(&business);
-                                            business.priority = priority;
-                                            business.priority_score = score;
-                                            business.status = domain::BusinessStatus::OpportunityFound;
+                                            // 4. Intent-Aware Enrichment & Dynamic Opportunity Evaluation
+                                            let enrich_res = EnrichmentPipeline::process_business_with_intent(
+                                                &db,
+                                                &crawler,
+                                                &mut business,
+                                                &plan.intent,
+                                            )
+                                            .await;
 
-                                            // 4. Save Master Business Entity
+                                            if let Ok((_contacts, _techs, _facts, _eval)) = enrich_res {
+                                                total_enriched += 1;
+                                            }
+
+                                            // 5. Save Master Business Entity
                                             if let Ok(saved_biz) = db.save_business(&business).await {
                                                 total_saved += 1;
 
@@ -155,40 +200,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                     let _ = db.save_contact(&contact).await;
                                                 }
 
-                                                // Save Opportunities
-                                                for opp in &opps {
-                                                    let _ = db.save_opportunity(opp).await;
-                                                    let _ = event_bus
-                                                        .publish_search_event(
-                                                            payload.search_id,
-                                                            SystemEvent::OpportunityDetected {
-                                                                search_id: Some(payload.search_id),
-                                                                business_id: saved_biz.id,
-                                                                opportunity: opp.clone(),
-                                                             },
-                                                        )
-                                                        .await;
-                                                }
-
-                                                // Add Activity Record
-                                                let _ = db
-                                                    .add_activity(
-                                                        Some(saved_biz.id),
-                                                        Some(payload.search_id),
-                                                        "business.discovered",
-                                                        "Client Discovered",
-                                                        Some(&format!(
-                                                            "Discovered {} via {}",
-                                                            saved_biz.name, discovered.source
-                                                        )),
-                                                        &serde_json::json!({
-                                                            "source": discovered.source,
-                                                            "priority": format!("{}", saved_biz.priority),
-                                                        }),
-                                                    )
-                                                    .await;
-
-                                                // 5. Emit Realtime SSE Event: business.discovered
+                                                // Emit Realtime SSE Event: business.discovered
                                                 let _ = event_bus
                                                     .publish_search_event(
                                                         payload.search_id,
@@ -235,7 +247,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             SearchStatus::Completed,
                             total_discovered,
                             total_saved,
-                            total_saved,
+                            total_enriched,
                         )
                         .await;
 
@@ -247,7 +259,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 search_id: payload.search_id,
                                 total_discovered,
                                 total_saved,
-                                total_enriched: total_saved,
+                                total_enriched,
                                 duration_ms,
                             },
                         )
@@ -259,6 +271,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     tracing::info!(
                         search_id = %payload.search_id,
                         total_saved,
+                        total_enriched,
                         duration_ms,
                         "Discovery job completed successfully"
                     );

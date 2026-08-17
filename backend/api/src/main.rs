@@ -10,9 +10,10 @@ use axum::{
 };
 use chrono::Utc;
 use database::Database;
+use discovery::IntentParser;
 use domain::{
-    Business, BusinessProfile, CreateSearchRequest, Opportunity, SearchFilters, SearchResponse,
-    SearchSession, SearchStatus,
+    Business, BusinessProfile, CreateSearchRequest, Opportunity, SearchFilters, SearchIntent,
+    SearchResponse, SearchSession, SearchStatus,
 };
 use events::{EventBus, SystemEvent};
 use futures::Stream;
@@ -101,6 +102,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(root_handler))
         .route("/api/health", get(health_check))
         .route("/health", get(health_check))
+        // Intent & Discovery
+        .route("/api/intent/parse", post(parse_intent_handler))
         // Searches
         .route("/api/searches", post(create_search).get(list_searches))
         .route("/api/searches/:id", get(get_search))
@@ -153,27 +156,44 @@ async fn health_check() -> Json<serde_json::Value> {
     }))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ParseIntentRequest {
+    pub query: String,
+    #[serde(default)]
+    pub filters: SearchFilters,
+}
+
+async fn parse_intent_handler(
+    Json(req): Json<ParseIntentRequest>,
+) -> Json<SearchIntent> {
+    let intent = IntentParser::parse(&req.query, &req.filters);
+    Json(intent)
+}
+
 async fn create_search(
     State(state): State<AppState>,
     Json(req): Json<CreateSearchRequest>,
 ) -> Result<Json<SearchResponse>, (StatusCode, String)> {
     tracing::info!(query = %req.query, "Received new discovery search request");
 
-    // 1. Create Search Session in PostgreSQL
+    // 1. Parse Search Intent
+    let intent = IntentParser::parse(&req.query, &req.filters);
+
+    // 2. Create Search Session in PostgreSQL
     let session = state
         .db
         .create_search(&req.query, &req.filters, &req.providers)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 2. Enqueue Background Discovery Job in Redis Streams
+    // 3. Enqueue Background Discovery Job in Redis Streams
     state
         .queue
         .enqueue_discovery_job(session.id, &session.query, &session.filters, &session.providers_selected)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 3. Emit search.started event to SSE Bus
+    // 4. Emit search.started and intent.parsed events to SSE Bus
     let start_event = SystemEvent::SearchStarted {
         search_id: session.id,
         query: session.query.clone(),
@@ -181,7 +201,13 @@ async fn create_search(
     };
     let _ = state.event_bus.publish_search_event(session.id, start_event).await;
 
-    // 4. Log initial activity
+    let intent_event = SystemEvent::IntentParsed {
+        search_id: session.id,
+        intent: intent.clone(),
+    };
+    let _ = state.event_bus.publish_search_event(session.id, intent_event).await;
+
+    // 5. Log initial activity
     let _ = state
         .db
         .add_activity(
@@ -189,8 +215,18 @@ async fn create_search(
             Some(session.id),
             "search.created",
             "Discovery Session Initiated",
-            Some(&format!("Search query: '{}'", session.query)),
-            &serde_json::json!({ "query": session.query }),
+            Some(&format!(
+                "Target: '{}' | Opportunity: '{:?}' | Location: '{}'",
+                intent.target_entity,
+                intent.opportunity_type,
+                intent.location.as_deref().unwrap_or("Any")
+            )),
+            &serde_json::json!({
+                "query": session.query,
+                "target_entity": intent.target_entity,
+                "opportunity_type": format!("{}", intent.opportunity_type),
+                "is_vendor": intent.is_vendor_search,
+            }),
         )
         .await;
 

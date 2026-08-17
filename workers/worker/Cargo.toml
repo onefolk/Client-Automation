@@ -15,6 +15,7 @@ entity-resolution = { path = "../../crates/entity-resolution" }
 opportunities = { path = "../../crates/opportunities" }
 enrichment = { path = "../../crates/enrichment" }
 contacts = { path = "../../crates/contacts" }
+crawler = { path = "../../crates/crawler" }
 intelligence = { path = "../../crates/intelligence" }
 tokio = { workspace = true }
 serde = { workspace = true }

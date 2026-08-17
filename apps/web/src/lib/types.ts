@@ -2,6 +2,48 @@ export type SearchStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CAN
 export type BusinessStatus = 'DISCOVERED' | 'ENRICHED' | 'ANALYZED' | 'OPPORTUNITY_FOUND' | 'CONTACTED' | 'REJECTED';
 export type ClientPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 export type OpportunityImpact = 'HIGH' | 'MEDIUM' | 'LOW';
+export type OpportunityType = 'ERP' | 'WEBSITE' | 'CRM' | 'BOOKING' | 'AUTOMATION' | 'SEO' | 'CUSTOM';
+export type EvidenceStatus = 'DETECTED' | 'NOT_DETECTED' | 'UNKNOWN';
+
+export interface EvidenceSignal {
+  key: string;
+  label: string;
+  status: EvidenceStatus;
+  details?: string;
+  confidence: number;
+  source: string;
+}
+
+export interface SearchIntent {
+  raw_query: string;
+  target_entity: string;
+  industry: string;
+  category?: string;
+  location?: string;
+  opportunity_type: OpportunityType;
+  opportunity_keywords: string[];
+  qualification_conditions: string[];
+  is_vendor_search: boolean;
+}
+
+export interface ValidationSummary {
+  target_entity: string;
+  total_candidates: number;
+  valid_candidates: number;
+  match_ratio: number;
+  detected_entity_distribution: Record<string, number>;
+  regenerated: boolean;
+}
+
+export interface OpportunityEvaluation {
+  score: number;
+  confidence: number;
+  reason: string;
+  evidence_signals: EvidenceSignal[];
+  recommended_service: string;
+  service_tier: string;
+  estimated_value?: string;
+}
 
 export interface SearchFilters {
   industry?: string;
@@ -194,6 +236,8 @@ export interface BusinessProfile extends Business {
 
 export type SystemEvent =
   | { type: 'search.started'; data: { search_id: string; query: string; started_at: string } }
+  | { type: 'intent.parsed'; data: { search_id: string; intent: SearchIntent } }
+  | { type: 'validation.completed'; data: { search_id: string; validation: ValidationSummary } }
   | { type: 'provider.started'; data: { search_id: string; provider_id: string; query_variation: string } }
   | { type: 'provider.progress'; data: { search_id: string; provider_id: string; progress_percentage: number; found_count: number } }
   | { type: 'business.discovered'; data: { search_id: string; business: Business; is_new: boolean } }

@@ -52,7 +52,7 @@ export default function OpportunitiesPage() {
 
                 <div className="p-3 bg-[#071317] rounded-xl border border-[#1A3A44] space-y-1.5 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400 font-medium">Mapped Agency Service:</span>
+                    <span className="text-slate-400 font-medium">Mapped OneFolk Service:</span>
                     <span className="text-[#02A0A0] font-bold">{opp.onefolk_service}</span>
                   </div>
                   {opp.estimated_revenue_potential && (
@@ -64,6 +64,30 @@ export default function OpportunitiesPage() {
                     </div>
                   )}
                 </div>
+
+                {opp.evidence && opp.evidence.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {opp.evidence.map((ev, idx) => {
+                      const isDetected = ev.toLowerCase().includes('detected') && !ev.toLowerCase().includes('not_detected') && !ev.toLowerCase().includes('not detected');
+                      const isNotDetected = ev.toLowerCase().includes('not_detected') || ev.toLowerCase().includes('not detected');
+
+                      return (
+                        <span
+                          key={idx}
+                          className={`text-[10px] px-2 py-0.5 rounded font-mono font-medium border ${
+                            isDetected
+                              ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                              : isNotDetected
+                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                              : 'bg-slate-500/10 text-slate-300 border-slate-500/30'
+                          }`}
+                        >
+                          {ev}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="pt-4 mt-4 border-t border-[#1A3A44] flex items-center justify-between">

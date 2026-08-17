@@ -1,6 +1,21 @@
-import { Business, BusinessProfile, Opportunity, ActivityEvent, SearchFilters, SearchSession } from './types';
+import { Business, BusinessProfile, Opportunity, ActivityEvent, SearchFilters, SearchIntent, SearchSession } from './types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
+export async function parseIntent(
+  query: string,
+  filters: SearchFilters = {}
+): Promise<SearchIntent> {
+  const res = await fetch(`${API_BASE_URL}/api/intent/parse`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, filters }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to parse search intent: ${res.statusText}`);
+  }
+  return res.json();
+}
 
 export async function createSearch(
   query: string,

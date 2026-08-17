@@ -531,6 +531,7 @@ dependencies = [
  "normalization",
  "opportunities",
  "providers",
+ "regex",
  "serde",
  "serde_json",
  "tokio",
@@ -1831,10 +1832,13 @@ dependencies = [
  "chrono",
  "domain",
  "rand 0.8.7",
+ "regex",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
  "tracing",
+ "urlencoding",
 ]
 
 [[package]]
@@ -3754,6 +3758,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "contacts",
+ "crawler",
  "database",
  "discovery",
  "domain",

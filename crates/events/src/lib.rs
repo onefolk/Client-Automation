@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use domain::{Business, Opportunity};
+use domain::{Business, Opportunity, SearchIntent, ValidationSummary};
 use futures::StreamExt;
 use redis::{aio::ConnectionManager, AsyncCommands, Client};
 use serde::{Deserialize, Serialize};
@@ -15,6 +15,16 @@ pub enum SystemEvent {
         search_id: Uuid,
         query: String,
         started_at: DateTime<Utc>,
+    },
+    #[serde(rename = "intent.parsed")]
+    IntentParsed {
+        search_id: Uuid,
+        intent: SearchIntent,
+    },
+    #[serde(rename = "validation.completed")]
+    ValidationCompleted {
+        search_id: Uuid,
+        validation: ValidationSummary,
     },
     #[serde(rename = "provider.started")]
     ProviderStarted {

@@ -96,6 +96,7 @@ export default function BusinessDetailPage() {
   // DYNAMIC INDUSTRY METRICS & REVENUE CALCULATOR
   const ind = (profile.industry || '').toLowerCase();
   const isHealthcare = ind.includes('health') || ind.includes('dent') || ind.includes('clinic') || ind.includes('medic');
+  const isEducation = ind.includes('school') || ind.includes('educat') || ind.includes('academ') || ind.includes('college') || ind.includes('university');
   const isRealEstate = ind.includes('real') || ind.includes('estate') || ind.includes('property');
   const isLegal = ind.includes('law') || ind.includes('legal') || ind.includes('attorney');
   const isHospitality = ind.includes('hotel') || ind.includes('resort') || ind.includes('spa') || ind.includes('hospitality');
@@ -108,7 +109,15 @@ export default function BusinessDetailPage() {
   let recommendedRetainer = '$4,500 / mo + 5% rev-share';
   let proposedSolution = 'Direct Table Booking Engine & WhatsApp VIP Retention';
 
-  if (isHealthcare) {
+  if (isEducation) {
+    volumeLabel = 'Enrolled Students';
+    unitValue = 650;
+    lossLabel = 'Monthly Administrative Overhead & Delayed Tuition Leakage';
+    lossDescription = 'Based on manual fee reconciliation and disconnected student records';
+    monthlyLoss = Math.round(volumeSlider * 0.04 * unitValue);
+    recommendedRetainer = '$8,500 / mo Enterprise Retainer';
+    proposedSolution = 'Unified Cloud ERP & Automated Parent/Student Portal';
+  } else if (isHealthcare) {
     volumeLabel = 'Monthly Patient Inquiries';
     unitValue = 350;
     lossLabel = 'Monthly Lost Patient No-Show Revenue';

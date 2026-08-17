@@ -84,6 +84,94 @@ pub enum ProviderCategory {
     ReviewSource,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum EvidenceStatus {
+    Detected,
+    NotDetected,
+    Unknown,
+}
+
+impl std::fmt::Display for EvidenceStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Detected => write!(f, "DETECTED"),
+            Self::NotDetected => write!(f, "NOT_DETECTED"),
+            Self::Unknown => write!(f, "UNKNOWN"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EvidenceSignal {
+    pub key: String,
+    pub label: String,
+    pub status: EvidenceStatus,
+    pub details: Option<String>,
+    pub confidence: f64,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum OpportunityType {
+    Erp,
+    Website,
+    Crm,
+    Booking,
+    Automation,
+    Seo,
+    Custom,
+}
+
+impl std::fmt::Display for OpportunityType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Erp => write!(f, "ERP"),
+            Self::Website => write!(f, "WEBSITE"),
+            Self::Crm => write!(f, "CRM"),
+            Self::Booking => write!(f, "BOOKING"),
+            Self::Automation => write!(f, "AUTOMATION"),
+            Self::Seo => write!(f, "SEO"),
+            Self::Custom => write!(f, "CUSTOM"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchIntent {
+    pub raw_query: String,
+    pub target_entity: String,
+    pub industry: String,
+    pub category: Option<String>,
+    pub location: Option<String>,
+    pub opportunity_type: OpportunityType,
+    pub opportunity_keywords: Vec<String>,
+    pub qualification_conditions: Vec<String>,
+    pub is_vendor_search: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpportunityEvaluation {
+    pub score: i32,
+    pub confidence: f64,
+    pub reason: String,
+    pub evidence_signals: Vec<EvidenceSignal>,
+    pub recommended_service: String,
+    pub service_tier: String,
+    pub estimated_value: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationSummary {
+    pub target_entity: String,
+    pub total_candidates: usize,
+    pub valid_candidates: usize,
+    pub match_ratio: f64,
+    pub detected_entity_distribution: std::collections::HashMap<String, usize>,
+    pub regenerated: bool,
+}
+
 // ==============================================================================
 // Search Session & Filters
 // ==============================================================================

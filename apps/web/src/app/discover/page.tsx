@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Search,
@@ -23,54 +23,154 @@ import {
   Activity,
   Flame,
   FileSpreadsheet,
+  Check,
+  X,
+  HelpCircle,
+  Cpu,
+  Layers,
+  BarChart3,
+  Bot,
+  Filter,
+  AlertTriangle,
+  Lightbulb,
 } from 'lucide-react';
-import { createSearch } from '@/lib/api';
+import { createSearch, parseIntent } from '@/lib/api';
 import { useSearchSSE } from '@/lib/sse';
-import { Business, SearchFilters, SystemEvent, Opportunity } from '@/lib/types';
+import {
+  Business,
+  EvidenceSignal,
+  EvidenceStatus,
+  Opportunity,
+  OpportunityType,
+  SearchFilters,
+  SearchIntent,
+  SystemEvent,
+  ValidationSummary,
+} from '@/lib/types';
 
-const PRESET_NICHES = [
-  { label: 'Japanese Dining', query: 'Japanese restaurants', industry: 'Restaurant', city: 'Dubai', country: 'UAE' },
-  { label: 'Dental Clinics', query: 'dental clinics', industry: 'Healthcare', city: 'London', country: 'UK' },
-  { label: 'Luxury Spas', query: 'luxury spa wellness', industry: 'Hospitality', city: 'Dubai', country: 'UAE' },
-  { label: 'Law Firms', query: 'commercial law firms', industry: 'Legal', city: 'New York', country: 'USA' },
+const PRESET_QUERIES = [
+  {
+    label: 'Schools + ERP',
+    query: 'schools needing ERP in Dubai',
+    target: 'Schools',
+    opp: 'ERP',
+    industry: 'Education',
+    city: 'Dubai',
+  },
+  {
+    label: 'Clinics + Booking',
+    query: 'clinics without online booking in London',
+    target: 'Clinics',
+    opp: 'Booking',
+    industry: 'Healthcare',
+    city: 'London',
+  },
+  {
+    label: 'Restaurants + Web',
+    query: 'restaurants needing website in New York',
+    target: 'Restaurants',
+    opp: 'Website',
+    industry: 'Hospitality',
+    city: 'New York',
+  },
+  {
+    label: 'Real Estate + CRM',
+    query: 'real estate agencies without CRM in Singapore',
+    target: 'Real Estate',
+    opp: 'CRM',
+    industry: 'Real Estate',
+    city: 'Singapore',
+  },
+  {
+    label: 'Law Firms + Automation',
+    query: 'law firms needing automation in Sydney',
+    target: 'Law Firms',
+    opp: 'Automation',
+    industry: 'Legal',
+    city: 'Sydney',
+  },
+  {
+    label: 'Ecommerce + SEO',
+    query: 'ecommerce brands with poor SEO in Dubai',
+    target: 'Ecommerce',
+    opp: 'SEO',
+    industry: 'Retail',
+    city: 'Dubai',
+  },
 ];
 
 export default function DiscoverPage() {
   // Search Inputs
-  const [query, setQuery] = useState('Japanese restaurants');
-  const [industry, setIndustry] = useState('Restaurant');
-  const [city, setCity] = useState('Dubai');
-  const [country, setCountry] = useState('UAE');
-  
+  const [query, setQuery] = useState('schools needing ERP in Dubai');
+  const [industry, setIndustry] = useState('');
+  const [city, setCity] = useState('');
+  const [country, setCountry] = useState('');
+
+  // Parsed Search Intent State
+  const [parsedIntent, setParsedIntent] = useState<SearchIntent | null>(null);
+  const [validationSummary, setValidationSummary] = useState<ValidationSummary | null>(null);
+
   // Advanced Filter Toggles
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [hasWebsite, setHasWebsite] = useState<boolean | undefined>(true);
+  const [hasWebsite, setHasWebsite] = useState<boolean | undefined>(undefined);
   const [hasEmail, setHasEmail] = useState<boolean | undefined>(undefined);
   const [hasPhone, setHasPhone] = useState<boolean | undefined>(undefined);
-  const [noBooking, setNoBooking] = useState(false);
-  const [weakLeadCapture, setWeakLeadCapture] = useState(false);
 
   // Search execution state
   const [currentSearchId, setCurrentSearchId] = useState<string | null>(null);
   const [searchStatus, setSearchStatus] = useState<'idle' | 'running' | 'completed' | 'failed'>('idle');
   const [providerProgress, setProviderProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState<string>('');
-  
+
   // Live Discovered Businesses & Opportunities
   const [discoveredBusinesses, setDiscoveredBusinesses] = useState<Business[]>([]);
   const [liveOpportunities, setLiveOpportunities] = useState<Record<string, Opportunity[]>>({});
+
+  // Auto-parse preview as user types (debounced)
+  useEffect(() => {
+    if (!query.trim()) return;
+    const timer = setTimeout(async () => {
+      try {
+        const intent = await parseIntent(query, {
+          industry: industry || undefined,
+          city: city || undefined,
+          country: country || undefined,
+        });
+        setParsedIntent(intent);
+      } catch (e) {
+        // Fallback local heuristic
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [query, industry, city, country]);
 
   // SSE Event Handler
   const handleSSEEvent = useCallback((event: SystemEvent) => {
     switch (event.type) {
       case 'search.started':
         setSearchStatus('running');
-        setStatusMessage(`Live discovery active for: "${event.data.query}"`);
+        setStatusMessage(`Discovery pipeline initiated for: "${event.data.query}"`);
+        break;
+
+      case 'intent.parsed':
+        setParsedIntent(event.data.intent);
+        setStatusMessage(
+          `Target: "${event.data.intent.target_entity}" | Evaluating Opportunity: [${event.data.intent.opportunity_type}]`
+        );
+        break;
+
+      case 'validation.completed':
+        setValidationSummary(event.data.validation);
+        if (event.data.validation.match_ratio < 0.5) {
+          setStatusMessage(
+            `Validated candidate entities: ${Math.round(event.data.validation.match_ratio * 100)}% match. Suppressing vendor noise.`
+          );
+        }
         break;
 
       case 'provider.started':
-        setStatusMessage(`Scanning live directory index: ${event.data.query_variation}`);
-        setProviderProgress((prev) => Math.min(prev + 14, 85));
+        setStatusMessage(`Scanning target registry & web: ${event.data.query_variation}`);
+        setProviderProgress((prev) => Math.min(prev + 12, 85));
         break;
 
       case 'provider.progress':
@@ -102,396 +202,430 @@ export default function DiscoverPage() {
         setSearchStatus('completed');
         setProviderProgress(100);
         setStatusMessage(
-          `Ingestion complete: ${event.data.total_saved} prospective clients discovered & live-crawled (${event.data.duration_ms}ms)`
+          `Ingestion & Opportunity Qualification complete: ${event.data.total_saved} prospective clients scored (${event.data.duration_ms}ms)`
         );
         break;
 
       case 'search.failed':
         setSearchStatus('failed');
-        setStatusMessage(`Search failed: ${event.data.error}`);
+        setStatusMessage(`Discovery failed: ${event.data.error}`);
         break;
     }
   }, []);
 
   useSearchSSE(currentSearchId, handleSSEEvent);
 
-  const executeSearch = async (targetQuery: string, targetIndustry: string, targetCity: string, targetCountry: string) => {
+  const executeSearch = async (targetQuery: string) => {
     if (!targetQuery.trim()) return;
 
     setDiscoveredBusinesses([]);
     setLiveOpportunities({});
+    setValidationSummary(null);
     setSearchStatus('running');
     setProviderProgress(10);
-    setStatusMessage('Initiating live public index query and real-time HTTP crawler...');
+    setStatusMessage('Deconstructing query intent & initiating target entity discovery...');
 
     try {
       const filters: SearchFilters = {
-        industry: targetIndustry || undefined,
-        city: targetCity || undefined,
-        country: targetCountry || undefined,
+        industry: industry || undefined,
+        city: city || undefined,
+        country: country || undefined,
         has_website: hasWebsite,
         has_email: hasEmail,
         has_phone: hasPhone,
-        no_booking_system: noBooking ? true : undefined,
-        no_lead_form: weakLeadCapture ? true : undefined,
       };
 
-      const res = await createSearch(targetQuery, filters, ['live_public_registry']);
+      const res = await createSearch(targetQuery, filters, [
+        'live_public_registry',
+        'live_web_search',
+      ]);
       setCurrentSearchId(res.search_id);
     } catch (err: any) {
       setSearchStatus('failed');
-      setStatusMessage(`Error launching live search: ${err.message}`);
+      setStatusMessage(`Error launching discovery: ${err.message}`);
     }
   };
 
   const handleStartSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    executeSearch(query, industry, city, country);
+    executeSearch(query);
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {/* Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1A3A44]/60 pb-5">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-white tracking-tight">Client Discovery Engine</h1>
-            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#02A0A0]/15 text-[#02A0A0] border border-[#02A0A0]/30">
-              Live Ingestion
-            </span>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-[#02A0A0]/20 to-[#FFBD65]/10 border border-[#02A0A0]/30 text-[#02A0A0]">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                Universal Client Opportunity Discovery
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#02A0A0]/15 text-[#02A0A0] border border-[#02A0A0]/30 uppercase">
+                  Intent-Driven
+                </span>
+              </h1>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Target Entity controls discovery. Opportunity / Problem controls dynamic qualification across any industry.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Query public business registries, crawl live domains, extract verified contacts, and identify high-value agency service gaps.
-          </p>
         </div>
 
-        {/* Quick preset niche pills */}
+        {/* Universal Preset Pills */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[11px] text-slate-400 font-semibold mr-1">Niches:</span>
-          {PRESET_NICHES.map((n) => (
+          <span className="text-[11px] text-slate-400 font-semibold mr-1 flex items-center gap-1">
+            <Flame className="w-3 h-3 text-[#FFBD65]" /> Universal Niches:
+          </span>
+          {PRESET_QUERIES.map((preset) => (
             <button
-              key={n.label}
+              key={preset.label}
               type="button"
               onClick={() => {
-                setQuery(n.query);
-                setIndustry(n.industry);
-                setCity(n.city);
-                setCountry(n.country);
-                executeSearch(n.query, n.industry, n.city, n.country);
+                setQuery(preset.query);
+                setIndustry('');
+                setCity('');
+                executeSearch(preset.query);
               }}
-              className="text-[11px] px-2.5 py-1 rounded-lg bg-[#0D1E24] hover:bg-[#122931] text-slate-300 hover:text-[#02A0A0] border border-[#1A3A44] transition-all font-medium flex items-center gap-1"
+              className="text-[11px] px-2.5 py-1 rounded-lg bg-[#0D1E24] hover:bg-[#122931] text-slate-300 hover:text-[#02A0A0] border border-[#1A3A44] transition-all font-medium flex items-center gap-1.5 active:scale-95"
             >
-              <Flame className="w-3 h-3 text-[#FFBD65]" />
-              {n.label}
+              <span className="text-slate-400 font-mono text-[9px]">[{preset.opp}]</span>
+              {preset.label}
             </button>
           ))}
         </div>
       </div>
 
       {/* Main Search Command Bar */}
-      <div className="bg-[#0D1E24] border border-[#1A3A44] rounded-2xl p-5 shadow-xl shadow-black/30">
-        <form onSubmit={handleStartSearch} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-            {/* Query Input */}
-            <div className="md:col-span-5 relative">
-              <label className="block text-[11px] font-bold text-[#FFBD65] mb-1 uppercase tracking-wider">
-                Target Business Query
-              </label>
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="e.g. Japanese restaurants, dental clinics, luxury spas..."
-                  className="w-full bg-[#071317] border border-[#1A3A44] focus:border-[#02A0A0] focus:ring-1 focus:ring-[#02A0A0] rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 outline-none transition-all"
-                />
-              </div>
-            </div>
+      <div className="bg-[#0D1E24] border border-[#1A3A44] rounded-2xl p-5 shadow-2xl shadow-black/40 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-40 bg-gradient-to-bl from-[#02A0A0]/5 to-transparent pointer-events-none rounded-tr-2xl" />
 
-            {/* Industry Input */}
-            <div className="md:col-span-3">
-              <label className="block text-[11px] font-bold text-[#FFBD65] mb-1 uppercase tracking-wider">
-                Industry
-              </label>
+        <form onSubmit={handleStartSearch} className="space-y-4 relative z-10">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                value={industry}
-                onChange={(e) => setIndustry(e.target.value)}
-                placeholder="Restaurant & Hospitality"
-                className="w-full bg-[#071317] border border-[#1A3A44] focus:border-[#02A0A0] focus:ring-1 focus:ring-[#02A0A0] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 outline-none transition-all"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search any entity + opportunity, e.g. 'schools needing ERP', 'clinics without booking', 'law firms needing automation'..."
+                className="w-full bg-[#071317] border border-[#1A3A44] focus:border-[#02A0A0] focus:ring-1 focus:ring-[#02A0A0] rounded-xl pl-10 pr-4 py-3 text-xs text-white placeholder-slate-500 outline-none transition-all font-medium"
               />
-            </div>
-
-            {/* City / Location Input */}
-            <div className="md:col-span-2">
-              <label className="block text-[11px] font-bold text-[#FFBD65] mb-1 uppercase tracking-wider">
-                City / Location
-              </label>
-              <input
-                type="text"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="Dubai"
-                className="w-full bg-[#071317] border border-[#1A3A44] focus:border-[#02A0A0] focus:ring-1 focus:ring-[#02A0A0] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 outline-none transition-all"
-              />
-            </div>
-
-            {/* Submit Action */}
-            <div className="md:col-span-2 flex items-end">
-              <button
-                type="submit"
-                disabled={searchStatus === 'running'}
-                className="w-full bg-[#02A0A0] hover:bg-[#22BDBD] active:scale-[0.98] text-[#071317] font-bold py-2.5 px-4 rounded-xl text-xs transition-all shadow-md shadow-[#02A0A0]/20 flex items-center justify-center gap-1.5 disabled:opacity-50"
-              >
-                {searchStatus === 'running' ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#071317]" />
-                    Crawling...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5 text-[#071317]" />
-                    Discover Clients
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Filters / Advanced Accordion */}
-          <div className="pt-3 border-t border-[#1A3A44] flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-slate-400 text-[11px] font-semibold">Verification Gaps:</span>
-              <button
-                type="button"
-                onClick={() => setNoBooking(!noBooking)}
-                className={`px-3 py-1 rounded-lg border text-xs transition-all ${
-                  noBooking
-                    ? 'bg-[#02A0A0]/20 border-[#02A0A0] text-[#02A0A0] font-bold'
-                    : 'bg-[#071317] border-[#1A3A44] text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                ⚡ Missing Direct Booking
-              </button>
-              <button
-                type="button"
-                onClick={() => setWeakLeadCapture(!weakLeadCapture)}
-                className={`px-3 py-1 rounded-lg border text-xs transition-all ${
-                  weakLeadCapture
-                    ? 'bg-[#FFBD65]/20 border-[#FFBD65] text-[#FFBD65] font-bold'
-                    : 'bg-[#071317] border-[#1A3A44] text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                🎯 Weak Inbound Capture
-              </button>
             </div>
 
             <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-xs text-[#02A0A0] hover:text-[#5EEAD4] flex items-center gap-1 font-semibold transition-colors"
+              type="submit"
+              disabled={searchStatus === 'running' || !query.trim()}
+              className="bg-[#02A0A0] hover:bg-[#22BDBD] active:scale-[0.98] text-[#071317] font-bold py-3 px-6 rounded-xl text-xs transition-all shadow-lg shadow-[#02A0A0]/20 flex items-center justify-center gap-2 disabled:opacity-50 min-w-[140px]"
             >
-              <SlidersHorizontal className="w-3 h-3" />
-              {showAdvanced ? 'Hide Extended Matrix' : 'Extended Verification Matrix'}
-              <ChevronDown className={`w-3 h-3 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+              {searchStatus === 'running' ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#071317]" />
+                  Discovering...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Discover Clients
+                </>
+              )}
             </button>
           </div>
 
-          {showAdvanced && (
-            <div className="p-3.5 bg-[#071317] rounded-xl border border-[#1A3A44] grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              <div>
-                <label className="text-slate-400 block mb-1 text-[11px]">Has Active Website</label>
-                <select
-                  value={hasWebsite === undefined ? 'any' : hasWebsite ? 'yes' : 'no'}
-                  onChange={(e) => setHasWebsite(e.target.value === 'any' ? undefined : e.target.value === 'yes')}
-                  className="w-full bg-[#0D1E24] border border-[#1A3A44] rounded-lg p-2 text-slate-200 outline-none text-xs"
-                >
-                  <option value="any">Any</option>
-                  <option value="yes">Yes (Must be reachable)</option>
-                  <option value="no">No Website</option>
-                </select>
+          {/* Real-time Parsed Intent Breakdown Bar */}
+          {parsedIntent && (
+            <div className="mt-3 pt-3 border-t border-[#1A3A44]/60 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+              {/* Target Entity */}
+              <div className="bg-[#071317] p-2.5 rounded-xl border border-[#1A3A44] flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-[#02A0A0]/10 text-[#02A0A0]">
+                  <Building className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Target Entity (Discovery)
+                  </div>
+                  <div className="text-xs font-semibold text-white truncate">
+                    {parsedIntent.target_entity}
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="text-slate-400 block mb-1 text-[11px]">Public Email Address</label>
-                <select
-                  value={hasEmail === undefined ? 'any' : hasEmail ? 'yes' : 'no'}
-                  onChange={(e) => setHasEmail(e.target.value === 'any' ? undefined : e.target.value === 'yes')}
-                  className="w-full bg-[#0D1E24] border border-[#1A3A44] rounded-lg p-2 text-slate-200 outline-none text-xs"
-                >
-                  <option value="any">Any</option>
-                  <option value="yes">Must have Email</option>
-                </select>
+
+              {/* Opportunity / Problem */}
+              <div className="bg-[#071317] p-2.5 rounded-xl border border-[#1A3A44] flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-[#FFBD65]/10 text-[#FFBD65]">
+                  <Target className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Opportunity (Qualification)
+                  </div>
+                  <div className="text-xs font-semibold text-[#FFBD65] truncate flex items-center gap-1">
+                    <span>{parsedIntent.opportunity_type}</span>
+                    <span className="text-[10px] text-slate-400 font-normal">
+                      ({parsedIntent.opportunity_keywords.slice(0, 2).join(', ')})
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="text-slate-400 block mb-1 text-[11px]">Direct Phone Dial</label>
-                <select
-                  value={hasPhone === undefined ? 'any' : hasPhone ? 'yes' : 'no'}
-                  onChange={(e) => setHasPhone(e.target.value === 'any' ? undefined : e.target.value === 'yes')}
-                  className="w-full bg-[#0D1E24] border border-[#1A3A44] rounded-lg p-2 text-slate-200 outline-none text-xs"
-                >
-                  <option value="any">Any</option>
-                  <option value="yes">Must have Phone</option>
-                </select>
+
+              {/* Industry & Location */}
+              <div className="bg-[#071317] p-2.5 rounded-xl border border-[#1A3A44] flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
+                  <Globe className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Industry & Geo
+                  </div>
+                  <div className="text-xs font-semibold text-white truncate">
+                    {parsedIntent.industry} • {parsedIntent.location || 'Global/Any'}
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="text-slate-400 block mb-1 text-[11px]">Target Jurisdiction</label>
-                <input
-                  type="text"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  className="w-full bg-[#0D1E24] border border-[#1A3A44] rounded-lg p-2 text-slate-200 outline-none text-xs"
-                />
+
+              {/* Intent Type */}
+              <div className="bg-[#071317] p-2.5 rounded-xl border border-[#1A3A44] flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+                  <Bot className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Intent Classification
+                  </div>
+                  <div className="text-xs font-semibold text-white truncate">
+                    {parsedIntent.is_vendor_search ? 'Vendor Search' : 'Client Prospecting'}
+                  </div>
+                </div>
               </div>
             </div>
           )}
         </form>
       </div>
 
-      {/* Real-time Streaming Status Bar */}
+      {/* Progress & Live Ingestion Status */}
       {searchStatus !== 'idle' && (
-        <div className="bg-[#0D1E24] border border-[#02A0A0]/40 rounded-xl p-4 shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2.5">
-              {searchStatus === 'running' ? (
-                <RefreshCw className="w-3.5 h-3.5 text-[#02A0A0] animate-spin" />
-              ) : searchStatus === 'completed' ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-[#02A0A0]" />
-              ) : (
-                <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-              )}
-              <span className="text-xs font-semibold text-slate-100">{statusMessage}</span>
+        <div className="bg-[#0D1E24]/80 border border-[#1A3A44] rounded-xl p-4 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="space-y-1 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                {searchStatus === 'running' ? (
+                  <>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#02A0A0] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#02A0A0]"></span>
+                  </>
+                ) : (
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                )}
+              </span>
+              <span className="text-xs font-mono font-semibold text-slate-300">
+                {statusMessage || 'Analyzing live data feeds...'}
+              </span>
             </div>
-            <span className="text-xs font-mono text-[#FFBD65] font-bold">
-              {discoveredBusinesses.length} clients live-verified
-            </span>
+
+            {/* Progress bar */}
+            <div className="w-full bg-[#071317] rounded-full h-1.5 overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-[#02A0A0] to-[#FFBD65] h-full transition-all duration-300"
+                style={{ width: `${providerProgress}%` }}
+              />
+            </div>
           </div>
-          <div className="w-full bg-[#071317] h-1.5 rounded-full overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-[#02A0A0] via-[#52D4D4] to-[#FFBD65] h-full transition-all duration-300 rounded-full"
-              style={{ width: `${providerProgress}%` }}
-            />
-          </div>
+
+          {/* Validation Metrics */}
+          {validationSummary && (
+            <div className="flex items-center gap-3 bg-[#071317] px-3.5 py-1.5 rounded-lg border border-[#1A3A44] text-[11px]">
+              <div className="text-slate-400 font-medium">Entity Validation:</div>
+              <div className="flex items-center gap-1 font-bold text-emerald-400 font-mono">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                {Math.round(validationSummary.match_ratio * 100)}% Target Match
+              </div>
+              <div className="text-slate-500 font-mono">
+                ({validationSummary.valid_candidates} valid / {validationSummary.total_candidates} candidates)
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Discovered Businesses Stream List */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-              Prospective Clients Feed
-            </h2>
-            {discoveredBusinesses.length > 0 && (
-              <span className="text-[11px] px-2 py-0.2 rounded-full bg-[#02A0A0]/15 text-[#02A0A0] font-mono font-bold border border-[#02A0A0]/30">
-                {discoveredBusinesses.length}
-              </span>
-            )}
-          </div>
-          <span className="text-[11px] text-slate-400 font-mono">
-            Server-Sent Events (SSE) Active
-          </span>
+      {/* Results Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            Discovered Potential Clients
+            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-[#0D1E24] text-[#02A0A0] border border-[#1A3A44]">
+              {discoveredBusinesses.length} Found
+            </span>
+          </h2>
         </div>
+      </div>
 
-        {discoveredBusinesses.length === 0 ? (
-          <div className="text-center py-16 border border-dashed border-[#1A3A44] rounded-2xl bg-[#0D1E24]/60">
-            <Building className="w-10 h-10 text-[#02A0A0]/40 mx-auto mb-2" />
-            <h3 className="text-sm font-bold text-white">Ready for Client Ingestion</h3>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-              Select an industry niche above or enter a search query to start crawling live business records and calculating opportunities.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {discoveredBusinesses.map((b) => {
-              const opps = liveOpportunities[b.id] || [];
-              return (
-                <div
-                  key={b.id}
-                  className="bg-[#0D1E24] border border-[#1A3A44] hover:border-[#02A0A0]/60 rounded-xl p-4 transition-all shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  {/* Left Metadata */}
-                  <div className="space-y-1.5 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/businesses/${b.id}`}
-                        className="text-sm font-bold text-white hover:text-[#02A0A0] transition-colors flex items-center gap-1"
-                      >
-                        {b.name}
-                        <ExternalLink className="w-3 h-3 text-slate-400" />
-                      </Link>
+      {/* Discovered Client Intelligence Grid */}
+      {discoveredBusinesses.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {discoveredBusinesses.map((biz) => {
+            const opps = liveOpportunities[biz.id] || [];
+            const primaryOpp = opps[0];
 
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-[#122931] text-slate-300 font-medium">
-                        {b.industry}
-                      </span>
-
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-[#02A0A0]/10 text-[#02A0A0] font-mono border border-[#02A0A0]/20">
-                        {b.website_load_time_ms ? `${b.website_load_time_ms}ms` : '200 OK'}
-                      </span>
-
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider border ${
-                          b.priority === 'HIGH'
-                            ? 'bg-[#FFBD65]/15 text-[#FFBD65] border-[#FFBD65]/30'
-                            : 'bg-[#02A0A0]/15 text-[#02A0A0] border-[#02A0A0]/30'
-                        }`}
-                      >
-                        {b.priority} Priority ({b.priority_score}%)
-                      </span>
+            return (
+              <div
+                key={biz.id}
+                className="bg-[#0D1E24] border border-[#1A3A44] hover:border-[#02A0A0]/60 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 shadow-xl shadow-black/20 hover:shadow-2xl hover:shadow-[#02A0A0]/5 group"
+              >
+                <div className="space-y-3.5">
+                  {/* Card Top: Name, Industry, Priority Badge */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <h3 className="font-bold text-white text-sm group-hover:text-[#02A0A0] transition-colors line-clamp-1">
+                        {biz.name}
+                      </h3>
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                        <span>{biz.industry}</span>
+                        {biz.city && (
+                          <>
+                            <span>•</span>
+                            <span>{biz.city}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
-                      {b.city && <span>📍 {b.city}, {b.country}</span>}
-                      {b.domain && (
-                        <span className="text-[#02A0A0] font-mono">{b.domain}</span>
-                      )}
-                      {b.email && (
-                        <span className="text-slate-300 font-mono flex items-center gap-1">
-                          <Mail className="w-3 h-3 text-[#02A0A0]" />
-                          {b.email}
-                        </span>
-                      )}
-                      {b.phone && (
-                        <span className="text-slate-300 font-mono flex items-center gap-1">
-                          <Phone className="w-3 h-3 text-[#FFBD65]" />
-                          {b.phone}
-                        </span>
-                      )}
-                      {b.rating && (
-                        <span className="text-[#FFBD65] font-semibold flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-[#FFBD65]" />
-                          {b.rating.toFixed(1)} ({b.review_count})
-                        </span>
-                      )}
+                    {/* Opportunity Priority Score Badge */}
+                    <div
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono border flex items-center gap-1 shrink-0 ${
+                        biz.priority === 'HIGH'
+                          ? 'bg-red-500/10 text-red-400 border-red-500/30'
+                          : biz.priority === 'MEDIUM'
+                          ? 'bg-[#FFBD65]/10 text-[#FFBD65] border-[#FFBD65]/30'
+                          : 'bg-slate-500/10 text-slate-400 border-slate-500/30'
+                      }`}
+                    >
+                      <Zap className="w-3 h-3" />
+                      Score {biz.priority_score || 75}
                     </div>
                   </div>
 
-                  {/* Right Deal Value & Action */}
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right hidden lg:block">
-                      <span className="text-xs font-bold text-[#FFBD65] flex items-center justify-end gap-1">
-                        <Zap className="w-3 h-3" />
-                        {opps[0]?.estimated_revenue_potential || '$4,500 - $9,000/mo'}
-                      </span>
-                      <p className="text-[11px] text-slate-400 truncate max-w-[200px]">
-                        {opps[0]?.onefolk_service || 'Direct Booking Engine'}
-                      </p>
-                    </div>
+                  {/* Primary Opportunity Recommendation */}
+                  {primaryOpp && (
+                    <div className="bg-[#071317] p-3 rounded-xl border border-[#1A3A44] space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#FFBD65] flex items-center gap-1">
+                          <Lightbulb className="w-3 h-3 text-[#FFBD65]" />
+                          {primaryOpp.category}
+                        </span>
+                        {primaryOpp.estimated_revenue_potential && (
+                          <span className="text-[10px] font-mono font-bold text-emerald-400">
+                            {primaryOpp.estimated_revenue_potential}
+                          </span>
+                        )}
+                      </div>
 
-                    <Link
-                      href={`/businesses/${b.id}`}
-                      className="px-3.5 py-1.5 rounded-lg bg-[#122931] hover:bg-[#02A0A0] hover:text-[#071317] text-white text-xs font-bold transition-all flex items-center gap-1.5"
-                    >
-                      Inspect Profile
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
+                      <div className="text-xs font-semibold text-white line-clamp-1">
+                        {primaryOpp.title}
+                      </div>
+
+                      <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                        {primaryOpp.description}
+                      </p>
+
+                      {/* Evidence Signals (3-State Chips) */}
+                      {primaryOpp.evidence && primaryOpp.evidence.length > 0 && (
+                        <div className="pt-2 border-t border-[#1A3A44]/60 flex flex-wrap gap-1.5">
+                          {primaryOpp.evidence.map((ev, idx) => {
+                            const isDetected = ev.toLowerCase().includes('detected');
+                            const isNotDetected = ev.toLowerCase().includes('not_detected') || ev.toLowerCase().includes('not detected');
+
+                            return (
+                              <span
+                                key={idx}
+                                className={`text-[10px] px-2 py-0.5 rounded font-mono font-medium flex items-center gap-1 border ${
+                                  isDetected
+                                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                    : isNotDetected
+                                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                                    : 'bg-slate-500/10 text-slate-300 border-slate-500/30'
+                                }`}
+                              >
+                                {isDetected ? (
+                                  <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                ) : isNotDetected ? (
+                                  <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
+                                ) : (
+                                  <HelpCircle className="w-2.5 h-2.5 text-slate-400" />
+                                )}
+                                {ev}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Public Digital & Contact Footprint */}
+                  <div className="flex items-center gap-3 text-xs text-slate-400 pt-1">
+                    {biz.website ? (
+                      <a
+                        href={biz.website}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-slate-300 hover:text-[#02A0A0] transition-colors truncate max-w-[150px]"
+                      >
+                        <Globe className="w-3.5 h-3.5 text-[#02A0A0] shrink-0" />
+                        <span className="truncate">{biz.website.replace(/^https?:\/\//, '')}</span>
+                      </a>
+                    ) : (
+                      <span className="flex items-center gap-1 text-slate-500">
+                        <Globe className="w-3.5 h-3.5 shrink-0" /> No Website
+                      </span>
+                    )}
+
+                    {biz.phone && (
+                      <span className="flex items-center gap-1 text-slate-300 truncate">
+                        <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span>{biz.phone}</span>
+                      </span>
+                    )}
+
+                    {biz.rating && (
+                      <span className="flex items-center gap-1 text-amber-300 ml-auto font-mono text-[11px]">
+                        <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                        {biz.rating.toFixed(1)}
+                        <span className="text-slate-500">({biz.review_count})</span>
+                      </span>
+                    )}
                   </div>
                 </div>
-              );
-            })}
+
+                {/* Footer Action */}
+                <div className="pt-4 mt-3 border-t border-[#1A3A44]/60 flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-slate-500 uppercase">
+                    Confidence: {Math.round((biz.confidence || 0.95) * 100)}%
+                  </span>
+
+                  <Link
+                    href={`/businesses/${biz.id}`}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#02A0A0] hover:text-[#22BDBD] transition-colors"
+                  >
+                    Deep Intelligence <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : searchStatus === 'completed' ? (
+        <div className="bg-[#0D1E24] border border-[#1A3A44] rounded-2xl p-12 text-center space-y-3">
+          <div className="p-3 bg-slate-800/40 rounded-full w-fit mx-auto text-slate-400">
+            <Filter className="w-6 h-6" />
           </div>
-        )}
-      </div>
+          <h3 className="text-sm font-bold text-white">No Matching Target Entities Found</h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto">
+            Try adjusting your target entity keyword or location. The engine isolates the target entity from opportunity qualifiers.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

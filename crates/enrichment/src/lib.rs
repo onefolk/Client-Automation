@@ -2,7 +2,7 @@ use chrono::Utc;
 use contacts::ContactExtractor;
 use crawler::HttpCrawler;
 use database::Database;
-use domain::{Business, Contact, Fact, Technology};
+use domain::{Business, Contact, Fact, OpportunityEvaluation, SearchIntent, Technology};
 use opportunities::OpportunityEngine;
 use technology::TechDetector;
 use uuid::Uuid;
@@ -10,12 +10,13 @@ use uuid::Uuid;
 pub struct EnrichmentPipeline;
 
 impl EnrichmentPipeline {
-    /// Executes Level 1 Progressive Enrichment: Homepage Crawl, Contact Extraction, Technology Detection, Fact Store & Opportunities
-    pub async fn process_business_level_1(
+    /// Executes Level 1 Progressive Enrichment with SearchIntent awareness
+    pub async fn process_business_with_intent(
         db: &Database,
         crawler: &HttpCrawler,
         business: &mut Business,
-    ) -> Result<(Vec<Contact>, Vec<Technology>, Vec<Fact>), sqlx::Error> {
+        intent: &SearchIntent,
+    ) -> Result<(Vec<Contact>, Vec<Technology>, Vec<Fact>, OpportunityEvaluation), sqlx::Error> {
         let mut extracted_contacts = Vec::new();
         let mut detected_techs = Vec::new();
         let mut facts = Vec::new();
@@ -80,8 +81,9 @@ impl EnrichmentPipeline {
             }
         }
 
-        // 4. Re-Evaluate Opportunities & Priority
-        let (opps, priority, score) = OpportunityEngine::evaluate_business(business);
+        // 4. Evaluate Dynamic Intent Opportunities & Priority
+        let (eval, opps, priority, score) =
+            OpportunityEngine::evaluate_business_with_intent(business, intent, &detected_techs, &facts);
         business.priority = priority;
         business.priority_score = score;
         business.status = domain::BusinessStatus::OpportunityFound;
@@ -99,23 +101,45 @@ impl EnrichmentPipeline {
         db.add_activity(
             Some(business.id),
             None,
-            "enrichment.level1_completed",
-            "Level 1 Enrichment Completed",
+            "enrichment.intent_evaluated",
+            "Client Opportunity Evaluated",
             Some(&format!(
-                "Extracted {} contacts, {} technologies, and evaluated {} priority.",
-                extracted_contacts.len(),
-                detected_techs.len(),
-                business.priority
+                "Evaluated opportunity for {}: Score {} ({:?}) - {}",
+                intent.target_entity, business.priority_score, business.priority, eval.reason
             )),
             &serde_json::json!({
-                "contacts_count": extracted_contacts.len(),
-                "tech_count": detected_techs.len(),
-                "priority": format!("{}", business.priority),
+                "opportunity_type": format!("{}", intent.opportunity_type),
+                "target_entity": intent.target_entity,
                 "score": business.priority_score,
+                "priority": format!("{}", business.priority),
+                "recommended_service": eval.recommended_service,
             }),
         )
         .await?;
 
-        Ok((extracted_contacts, detected_techs, facts))
+        Ok((extracted_contacts, detected_techs, facts, eval))
+    }
+
+    /// Backward compatible Level 1 Progressive Enrichment
+    pub async fn process_business_level_1(
+        db: &Database,
+        crawler: &HttpCrawler,
+        business: &mut Business,
+    ) -> Result<(Vec<Contact>, Vec<Technology>, Vec<Fact>), sqlx::Error> {
+        let dummy_intent = SearchIntent {
+            raw_query: "general discovery".to_string(),
+            target_entity: business.industry.clone(),
+            industry: business.industry.clone(),
+            category: business.sub_industry.clone(),
+            location: business.city.clone(),
+            opportunity_type: domain::OpportunityType::Custom,
+            opportunity_keywords: vec![],
+            qualification_conditions: vec![],
+            is_vendor_search: false,
+        };
+
+        let (contacts, techs, facts, _) =
+            Self::process_business_with_intent(db, crawler, business, &dummy_intent).await?;
+        Ok((contacts, techs, facts))
     }
 }
