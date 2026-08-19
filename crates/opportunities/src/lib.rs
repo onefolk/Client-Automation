@@ -1,10 +1,9 @@
 use chrono::Utc;
 use domain::{
     Business, ClientPriority, EvidenceSignal, EvidenceStatus, Freshness, OneFolkConfig,
-    OneFolkServiceDef, Opportunity, OpportunityDef, OpportunityEvaluation, OpportunityImpact,
+    OneFolkServiceDef, Opportunity, OpportunityEvaluation, OpportunityImpact,
     SearchIntent, Technology,
 };
-use std::collections::HashMap;
 use uuid::Uuid;
 
 pub struct OpportunityEngine;
@@ -15,7 +14,7 @@ impl OpportunityEngine {
     pub fn evaluate_business_with_config(
         business: &Business,
         intent: &SearchIntent,
-        technologies: &[Technology],
+        _technologies: &[Technology],
         collected_evidence: &[EvidenceSignal],
         config: &OneFolkConfig,
     ) -> (OpportunityEvaluation, Vec<Opportunity>, ClientPriority, i32) {
@@ -80,13 +79,18 @@ impl OpportunityEngine {
         }
 
         // 3. Generic Factor Scoring (All Weights from Config)
+        let default_weights = config
+            .scoring_profiles
+            .get("default")
+            .cloned()
+            .unwrap_or_default();
         let weights = opp_def_opt
             .map(|o| &o.scoring_weights)
-            .unwrap_or(&config.scoring_profiles.get("default").cloned().unwrap_or_default());
+            .unwrap_or(&default_weights);
 
         let target_match_score = 90.0; // High confidence in validated candidate
 
-        let positive_gaps_count = evidence_signals
+        let _positive_gaps_count = evidence_signals
             .iter()
             .filter(|e| e.status == EvidenceStatus::Detected || e.status == EvidenceStatus::NotDetected)
             .count();
@@ -218,7 +222,7 @@ impl OpportunityEngine {
         business: &Business,
         intent: &SearchIntent,
         technologies: &[Technology],
-        facts: &[domain::Fact],
+        _facts: &[domain::Fact],
     ) -> (OpportunityEvaluation, Vec<Opportunity>, ClientPriority, i32) {
         let config = OneFolkConfig::default();
         Self::evaluate_business_with_config(business, intent, technologies, &[], &config)
