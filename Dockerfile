@@ -3,12 +3,13 @@
 # ==============================================================================
 
 # Build Stage (Use latest official Rust compiler)
-FROM rust:latest as builder
+FROM rust:latest AS builder
 
 WORKDIR /app
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
+    build-essential \
     pkg-config \
     libssl-dev \
     ca-certificates \
