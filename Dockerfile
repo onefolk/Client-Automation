@@ -15,6 +15,10 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# Set Cargo build environment to prevent builder OOM
+ENV CARGO_BUILD_JOBS=2
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
 # Copy workspace configuration and sources
 COPY Cargo.toml Cargo.lock* ./
 COPY crates ./crates
@@ -22,7 +26,7 @@ COPY backend ./backend
 COPY workers ./workers
 
 # Build release binary for the backend api service
-RUN cargo build --release --bin api
+RUN cargo build --release -p api
 
 # ------------------------------------------------------------------------------
 # Runtime Stage
