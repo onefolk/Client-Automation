@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use domain::{
     ActivityEvent, Business, BusinessProfile, BusinessStatus, ClientPriority, Contact,
     Opportunity, OpportunityImpact, SearchFilters, SearchSession, SearchStatus,

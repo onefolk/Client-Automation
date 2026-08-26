@@ -1,10 +1,7 @@
 use axum::{
     extract::{Path, Query, State},
-    http::{header, HeaderValue, Method, StatusCode},
-    response::{
-        sse::{Event, KeepAlive, Sse},
-        IntoResponse, Response,
-    },
+    http::{header, Method, StatusCode},
+    response::sse::{Event, KeepAlive, Sse},
     routing::{get, post},
     Json, Router,
 };
@@ -19,7 +16,7 @@ use domain::{
 use events::{EventBus, SystemEvent};
 use futures::Stream;
 use queue::JobQueue;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::{convert::Infallible, net::SocketAddr, sync::Arc, time::Duration};
 use tokio_stream::StreamExt;
 use tower_http::cors::{Any, CorsLayer};
@@ -319,6 +316,8 @@ async fn stream_search_events(
         let json_str = serde_json::to_string(&event).unwrap_or_default();
         let event_type = match &event {
             SystemEvent::SearchStarted { .. } => "search.started",
+            SystemEvent::IntentParsed { .. } => "intent.parsed",
+            SystemEvent::ValidationCompleted { .. } => "validation.completed",
             SystemEvent::ProviderStarted { .. } => "provider.started",
             SystemEvent::ProviderProgress { .. } => "provider.progress",
             SystemEvent::BusinessDiscovered { .. } => "business.discovered",

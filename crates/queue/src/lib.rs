@@ -1,12 +1,11 @@
 use chrono::{DateTime, Utc};
-use domain::{SearchFilters, SearchSession};
+use domain::SearchFilters;
 use redis::{
     aio::ConnectionManager,
     streams::{StreamReadOptions, StreamReadReply},
     AsyncCommands, Client,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 pub const STREAM_DISCOVERY_JOBS: &str = "onefolk:jobs:discovery";
