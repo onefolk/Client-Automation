@@ -173,6 +173,7 @@ pub struct ValidationSummary {
 // ==============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct SearchFilters {
     // Basic filters
     pub industry: Option<String>,
