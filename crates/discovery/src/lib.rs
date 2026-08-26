@@ -1,3 +1,4 @@
+
 use domain::{
     DiscoveredBusiness, IntentType, OneFolkConfig, OpportunityDef, SearchFilters, SearchIntent,
     ValidationSummary,
@@ -130,12 +131,12 @@ impl IntentParser {
 
         for (prep, desc) in &condition_prepositions {
             if let Some(pos) = clean.find(prep) {
-                let before = clean[..pos].trim();
-                let after = clean[pos + prep.len()..].trim();
+                let before = clean[..pos].trim().to_string();
+                let after = clean[pos + prep.len()..].trim().to_string();
 
                 if !before.is_empty() {
-                    clean = before.to_string();
-                    opp_phrase = after.to_string();
+                    clean = before;
+                    opp_phrase = after.clone();
                     conditions.push(format!("{}: '{}'", desc, after));
                     break;
                 }
