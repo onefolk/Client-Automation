@@ -17,6 +17,7 @@ import {
 
 const primaryNav = [
   { name: 'Live Discovery', href: '/discover', icon: Compass, count: 'Live' },
+  { name: 'Client History', href: '/clientHistory', icon: History, count: 'Saved' },
   { name: 'Client Directory', href: '/businesses', icon: Building2 },
   { name: 'Opportunity Matrix', href: '/opportunities', icon: Sparkles },
   { name: 'Search Sessions', href: '/searches', icon: History },

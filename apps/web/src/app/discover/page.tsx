@@ -33,9 +33,15 @@ import {
   Filter,
   AlertTriangle,
   Lightbulb,
+  History as HistoryIcon,
 } from 'lucide-react';
 import { createSearch, parseIntent } from '@/lib/api';
 import { useSearchSSE } from '@/lib/sse';
+import {
+  addClientToHistory,
+  saveLatestSearchState,
+  getLatestSearchState,
+} from '@/lib/client-history';
 import {
   Business,
   EvidenceSignal,
@@ -125,6 +131,23 @@ export default function DiscoverPage() {
   const [discoveredBusinesses, setDiscoveredBusinesses] = useState<Business[]>([]);
   const [liveOpportunities, setLiveOpportunities] = useState<Record<string, Opportunity[]>>({});
 
+  // Restore latest search session on initial mount if available
+  useEffect(() => {
+    const saved = getLatestSearchState();
+    if (saved && saved.discoveredBusinesses && saved.discoveredBusinesses.length > 0) {
+      setQuery(saved.query || query);
+      if (saved.industry) setIndustry(saved.industry);
+      if (saved.city) setCity(saved.city);
+      if (saved.country) setCountry(saved.country);
+      setDiscoveredBusinesses(saved.discoveredBusinesses);
+      if (saved.liveOpportunities) setLiveOpportunities(saved.liveOpportunities);
+      if (saved.parsedIntent) setParsedIntent(saved.parsedIntent);
+      if (saved.searchStatus) setSearchStatus(saved.searchStatus);
+      if (saved.statusMessage) setStatusMessage(saved.statusMessage);
+      setProviderProgress(100);
+    }
+  }, []);
+
   // Auto-parse preview as user types (debounced)
   useEffect(() => {
     if (!query.trim()) return;
@@ -177,12 +200,29 @@ export default function DiscoverPage() {
         break;
 
       case 'business.discovered':
+        // Automatically persist to deduplicated client history
+        addClientToHistory(event.data.business);
+
         setDiscoveredBusinesses((prev) => {
           const exists = prev.some((b) => b.id === event.data.business.id);
-          if (exists) {
-            return prev.map((b) => (b.id === event.data.business.id ? event.data.business : b));
-          }
-          return [event.data.business, ...prev];
+          const next = exists
+            ? prev.map((b) => (b.id === event.data.business.id ? event.data.business : b))
+            : [event.data.business, ...prev];
+
+          saveLatestSearchState({
+            query,
+            industry,
+            city,
+            country,
+            discoveredBusinesses: next,
+            parsedIntent,
+            liveOpportunities,
+            searchStatus: 'running',
+            statusMessage,
+            savedAt: new Date().toISOString(),
+          });
+
+          return next;
         });
         break;
 
@@ -200,9 +240,8 @@ export default function DiscoverPage() {
       case 'search.completed':
         setSearchStatus('completed');
         setProviderProgress(100);
-        setStatusMessage(
-          `Ingestion & Opportunity Qualification complete: ${event.data.total_saved} prospective clients scored (${event.data.duration_ms}ms)`
-        );
+        const completeMsg = `Ingestion & Opportunity Qualification complete: ${event.data.total_saved} prospective clients scored (${event.data.duration_ms}ms)`;
+        setStatusMessage(completeMsg);
         break;
 
       case 'search.failed':
@@ -273,8 +312,15 @@ export default function DiscoverPage() {
           </div>
         </div>
 
-        {/* Universal Preset Pills */}
+        {/* Universal Preset Pills & History Quick Link */}
         <div className="flex items-center gap-1.5 flex-wrap">
+          <Link
+            href="/clientHistory"
+            className="text-[11px] px-2.5 py-1 rounded-lg bg-[#02A0A0]/15 hover:bg-[#02A0A0]/25 text-[#02A0A0] border border-[#02A0A0]/30 transition-all font-bold flex items-center gap-1.5 mr-1"
+          >
+            <HistoryIcon className="w-3 h-3" />
+            Client History
+          </Link>
           <span className="text-[11px] text-slate-400 font-semibold mr-1 flex items-center gap-1">
             <Flame className="w-3 h-3 text-[#FFBD65]" /> Universal Niches:
           </span>
