@@ -567,8 +567,29 @@ Agency Growth Team | OneFolk Client Intelligence`;
               )}
             </div>
 
+            {analyzeMutation.isError && (
+              <div className="p-4 rounded-lg bg-rose-950/40 border border-rose-500/30 text-xs space-y-1.5">
+                <div className="flex items-center gap-2 text-rose-400 font-semibold">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>AI Audit Execution Error</span>
+                </div>
+                <p className="text-rose-300/90 leading-relaxed font-mono text-[11px]">
+                  {(analyzeMutation.error as any)?.message || 'Failed to authenticate with LLM API.'}
+                </p>
+                <p className="text-zinc-400 text-[11px] pt-1">
+                  Ensure you have added a valid <code className="bg-zinc-900 text-zinc-200 px-1 py-0.5 rounded">GROQ_API_KEY</code> (or <code className="bg-zinc-900 text-zinc-200 px-1 py-0.5 rounded">LLAMA_API_KEY</code> / <code className="bg-zinc-900 text-zinc-200 px-1 py-0.5 rounded">OPENAI_API_KEY</code>) to your environment.
+                </p>
+              </div>
+            )}
+
             {!analysis ? (
-              <p className="text-xs text-zinc-400 py-6 text-center">Click &quot;Run LLaMA Audit&quot; to synthesize strategic SWOT analysis.</p>
+              <div className="text-center py-10 space-y-2">
+                <Sparkles className="w-6 h-6 text-zinc-600 mx-auto" />
+                <p className="text-xs font-medium text-zinc-300">No Live AI Audit Performed Yet</p>
+                <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                  Click &quot;Run LLaMA Audit&quot; above to trigger live strategic SWOT evaluation using your configured LLM key.
+                </p>
+              </div>
             ) : (
               <div className="space-y-4 text-xs">
                 {/* 6 scores */}

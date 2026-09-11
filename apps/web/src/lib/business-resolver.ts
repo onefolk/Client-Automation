@@ -204,14 +204,12 @@ export function resolveOrSynthesizeBusinessProfile(id: string): BusinessProfile 
       },
     ];
 
-    const dynamicAnalysis = (existing as any).analysis || generateDynamicAnalysis(existing);
-
     const profile: BusinessProfile = {
       ...existing,
       contacts,
       technologies,
       facts,
-      analysis: dynamicAnalysis,
+      analysis: (existing as any).analysis || undefined,
       opportunities: existingOpps.length > 0 ? existingOpps : generateOpportunitiesForBusiness(existing),
       activities: existingActivities.length > 0 ? existingActivities : generateActivitiesForBusiness(existing),
     };
@@ -346,7 +344,7 @@ export function resolveOrSynthesizeBusinessProfile(id: string): BusinessProfile 
     facts,
     social_profiles,
     reviews,
-    analysis: dynamicAnalysis,
+    analysis: undefined,
     opportunities: oppList,
     activities: actList,
   };

@@ -107,7 +107,14 @@ export async function analyzeBusiness(id: string): Promise<{ success: boolean; a
   const res = await fetch(`${API_BASE_URL}/api/businesses/${id}/analyze`, {
     method: 'POST',
   });
-  if (!res.ok) throw new Error('Failed to run intelligence analysis');
+  if (!res.ok) {
+    let errMessage = 'Failed to run intelligence analysis';
+    try {
+      const errJson = await res.json();
+      errMessage = errJson.error || errMessage;
+    } catch (_) {}
+    throw new Error(errMessage);
+  }
   return res.json();
 }
 
