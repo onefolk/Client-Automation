@@ -212,7 +212,7 @@ export default function DiscoverPage() {
     }
   }, []);
 
-  useSearchSSE(currentSearchId, handleSSEEvent);
+  useSearchSSE(currentSearchId, handleSSEEvent, { query, city, industry, country });
 
   const executeSearch = async (targetQuery: string) => {
     if (!targetQuery.trim()) return;

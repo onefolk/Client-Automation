@@ -7,19 +7,27 @@ const API_BASE_URL = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBL
 
 export function useSearchSSE(
   searchId: string | null,
-  onEvent: (event: SystemEvent) => void
+  onEvent: (event: SystemEvent) => void,
+  searchParams?: { query?: string; city?: string; industry?: string; country?: string }
 ) {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     if (!searchId) return;
 
-    const url = `${API_BASE_URL}/api/searches/${searchId}/events`;
-    const es = new EventSource(url);
+    const urlObj = new URL(`${API_BASE_URL}/api/searches/${searchId}/events`, window.location.origin);
+    if (searchParams?.query) urlObj.searchParams.set('query', searchParams.query);
+    if (searchParams?.city) urlObj.searchParams.set('city', searchParams.city);
+    if (searchParams?.industry) urlObj.searchParams.set('industry', searchParams.industry);
+    if (searchParams?.country) urlObj.searchParams.set('country', searchParams.country);
+
+    const es = new EventSource(urlObj.toString());
     eventSourceRef.current = es;
 
     const eventNames = [
       'search.started',
+      'intent.parsed',
+      'validation.completed',
       'provider.started',
       'provider.progress',
       'business.discovered',
@@ -44,14 +52,14 @@ export function useSearchSSE(
     });
 
     es.onerror = (err) => {
-      console.warn('SSE connection closed or re-connecting...', err);
+      console.warn('SSE connection closed or completed');
     };
 
     return () => {
       es.close();
       eventSourceRef.current = null;
     };
-  }, [searchId, onEvent]);
+  }, [searchId, onEvent, searchParams?.query, searchParams?.city, searchParams?.industry, searchParams?.country]);
 
   return {
     close: () => eventSourceRef.current?.close(),
