@@ -11,15 +11,33 @@ export function useSearchSSE(
   searchParams?: { query?: string; city?: string; industry?: string; country?: string }
 ) {
   const eventSourceRef = useRef<EventSource | null>(null);
+  const onEventRef = useRef(onEvent);
+
+  // Keep latest callback ref without triggering effect re-execution
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
+
+  // Stable search parameters snapshot
+  const query = searchParams?.query;
+  const city = searchParams?.city;
+  const industry = searchParams?.industry;
+  const country = searchParams?.country;
 
   useEffect(() => {
     if (!searchId) return;
 
+    // Close any previous instance
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
     const urlObj = new URL(`${API_BASE_URL}/api/searches/${searchId}/events`, window.location.origin);
-    if (searchParams?.query) urlObj.searchParams.set('query', searchParams.query);
-    if (searchParams?.city) urlObj.searchParams.set('city', searchParams.city);
-    if (searchParams?.industry) urlObj.searchParams.set('industry', searchParams.industry);
-    if (searchParams?.country) urlObj.searchParams.set('country', searchParams.country);
+    if (query) urlObj.searchParams.set('query', query);
+    if (city) urlObj.searchParams.set('city', city);
+    if (industry) urlObj.searchParams.set('industry', industry);
+    if (country) urlObj.searchParams.set('country', country);
 
     const es = new EventSource(urlObj.toString());
     eventSourceRef.current = es;
@@ -44,24 +62,41 @@ export function useSearchSSE(
       es.addEventListener(name, (e: MessageEvent) => {
         try {
           const parsed = JSON.parse(e.data);
-          onEvent(parsed);
+          onEventRef.current?.(parsed);
+
+          // Close EventSource cleanly when terminal event received
+          if (name === 'search.completed' || name === 'search.failed') {
+            es.close();
+            if (eventSourceRef.current === es) {
+              eventSourceRef.current = null;
+            }
+          }
         } catch (err) {
           console.error('Error parsing SSE event', err);
         }
       });
     });
 
-    es.onerror = (err) => {
-      console.warn('SSE connection closed or completed');
+    es.onerror = () => {
+      // Clean up on disconnect / stream end
+      es.close();
+      if (eventSourceRef.current === es) {
+        eventSourceRef.current = null;
+      }
     };
 
     return () => {
       es.close();
-      eventSourceRef.current = null;
+      if (eventSourceRef.current === es) {
+        eventSourceRef.current = null;
+      }
     };
-  }, [searchId, onEvent, searchParams?.query, searchParams?.city, searchParams?.industry, searchParams?.country]);
+  }, [searchId]); // ONLY re-run when a new search ID is explicitly started!
 
   return {
-    close: () => eventSourceRef.current?.close(),
+    close: () => {
+      eventSourceRef.current?.close();
+      eventSourceRef.current = null;
+    },
   };
 }
