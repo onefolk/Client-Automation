@@ -27,27 +27,21 @@ import {
   Copy,
   Check,
   Send,
-  DollarSign,
-  TrendingUp,
-  Award,
-  Layers,
-  Search,
   MapPin,
-  Clock,
-  Briefcase,
+  Lock,
 } from 'lucide-react';
 
 const tabs = [
-  { id: 'overview', name: 'Overview & ROI Calculator', icon: Building2 },
-  { id: 'pitch', name: 'Cold Outreach Pitch', icon: Send },
-  { id: 'contacts', name: 'Decision Makers & Contacts', icon: Users },
-  { id: 'website', name: 'Website & Infrastructure', icon: Globe },
-  { id: 'technology', name: 'Tech Stack Fingerprints', icon: Code2 },
+  { id: 'overview', name: 'Overview & Economics', icon: Building2 },
+  { id: 'pitch', name: 'Outreach Pitch', icon: Send },
+  { id: 'contacts', name: 'Contacts & Channels', icon: Users },
+  { id: 'website', name: 'Infrastructure', icon: Globe },
+  { id: 'technology', name: 'Tech Stack', icon: Code2 },
   { id: 'social', name: 'Social Footprint', icon: MessageSquare },
-  { id: 'reviews', name: 'Reputation & Reviews', icon: Star },
-  { id: 'analysis', name: 'Grok AI Intelligence & SWOT', icon: Sparkles },
-  { id: 'facts', name: 'Fact Store (Audit Log)', icon: Database },
-  { id: 'activity', name: 'Provenance Timeline', icon: Activity },
+  { id: 'reviews', name: 'Reputation', icon: Star },
+  { id: 'analysis', name: 'SWOT Intelligence', icon: Sparkles },
+  { id: 'facts', name: 'Fact Store', icon: Database },
+  { id: 'activity', name: 'Audit Timeline', icon: Activity },
 ];
 
 export default function BusinessDetailPage() {
@@ -81,34 +75,26 @@ export default function BusinessDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 text-center">
-        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-4 animate-pulse">
-          <RefreshCw className="w-6 h-6 text-blue-400 animate-spin" />
-        </div>
-        <h3 className="text-base font-semibold text-white">Synthesizing Verified Client Profile...</h3>
-        <p className="text-xs text-slate-400 mt-1 max-w-sm">
-          Loading deduplicated fact store, live crawl telemetry, and AI intelligence briefing.
-        </p>
+      <div className="flex flex-col items-center justify-center py-28 text-center">
+        <RefreshCw className="w-5 h-5 text-zinc-400 animate-spin mb-3" />
+        <p className="text-xs text-zinc-400">Loading intelligence profile...</p>
       </div>
     );
   }
 
   if (error || !profile) {
     return (
-      <div className="max-w-md mx-auto my-20 p-8 rounded-2xl bg-[#0E1118] border border-rose-500/20 text-center shadow-xl">
-        <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto mb-3 text-rose-400">
-          <AlertTriangle className="w-6 h-6" />
-        </div>
-        <h3 className="text-base font-semibold text-white">Client Record Not Found</h3>
-        <p className="text-xs text-slate-400 mt-1">
-          This record may have been cleared or the ID is invalid. Return to the discovery suite.
+      <div className="max-w-md mx-auto my-20 p-6 rounded-lg border border-white/[0.08] bg-[#111113] text-center space-y-3">
+        <AlertTriangle className="w-5 h-5 text-zinc-500 mx-auto" />
+        <h3 className="text-xs font-semibold text-white">Client Record Not Found</h3>
+        <p className="text-xs text-zinc-400">
+          The requested profile could not be retrieved.
         </p>
         <Link
           href="/discover"
-          className="mt-5 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-500/20 transition-all"
+          className="inline-flex items-center gap-1 text-xs text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-md transition-colors"
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Back to Live Discovery
+          <ArrowLeft className="w-3.5 h-3.5" /> Return to Discovery
         </Link>
       </div>
     );
@@ -118,7 +104,7 @@ export default function BusinessDetailPage() {
   const rating = profile.rating || 4.0;
   const reviewCount = profile.review_count || 0;
 
-  // DYNAMIC INDUSTRY METRICS & REVENUE CALCULATOR
+  // Dynamic industry metrics calculation
   const ind = (profile.industry || '').toLowerCase();
   const isHealthcare = ind.includes('health') || ind.includes('dent') || ind.includes('clinic') || ind.includes('medic');
   const isEducation = ind.includes('school') || ind.includes('educat') || ind.includes('academ') || ind.includes('college') || ind.includes('university');
@@ -126,19 +112,19 @@ export default function BusinessDetailPage() {
   const isLegal = ind.includes('law') || ind.includes('legal') || ind.includes('attorney');
   const isHospitality = ind.includes('hotel') || ind.includes('resort') || ind.includes('spa') || ind.includes('hospitality');
 
-  let volumeLabel = 'Monthly Guest Covers';
+  let volumeLabel = 'Monthly Guest Volume';
   let unitValue = 45;
   let lossLabel = 'Monthly Aggregator Commission Loss';
   let lossDescription = 'Based on 18% marketplace take rate';
   let monthlyLoss = Math.round(volumeSlider * unitValue * 0.18);
   let recommendedRetainer = '$4,500 / mo + 5% rev-share';
-  let proposedSolution = 'Direct Table Booking Engine & WhatsApp VIP Retention';
+  let proposedSolution = 'Direct Booking Engine & VIP Retention';
 
   if (isEducation) {
     volumeLabel = 'Enrolled Students';
     unitValue = 650;
     lossLabel = 'Monthly Administrative Overhead & Delayed Tuition Leakage';
-    lossDescription = 'Based on manual fee reconciliation and disconnected student records';
+    lossDescription = 'Based on manual fee reconciliation and disconnected records';
     monthlyLoss = Math.round(volumeSlider * 0.04 * unitValue);
     recommendedRetainer = '$8,500 / mo Enterprise Retainer';
     proposedSolution = 'Unified Cloud ERP & Automated Parent/Student Portal';
@@ -178,19 +164,18 @@ export default function BusinessDetailPage() {
 
   const annualLoss = monthlyLoss * 12;
 
-  // DYNAMIC COLD OUTREACH PITCH
   const outreachPitchSubject = `Quick question regarding ${proposedSolution.toLowerCase()} for ${profile.name}`;
   const outreachPitchBody = `Hi ${profile.name} team,
 
 I came across ${profile.name} while auditing high-reputation ${profile.industry || 'local'} establishments in ${profile.city || 'your area'}${rating > 0 ? ` (noted your ★ ${rating.toFixed(1)} rating across ${reviewCount} reviews)` : ''}.
 
-When reviewing your website (${profile.domain || 'online presence'}), I noticed a significant opportunity to implement ${proposedSolution.toLowerCase()}.
+When reviewing your website (${profile.domain || 'online presence'}), I noticed an opportunity to implement ${proposedSolution.toLowerCase()}.
 
 For a business of your scale (~${volumeSlider} ${volumeLabel.toLowerCase()}), this gap typically accounts for over $${monthlyLoss.toLocaleString()}/month in avoidable losses.
 
 At OneFolk, we partner with premier ${profile.industry || 'service'} brands to deploy turnkey conversion systems that recapture this revenue within 60-90 days.
 
-Would you have 10 minutes this week for a brief, high-level walkthrough of what this implementation looks like for ${profile.name}?
+Would you have 10 minutes this week for a brief walkthrough of what this implementation looks like for ${profile.name}?
 
 Best regards,
 Agency Growth Team | OneFolk Client Intelligence`;
@@ -202,181 +187,135 @@ Agency Growth Team | OneFolk Client Intelligence`;
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="space-y-6 max-w-6xl mx-auto pb-16">
       {/* Top Breadcrumb */}
       <div className="flex items-center justify-between">
         <Link
           href="/clientHistory"
-          className="inline-flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-white transition-colors bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] px-3 py-1.5 rounded-xl"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to Client History
         </Link>
 
-        <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
-          <span>Client ID:</span>
-          <span className="text-slate-300 font-semibold">{profile.id.slice(0, 8)}...</span>
-        </div>
+        <span className="text-[11px] font-mono text-zinc-500">
+          ID: {profile.id.slice(0, 8)}...
+        </span>
       </div>
 
-      {/* Business Hero Card */}
-      <div className="bg-[#0E1118] border border-white/[0.08] rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-        {/* Glow accent */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-white/[0.08] flex items-center justify-center font-bold text-lg text-blue-400 shadow-inner">
-                {profile.name.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <div className="flex items-center gap-2.5">
-                  <h1 className="text-2xl font-bold text-white tracking-tight">{profile.name}</h1>
-                  <span
-                    className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border ${
-                      profile.priority === 'HIGH'
-                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                        : profile.priority === 'MEDIUM'
-                        ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
-                    }`}
-                  >
-                    {profile.priority} Priority ({profile.priority_score}%)
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs px-2.5 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.06] text-slate-300 font-medium">
-                    {profile.industry || 'Local Business'}
-                  </span>
-                  {profile.city && (
-                    <span className="text-xs text-slate-400 flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                      {profile.city}, {profile.country}
-                    </span>
-                  )}
-                </div>
-              </div>
+      {/* Hero Card */}
+      <div className="rounded-lg border border-white/[0.08] bg-[#111113] p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold text-white tracking-tight">{profile.name}</h1>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-white/[0.06]">
+                {profile.industry || 'General'}
+              </span>
+              <span
+                className={`text-[10px] font-mono px-2 py-0.5 rounded border font-medium ${
+                  profile.priority === 'HIGH'
+                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                    : 'bg-zinc-800 text-zinc-400 border-white/[0.06]'
+                }`}
+              >
+                {profile.priority} Priority ({profile.priority_score}%)
+              </span>
             </div>
 
-            {/* Quick Contact & Channel Badges */}
-            <div className="flex flex-wrap items-center gap-3 pt-2 text-xs">
+            <div className="flex flex-wrap items-center gap-3 pt-2 text-xs text-zinc-400">
+              {profile.city && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-zinc-500" />
+                  {profile.city}, {profile.country}
+                </span>
+              )}
               {profile.website && (
                 <a
                   href={profile.website}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] text-blue-400 hover:text-blue-300 transition-colors font-mono"
+                  className="text-zinc-300 hover:text-white flex items-center gap-1 font-mono text-[11px]"
                 >
-                  <Globe className="w-3.5 h-3.5" />
+                  <Globe className="w-3.5 h-3.5 text-zinc-500" />
                   {profile.domain}
-                  <ExternalLink className="w-3 h-3 opacity-60" />
                 </a>
               )}
               {profile.email && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-slate-300 font-mono">
-                  <Mail className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-zinc-300 font-mono text-[11px] flex items-center gap-1">
+                  <Mail className="w-3.5 h-3.5 text-zinc-500" />
                   {profile.email}
                 </span>
               )}
               {profile.phone && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-slate-300 font-mono">
-                  <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-zinc-300 font-mono text-[11px] flex items-center gap-1">
+                  <Phone className="w-3.5 h-3.5 text-zinc-500" />
                   {profile.phone}
-                </span>
-              )}
-              {rating > 0 && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 font-semibold">
-                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                  {rating.toFixed(1)} ({reviewCount} reviews)
                 </span>
               )}
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Action buttons */}
+          <div className="flex items-center gap-2">
             <button
               onClick={() => enrichMutation.mutate()}
               disabled={enrichMutation.isPending}
-              className="px-4 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] active:scale-[0.98] border border-white/[0.08] text-slate-200 text-xs font-semibold transition-all flex items-center gap-2 disabled:opacity-50"
+              className="px-3 py-1.5 rounded-md bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-medium border border-white/[0.08] transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
-              {enrichMutation.isPending ? (
-                <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
-              ) : (
-                <Globe className="w-4 h-4 text-blue-400" />
-              )}
-              Re-Crawl Website
+              <RefreshCw className={`w-3.5 h-3.5 ${enrichMutation.isPending ? 'animate-spin' : ''}`} />
+              Re-Crawl
             </button>
 
             <button
               onClick={() => analyzeMutation.mutate()}
               disabled={analyzeMutation.isPending}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] text-white text-xs font-semibold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 disabled:opacity-50"
+              className="px-3 py-1.5 rounded-md bg-white hover:bg-zinc-200 text-black text-xs font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
-              {analyzeMutation.isPending ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                  Evaluating Gaps...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 text-blue-200" />
-                  Run Grok AI Audit
-                </>
-              )}
+              <Sparkles className="w-3.5 h-3.5" />
+              {analyzeMutation.isPending ? 'Evaluating...' : 'Run Grok Audit'}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none border-b border-white/[0.06]">
+      {/* Tabs Bar */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-white/[0.08] text-xs">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-medium rounded-xl transition-all whitespace-nowrap ${
+              className={`px-3 py-2 rounded-md font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                 isActive
-                  ? 'bg-blue-600/15 text-blue-400 font-semibold border border-blue-500/30 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03] border border-transparent'
+                  ? 'bg-zinc-800 text-white'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
               }`}
             >
-              <tab.icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-400' : 'text-slate-500'}`} />
+              <tab.icon className="w-3.5 h-3.5" />
               {tab.name}
             </button>
           );
         })}
       </div>
 
-      {/* Tab Contents Card */}
-      <div className="bg-[#0E1118] border border-white/[0.08] rounded-3xl p-6 sm:p-8 shadow-xl">
-        {/* 1. Overview & Economics Tab */}
+      {/* Tab Contents */}
+      <div className="rounded-lg border border-white/[0.08] bg-[#111113] p-5">
+        {/* 1. Overview */}
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/[0.06] pb-4">
-              <div>
-                <h3 className="text-sm font-bold text-white tracking-wide uppercase">
-                  {profile.industry || 'Client'} Economics & Retainer Sizing
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Dynamic revenue leakage estimation based on local industry unit benchmarks.
-                </p>
-              </div>
-              <span className="text-xs font-mono text-emerald-400 font-semibold px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                Agency Value Target: $4,500 - $9,000/mo
-              </span>
+          <div className="space-y-5">
+            <div className="border-b border-white/[0.06] pb-3">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                {profile.industry || 'Client'} Economics & Sizing
+              </h3>
             </div>
 
-            {/* Economics Calculator */}
-            <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="p-4 rounded-md bg-zinc-900/60 border border-white/[0.06] space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <span className="text-xs font-semibold text-white">Estimated {volumeLabel}</span>
-                  <p className="text-[11px] text-slate-400">Drag to adjust volume based on known capacity or local footprint</p>
+                  <span className="text-xs font-medium text-white">{volumeLabel}</span>
+                  <p className="text-[11px] text-zinc-400">Adjust volume to calculate estimated monthly leakage</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <input
@@ -386,140 +325,107 @@ Agency Growth Team | OneFolk Client Intelligence`;
                     step="25"
                     value={volumeSlider}
                     onChange={(e) => setVolumeSlider(Number(e.target.value))}
-                    className="w-44 accent-blue-500 cursor-pointer"
+                    className="w-36 accent-white cursor-pointer"
                   />
-                  <span className="text-sm font-mono font-bold text-blue-400 w-14 text-right px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <span className="text-xs font-mono font-bold text-white w-10 text-right">
                     {volumeSlider}
                   </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 text-xs">
-                <div className="p-4 bg-[#090A0F] rounded-2xl border border-white/[0.06] space-y-1">
-                  <span className="text-slate-400 block text-[11px] font-medium">{lossLabel}</span>
-                  <span className="text-xl font-bold text-rose-400 font-mono tracking-tight block">
-                    ${monthlyLoss.toLocaleString()} <span className="text-xs text-slate-500 font-normal">/ mo</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+                <div className="p-3 bg-[#111113] rounded border border-white/[0.06]">
+                  <span className="text-[10px] text-zinc-500 uppercase block font-mono">{lossLabel}</span>
+                  <span className="text-base font-bold text-rose-400 font-mono mt-0.5 block">
+                    ${monthlyLoss.toLocaleString()} / mo
                   </span>
-                  <span className="text-[10px] text-slate-500 block">{lossDescription}</span>
                 </div>
 
-                <div className="p-4 bg-[#090A0F] rounded-2xl border border-white/[0.06] space-y-1">
-                  <span className="text-slate-400 block text-[11px] font-medium">Annual Recoverable Revenue</span>
-                  <span className="text-xl font-bold text-amber-400 font-mono tracking-tight block">
-                    ${annualLoss.toLocaleString()} <span className="text-xs text-slate-500 font-normal">/ yr</span>
+                <div className="p-3 bg-[#111113] rounded border border-white/[0.06]">
+                  <span className="text-[10px] text-zinc-500 uppercase block font-mono">Annual Loss</span>
+                  <span className="text-base font-bold text-amber-400 font-mono mt-0.5 block">
+                    ${annualLoss.toLocaleString()} / yr
                   </span>
-                  <span className="text-[10px] text-slate-500 block">Recaptured via {proposedSolution}</span>
                 </div>
 
-                <div className="p-4 bg-[#090A0F] rounded-2xl border border-white/[0.06] space-y-1">
-                  <span className="text-slate-400 block text-[11px] font-medium">Recommended OneFolk Retainer</span>
-                  <span className="text-lg font-bold text-emerald-400 font-mono tracking-tight block">
+                <div className="p-3 bg-[#111113] rounded border border-white/[0.06]">
+                  <span className="text-[10px] text-zinc-500 uppercase block font-mono">Target Retainer</span>
+                  <span className="text-base font-bold text-emerald-400 font-mono mt-0.5 block">
                     {recommendedRetainer}
                   </span>
-                  <span className="text-[10px] text-slate-500 block">Estimated ROI: 3.5x - 5.0x in 90 days</span>
                 </div>
               </div>
             </div>
 
-            {/* Core Identity Facts */}
-            <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-4">
-              <h4 className="text-xs font-bold text-white tracking-wider uppercase flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-blue-400" />
-                Verified Entity Ground Truth
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                <div className="p-3 rounded-xl bg-[#090A0F] border border-white/[0.04]">
-                  <span className="text-slate-500 block text-[11px] mb-1">Normalized Name</span>
-                  <span className="text-slate-200 font-medium">{profile.normalized_name}</span>
-                </div>
-                <div className="p-3 rounded-xl bg-[#090A0F] border border-white/[0.04]">
-                  <span className="text-slate-500 block text-[11px] mb-1">Canonical Domain</span>
-                  <span className="text-blue-400 font-mono">{profile.domain || 'Unverified'}</span>
-                </div>
-                <div className="p-3 rounded-xl bg-[#090A0F] border border-white/[0.04]">
-                  <span className="text-slate-500 block text-[11px] mb-1">Resolution Confidence</span>
-                  <span className="text-amber-400 font-mono font-bold">{(profile.confidence * 100).toFixed(0)}%</span>
-                </div>
-                <div className="p-3 rounded-xl bg-[#090A0F] border border-white/[0.04]">
-                  <span className="text-slate-500 block text-[11px] mb-1">Data Completeness</span>
-                  <span className="text-emerald-400 font-mono font-semibold">{profile.data_completeness}%</span>
-                </div>
+            {/* Entity Facts */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-2">
+              <div className="p-3 rounded bg-zinc-900/60 border border-white/[0.04]">
+                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Normalized Name</span>
+                <span className="text-zinc-200 font-medium truncate block">{profile.normalized_name}</span>
+              </div>
+              <div className="p-3 rounded bg-zinc-900/60 border border-white/[0.04]">
+                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Canonical Domain</span>
+                <span className="text-zinc-200 font-mono truncate block">{profile.domain || 'Unverified'}</span>
+              </div>
+              <div className="p-3 rounded bg-zinc-900/60 border border-white/[0.04]">
+                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Resolution Confidence</span>
+                <span className="text-zinc-200 font-mono font-medium block">{(profile.confidence * 100).toFixed(0)}%</span>
+              </div>
+              <div className="p-3 rounded bg-zinc-900/60 border border-white/[0.04]">
+                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Data Completeness</span>
+                <span className="text-zinc-200 font-mono font-medium block">{profile.data_completeness}%</span>
               </div>
             </div>
           </div>
         )}
 
-        {/* 2. Cold Outreach Pitch Tab */}
+        {/* 2. Cold Outreach Pitch */}
         {activeTab === 'pitch' && (
-          <div className="space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
-              <div>
-                <h3 className="text-sm font-bold text-white uppercase tracking-wide">
-                  Tailored {profile.industry || 'Client'} Sales Pitch Brief
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Fact-grounded cold outreach email built directly from verified technical and operational gaps.
-                </p>
-              </div>
-
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                Cold Outreach Template
+              </h3>
               <button
                 onClick={handleCopyPitch}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white text-xs font-semibold transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20"
+                className="px-3 py-1.5 rounded-md bg-white hover:bg-zinc-200 text-black text-xs font-medium transition-colors flex items-center gap-1.5"
               >
-                {copiedEmail ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-300" />
-                    Copied to Clipboard!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    Copy Email Template
-                  </>
-                )}
+                {copiedEmail ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedEmail ? 'Copied' : 'Copy Pitch'}
               </button>
             </div>
 
-            <div className="p-6 rounded-2xl bg-[#090A0F] border border-white/[0.06] space-y-4">
-              <div className="text-xs font-mono text-blue-400 border-b border-white/[0.06] pb-3 font-semibold flex items-center gap-2">
-                <span className="text-slate-500 uppercase tracking-wider text-[10px]">Subject:</span>
-                {outreachPitchSubject}
+            <div className="p-4 rounded-md bg-zinc-900/70 border border-white/[0.06] space-y-3 text-xs">
+              <div className="font-mono text-zinc-300 border-b border-white/[0.06] pb-2 font-medium">
+                Subject: {outreachPitchSubject}
               </div>
-              <pre className="text-xs font-mono text-slate-300 whitespace-pre-wrap leading-relaxed">
+              <pre className="font-mono text-zinc-300 whitespace-pre-wrap leading-relaxed">
                 {outreachPitchBody}
               </pre>
             </div>
           </div>
         )}
 
-        {/* 3. Contacts Tab */}
+        {/* 3. Contacts */}
         {activeTab === 'contacts' && (
-          <div className="space-y-5">
-            <div className="border-b border-white/[0.06] pb-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wide">Extracted Contacts & Channels</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Public decision-maker contact points extracted from live HTML headers, footers, and mailto anchors.
-              </p>
+          <div className="space-y-4">
+            <div className="border-b border-white/[0.06] pb-3">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                Discovered Contacts & Decision Makers
+              </h3>
             </div>
 
             {profile.contacts.length === 0 ? (
-              <div className="p-8 text-center border border-dashed border-white/[0.08] rounded-2xl bg-white/[0.01] text-slate-400 text-xs">
-                No direct mailto/tel contacts found in homepage HTML. Click &quot;Re-Crawl Website&quot; to scan sub-pages.
-              </div>
+              <p className="text-xs text-zinc-400 py-6 text-center">No contacts extracted yet. Try re-crawling the website.</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 {profile.contacts.map((c) => (
-                  <div key={c.id} className="p-4 rounded-2xl bg-[#090A0F] border border-white/[0.06] space-y-2">
+                  <div key={c.id} className="p-3 rounded-md bg-zinc-900/60 border border-white/[0.06] space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">
-                        {c.contact_type} ({c.label || 'general'})
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono">{(c.confidence * 100).toFixed(0)}% verified</span>
+                      <span className="text-[10px] font-mono text-zinc-500 uppercase">{c.contact_type}</span>
+                      <span className="text-[10px] font-mono text-zinc-500">{(c.confidence * 100).toFixed(0)}% verified</span>
                     </div>
-                    <p className="text-xs font-bold text-white font-mono">{c.value}</p>
-                    {c.source_url && (
-                      <p className="text-[10px] text-slate-500 truncate">Source: {c.source_url}</p>
-                    )}
+                    <p className="font-mono text-white font-medium">{c.value}</p>
                   </div>
                 ))}
               </div>
@@ -527,63 +433,64 @@ Agency Growth Team | OneFolk Client Intelligence`;
           </div>
         )}
 
-        {/* 4. Website & Performance Tab */}
+        {/* 4. Infrastructure */}
         {activeTab === 'website' && (
-          <div className="space-y-5">
-            <div className="border-b border-white/[0.06] pb-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wide">Live HTTP Crawl & Latency Signals</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Real-time connection handshake, TLS certificate validity, and mobile responsive layout testing.
-              </p>
+          <div className="space-y-4">
+            <div className="border-b border-white/[0.06] pb-3">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                Website Telemetry
+              </h3>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-              <div className="p-4 bg-[#090A0F] rounded-2xl border border-white/[0.06]">
-                <span className="text-slate-500 block text-[11px] mb-1">HTTP Response</span>
-                <span className="text-emerald-400 font-semibold">{profile.has_website ? '200 OK (Live)' : 'Unreachable'}</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 rounded bg-zinc-900/60 border border-white/[0.06]">
+                <span className="text-[10px] text-zinc-500 uppercase block font-mono">Status</span>
+                <span className="text-emerald-400 font-medium block mt-1">
+                  {profile.has_website ? '200 OK' : 'Offline'}
+                </span>
               </div>
-              <div className="p-4 bg-[#090A0F] rounded-2xl border border-white/[0.06]">
-                <span className="text-slate-500 block text-[11px] mb-1">SSL Certificate</span>
-                <span className="text-emerald-400 font-semibold">{profile.has_ssl ? 'Valid HTTPS' : 'Missing SSL'}</span>
+              <div className="p-3 rounded bg-zinc-900/60 border border-white/[0.06]">
+                <span className="text-[10px] text-zinc-500 uppercase block font-mono">SSL</span>
+                <span className="text-emerald-400 font-medium block mt-1">
+                  {profile.has_ssl ? 'Valid TLS' : 'Missing'}
+                </span>
               </div>
-              <div className="p-4 bg-[#090A0F] rounded-2xl border border-white/[0.06]">
-                <span className="text-slate-500 block text-[11px] mb-1">Mobile Viewport</span>
-                <span className="text-blue-400 font-semibold">{profile.is_mobile_friendly ? 'Responsive' : 'Non-Responsive'}</span>
+              <div className="p-3 rounded bg-zinc-900/60 border border-white/[0.06]">
+                <span className="text-[10px] text-zinc-500 uppercase block font-mono">Mobile</span>
+                <span className="text-zinc-200 font-medium block mt-1">
+                  {profile.is_mobile_friendly ? 'Responsive' : 'Non-Responsive'}
+                </span>
               </div>
-              <div className="p-4 bg-[#090A0F] rounded-2xl border border-white/[0.06]">
-                <span className="text-slate-500 block text-[11px] mb-1">Server Latency</span>
-                <span className="text-amber-400 font-mono font-bold">{profile.website_load_time_ms || 1850} ms</span>
+              <div className="p-3 rounded bg-zinc-900/60 border border-white/[0.06]">
+                <span className="text-[10px] text-zinc-500 uppercase block font-mono">Latency</span>
+                <span className="text-zinc-200 font-mono font-medium block mt-1">
+                  {profile.website_load_time_ms || 1850} ms
+                </span>
               </div>
             </div>
           </div>
         )}
 
-        {/* 5. Technologies Tab */}
+        {/* 5. Tech Stack */}
         {activeTab === 'technology' && (
-          <div className="space-y-5">
-            <div className="border-b border-white/[0.06] pb-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wide">Fingerprinted Technologies</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Front-end frameworks, tracking pixels, analytics engines, and third-party CDNs detected on domain.
-              </p>
+          <div className="space-y-4">
+            <div className="border-b border-white/[0.06] pb-3">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                Fingerprinted Technologies
+              </h3>
             </div>
 
             {!profile.technologies || profile.technologies.length === 0 ? (
-              <div className="p-8 text-center border border-dashed border-white/[0.08] rounded-2xl bg-white/[0.01] text-slate-400 text-xs">
-                No third-party tracking scripts detected on homepage. (Immediate agency vector to deploy Meta Pixel / GA4).
-              </div>
+              <p className="text-xs text-zinc-400 py-6 text-center">No third-party trackers detected on homepage.</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 {profile.technologies.map((t) => (
-                  <div key={t.id} className="p-4 rounded-2xl bg-[#090A0F] border border-white/[0.06] space-y-1.5">
+                  <div key={t.id} className="p-3 rounded-md bg-zinc-900/60 border border-white/[0.06] space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider">{t.category}</span>
-                      <span className="text-[10px] text-slate-500 font-mono">{(t.confidence * 100).toFixed(0)}% confidence</span>
+                      <span className="text-[10px] font-mono text-zinc-500 uppercase">{t.category}</span>
+                      <span className="text-[10px] font-mono text-zinc-500">{(t.confidence * 100).toFixed(0)}%</span>
                     </div>
-                    <p className="text-xs font-bold text-white">{t.name}</p>
-                    {t.evidence && (
-                      <p className="text-[11px] text-slate-400">Evidence: {t.evidence}</p>
-                    )}
+                    <p className="text-white font-medium">{t.name}</p>
                   </div>
                 ))}
               </div>
@@ -591,214 +498,132 @@ Agency Growth Team | OneFolk Client Intelligence`;
           </div>
         )}
 
-        {/* 6. Social Footprint Tab */}
+        {/* 6. Social Footprint */}
         {activeTab === 'social' && (
-          <div className="space-y-5">
-            <div className="border-b border-white/[0.06] pb-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wide">Multi-Channel Social Footprint</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Cross-platform brand presence, community sentiment signals, and direct engagement channels.
-              </p>
+          <div className="space-y-4">
+            <div className="border-b border-white/[0.06] pb-3">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                Social Channels
+              </h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div className="p-4 rounded-2xl bg-[#090A0F] border border-white/[0.06] space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-rose-400 block">Instagram</span>
-                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">Verified</span>
-                </div>
-                <p className="text-slate-200 font-mono font-medium">@{profile.slug.replace(/-/g, '_')}</p>
-                <p className="text-slate-400 text-[11px]">Primary visual channel for guest engagement and organic brand discovery.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="p-3 rounded-md bg-zinc-900/60 border border-white/[0.06] space-y-1">
+                <span className="text-[10px] font-mono text-zinc-500 uppercase">Instagram</span>
+                <p className="text-white font-mono">@{profile.slug.replace(/-/g, '_')}</p>
               </div>
-
-              <div className="p-4 rounded-2xl bg-[#090A0F] border border-white/[0.06] space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-white block">Threads (@Meta)</span>
-                  <span className="text-[10px] font-mono text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">Indexed</span>
-                </div>
-                <p className="text-slate-200 font-mono font-medium">threads.net/@{profile.slug.replace(/-/g, '_')}</p>
-                <p className="text-slate-400 text-[11px]">Real-time conversational updates and announcements.</p>
+              <div className="p-3 rounded-md bg-zinc-900/60 border border-white/[0.06] space-y-1">
+                <span className="text-[10px] font-mono text-zinc-500 uppercase">Threads</span>
+                <p className="text-white font-mono">threads.net/@{profile.slug.replace(/-/g, '_')}</p>
               </div>
-
-              <div className="p-4 rounded-2xl bg-[#090A0F] border border-white/[0.06] space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-orange-400 block">Reddit Mentions</span>
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Community</span>
-                </div>
-                <p className="text-slate-200 font-mono font-medium">r/{profile.city || 'local'}_dining</p>
-                <p className="text-slate-400 text-[11px]">Public community recommendations and local organic threads.</p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-[#090A0F] border border-white/[0.06] space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-emerald-400 block">WhatsApp VIP Channel</span>
-                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">High Growth</span>
-                </div>
-                <p className="text-slate-200 font-medium">Direct inquiry & VIP retention</p>
-                <p className="text-slate-400 text-[11px]">High ROI vector for direct conversion campaigns without commission.</p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-[#090A0F] border border-white/[0.06] space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-blue-400 block">LinkedIn Profile</span>
-                  <span className="text-[10px] font-mono text-slate-400 bg-white/[0.05] px-1.5 py-0.5 rounded">Corporate</span>
-                </div>
-                <p className="text-slate-200 font-mono font-medium">linkedin.com/company/{profile.slug}</p>
-                <p className="text-slate-400 text-[11px]">Management team, founders, and executive decision makers.</p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-[#090A0F] border border-white/[0.06] space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-pink-400 block">TikTok / YouTube</span>
-                  <span className="text-[10px] font-mono text-slate-400 bg-white/[0.05] px-1.5 py-0.5 rounded">Video UGC</span>
-                </div>
-                <p className="text-slate-200 font-mono font-medium">@{profile.slug.replace(/-/g, '')}</p>
-                <p className="text-slate-400 text-[11px]">Short-form ambiance, menu, and influencer viral reach.</p>
+              <div className="p-3 rounded-md bg-zinc-900/60 border border-white/[0.06] space-y-1">
+                <span className="text-[10px] font-mono text-zinc-500 uppercase">LinkedIn</span>
+                <p className="text-white font-mono">linkedin.com/company/{profile.slug}</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* 7. Reviews & Reputation Tab */}
+        {/* 7. Reviews */}
         {activeTab === 'reviews' && (
-          <div className="space-y-5">
-            <div className="border-b border-white/[0.06] pb-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wide">Public Reputation & Trust Index</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Aggregated sentiment scoring, review distribution, and verified local footprint status.
-              </p>
+          <div className="space-y-4">
+            <div className="border-b border-white/[0.06] pb-3">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                Reputation Metrics
+              </h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-5 rounded-2xl bg-[#090A0F] border border-white/[0.06] space-y-1">
-                <span className="text-[11px] text-slate-500 uppercase font-semibold">Average Rating</span>
-                <p className="text-3xl font-bold text-amber-400 font-mono">★ {rating > 0 ? rating.toFixed(1) : 'N/A'}</p>
-                <p className="text-[11px] text-slate-400">From {reviewCount} verified reviews</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="p-4 rounded-md bg-zinc-900/60 border border-white/[0.06]">
+                <span className="text-[10px] font-mono text-zinc-500 uppercase">Rating</span>
+                <div className="text-xl font-bold text-amber-400 mt-1">★ {rating.toFixed(1)}</div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">{reviewCount} reviews</div>
               </div>
-
-              <div className="p-5 rounded-2xl bg-[#090A0F] border border-white/[0.06] space-y-1">
-                <span className="text-[11px] text-slate-500 uppercase font-semibold">Sentiment Health</span>
-                <p className="text-base font-bold text-emerald-400">
-                  {rating >= 4.4 ? 'OVERWHELMINGLY POSITIVE' : rating >= 3.8 ? 'GENERALLY POSITIVE' : 'EMERGING LOCAL BRAND'}
-                </p>
-                <p className="text-[11px] text-slate-400">Local footfall density index</p>
+              <div className="p-4 rounded-md bg-zinc-900/60 border border-white/[0.06]">
+                <span className="text-[10px] font-mono text-zinc-500 uppercase">Sentiment</span>
+                <div className="text-sm font-bold text-emerald-400 mt-1">
+                  {rating >= 4.4 ? 'Positive' : 'Emerging'}
+                </div>
               </div>
-
-              <div className="p-5 rounded-2xl bg-[#090A0F] border border-white/[0.06] space-y-1">
-                <span className="text-[11px] text-slate-500 uppercase font-semibold">Reputation Tier</span>
-                <p className="text-base font-bold text-blue-400">
-                  {reviewCount > 100 ? 'AUTHORITY TIER' : reviewCount > 20 ? 'ESTABLISHED TIER' : 'GROWTH TIER'}
-                </p>
-                <p className="text-[11px] text-slate-400">Verified public footprint</p>
+              <div className="p-4 rounded-md bg-zinc-900/60 border border-white/[0.06]">
+                <span className="text-[10px] font-mono text-zinc-500 uppercase">Tier</span>
+                <div className="text-sm font-bold text-zinc-200 mt-1">
+                  {reviewCount > 100 ? 'Authority' : 'Established'}
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* 8. Grok AI Analysis & SWOT Tab */}
+        {/* 8. SWOT Analysis */}
         {activeTab === 'analysis' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wide">
-                    Fact-Grounded Strategic AI Intelligence
-                  </h3>
-                  <p className="text-xs text-slate-400">Autonomous synthesis across 6 digital transformation pillars.</p>
-                </div>
-              </div>
-
+          <div className="space-y-4">
+            <div className="border-b border-white/[0.06] pb-3 flex items-center justify-between">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                AI Strategic Assessment
+              </h3>
               {analysis && (
-                <span className="px-3 py-1 rounded-full text-xs font-bold font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                  Maturity: {analysis.marketing_maturity}
-                </span>
+                <span className="text-[10px] font-mono text-zinc-400">Maturity: {analysis.marketing_maturity}</span>
               )}
             </div>
 
             {!analysis ? (
-              <div className="text-center py-16 border border-dashed border-white/[0.08] rounded-2xl bg-white/[0.01]">
-                <Sparkles className="w-8 h-8 text-blue-400 mx-auto mb-2 opacity-80" />
-                <p className="text-sm font-semibold text-white">No AI Audit Executed Yet</p>
-                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                  Click &quot;Run Grok AI Audit&quot; at the top to evaluate digital gaps, SEO health, and agency service mapping.
-                </p>
-              </div>
+              <p className="text-xs text-zinc-400 py-6 text-center">Click &quot;Run Grok Audit&quot; to synthesize strategic SWOT analysis.</p>
             ) : (
-              <div className="space-y-6">
-                {/* 6-Pillar Score Meters */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
-                  <div className="p-3.5 bg-[#090A0F] rounded-2xl border border-white/[0.06] text-center space-y-1">
-                    <span className="text-slate-500 block text-[10px] font-medium">Digital Presence</span>
-                    <span className="text-lg font-bold text-blue-400 font-mono block">{analysis.digital_presence_score}%</span>
+              <div className="space-y-4 text-xs">
+                {/* 6 scores */}
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
+                  <div className="p-2 rounded bg-zinc-900/60 border border-white/[0.04]">
+                    <span className="text-[10px] text-zinc-500 block font-mono">Digital</span>
+                    <span className="font-mono font-bold text-white">{analysis.digital_presence_score}%</span>
                   </div>
-                  <div className="p-3.5 bg-[#090A0F] rounded-2xl border border-white/[0.06] text-center space-y-1">
-                    <span className="text-slate-500 block text-[10px] font-medium">Website Infra</span>
-                    <span className="text-lg font-bold text-blue-400 font-mono block">{analysis.website_score}%</span>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-white/[0.04]">
+                    <span className="text-[10px] text-zinc-500 block font-mono">Web</span>
+                    <span className="font-mono font-bold text-white">{analysis.website_score}%</span>
                   </div>
-                  <div className="p-3.5 bg-[#090A0F] rounded-2xl border border-white/[0.06] text-center space-y-1">
-                    <span className="text-slate-500 block text-[10px] font-medium">Social Channels</span>
-                    <span className="text-lg font-bold text-amber-400 font-mono block">{analysis.social_score}%</span>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-white/[0.04]">
+                    <span className="text-[10px] text-zinc-500 block font-mono">Social</span>
+                    <span className="font-mono font-bold text-white">{analysis.social_score}%</span>
                   </div>
-                  <div className="p-3.5 bg-[#090A0F] rounded-2xl border border-white/[0.06] text-center space-y-1">
-                    <span className="text-slate-500 block text-[10px] font-medium">SEO Visibility</span>
-                    <span className="text-lg font-bold text-blue-400 font-mono block">{analysis.seo_score}%</span>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-white/[0.04]">
+                    <span className="text-[10px] text-zinc-500 block font-mono">SEO</span>
+                    <span className="font-mono font-bold text-white">{analysis.seo_score}%</span>
                   </div>
-                  <div className="p-3.5 bg-[#090A0F] rounded-2xl border border-white/[0.06] text-center space-y-1">
-                    <span className="text-slate-500 block text-[10px] font-medium">Lead Funnel</span>
-                    <span className="text-lg font-bold text-amber-400 font-mono block">{analysis.lead_capture_score}%</span>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-white/[0.04]">
+                    <span className="text-[10px] text-zinc-500 block font-mono">Funnels</span>
+                    <span className="font-mono font-bold text-white">{analysis.lead_capture_score}%</span>
                   </div>
-                  <div className="p-3.5 bg-[#090A0F] rounded-2xl border border-white/[0.06] text-center space-y-1">
-                    <span className="text-slate-500 block text-[10px] font-medium">Reputation Trust</span>
-                    <span className="text-lg font-bold text-emerald-400 font-mono block">{analysis.reputation_score}%</span>
+                  <div className="p-2 rounded bg-zinc-900/60 border border-white/[0.04]">
+                    <span className="text-[10px] text-zinc-500 block font-mono">Trust</span>
+                    <span className="font-mono font-bold text-white">{analysis.reputation_score}%</span>
                   </div>
                 </div>
 
-                {/* SWOT Breakdown */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-5 rounded-2xl bg-emerald-500/[0.04] border border-emerald-500/20 space-y-2.5">
-                    <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4" />
-                      Identified Strengths
-                    </h4>
-                    <ul className="space-y-1.5 text-xs text-slate-300">
+                {/* SWOT grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <div className="p-3 rounded bg-zinc-900/60 border border-white/[0.06] space-y-1.5">
+                    <span className="text-[10px] font-mono uppercase text-emerald-400 font-bold block">Strengths</span>
+                    <ul className="space-y-1 text-zinc-300">
                       {analysis.strengths.map((s, idx) => (
-                        <li key={idx} className="flex items-start gap-1.5">
-                          <span className="text-emerald-400 font-bold">•</span>
-                          <span>{s}</span>
-                        </li>
+                        <li key={idx}>• {s}</li>
                       ))}
                     </ul>
                   </div>
 
-                  <div className="p-5 rounded-2xl bg-rose-500/[0.04] border border-rose-500/20 space-y-2.5">
-                    <h4 className="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4" />
-                      Digital Gaps & Bottlenecks
-                    </h4>
-                    <ul className="space-y-1.5 text-xs text-slate-300">
+                  <div className="p-3 rounded bg-zinc-900/60 border border-white/[0.06] space-y-1.5">
+                    <span className="text-[10px] font-mono uppercase text-rose-400 font-bold block">Gaps & Bottlenecks</span>
+                    <ul className="space-y-1 text-zinc-300">
                       {analysis.weaknesses.map((w, idx) => (
-                        <li key={idx} className="flex items-start gap-1.5">
-                          <span className="text-rose-400 font-bold">•</span>
-                          <span>{w}</span>
-                        </li>
+                        <li key={idx}>• {w}</li>
                       ))}
                     </ul>
                   </div>
 
-                  <div className="p-5 rounded-2xl bg-amber-500/[0.04] border border-amber-500/20 space-y-2.5">
-                    <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Zap className="w-4 h-4" />
-                      Agency Service Vectors
-                    </h4>
-                    <ul className="space-y-1.5 text-xs text-slate-300">
+                  <div className="p-3 rounded bg-zinc-900/60 border border-white/[0.06] space-y-1.5">
+                    <span className="text-[10px] font-mono uppercase text-amber-400 font-bold block">Opportunities</span>
+                    <ul className="space-y-1 text-zinc-300">
                       {analysis.opportunities.map((o, idx) => (
-                        <li key={idx} className="flex items-start gap-1.5">
-                          <span className="text-amber-400 font-bold">•</span>
-                          <span>{o}</span>
-                        </li>
+                        <li key={idx}>• {o}</li>
                       ))}
                     </ul>
                   </div>
@@ -808,29 +633,26 @@ Agency Growth Team | OneFolk Client Intelligence`;
           </div>
         )}
 
-        {/* 9. Fact Store Tab */}
+        {/* 9. Facts */}
         {activeTab === 'facts' && (
-          <div className="space-y-5">
-            <div className="border-b border-white/[0.06] pb-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wide">Fact Store Audit Log</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Immutable, source-attributed key-value claims recorded during live discovery passes.
-              </p>
+          <div className="space-y-4">
+            <div className="border-b border-white/[0.06] pb-3">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                Fact Store Audit Log
+              </h3>
             </div>
 
             {!profile.facts || profile.facts.length === 0 ? (
-              <div className="p-8 text-center border border-dashed border-white/[0.08] rounded-2xl bg-white/[0.01] text-slate-400 text-xs">
-                No facts recorded in store yet.
-              </div>
+              <p className="text-xs text-zinc-400 py-6 text-center">No facts recorded yet.</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2 text-xs">
                 {profile.facts.map((f) => (
-                  <div key={f.id} className="p-4 rounded-2xl bg-[#090A0F] border border-white/[0.06] space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-blue-400 font-mono">{f.category} / {f.key}</span>
-                      <span className="text-[10px] text-slate-500 font-mono">Source: {f.source}</span>
+                  <div key={f.id} className="p-3 rounded bg-zinc-900/60 border border-white/[0.06] space-y-1">
+                    <div className="flex items-center justify-between text-[10px] font-mono text-zinc-500">
+                      <span>{f.category} / {f.key}</span>
+                      <span>Source: {f.source}</span>
                     </div>
-                    <pre className="text-[11px] bg-white/[0.02] p-3 rounded-xl border border-white/[0.04] text-slate-300 overflow-x-auto font-mono">
+                    <pre className="p-2 rounded bg-black/40 text-zinc-300 font-mono text-[11px] overflow-x-auto">
                       {JSON.stringify(f.value, null, 2)}
                     </pre>
                   </div>
@@ -840,29 +662,28 @@ Agency Growth Team | OneFolk Client Intelligence`;
           </div>
         )}
 
-        {/* 10. Activity Timeline */}
+        {/* 10. Activity */}
         {activeTab === 'activity' && (
-          <div className="space-y-5">
-            <div className="border-b border-white/[0.06] pb-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wide">Provenance & Event History</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Chronological log of discovery passes, enrichments, and score recalculations.
-              </p>
+          <div className="space-y-4">
+            <div className="border-b border-white/[0.06] pb-3">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                Audit Timeline
+              </h3>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2 text-xs">
               {profile.activities.map((act) => (
-                <div key={act.id} className="p-4 rounded-2xl bg-[#090A0F] border border-white/[0.06] flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 shrink-0 shadow-sm shadow-blue-400/50" />
+                <div key={act.id} className="p-3 rounded bg-zinc-900/60 border border-white/[0.06] flex items-start gap-2.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-zinc-400 mt-1.5 shrink-0" />
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="text-xs font-bold text-white">{act.title}</h4>
-                      <span className="text-[10px] text-slate-500 font-mono">
+                      <span className="font-medium text-white">{act.title}</span>
+                      <span className="text-[10px] text-zinc-500 font-mono">
                         {new Date(act.created_at).toLocaleTimeString()}
                       </span>
                     </div>
                     {act.description && (
-                      <p className="text-[11px] text-slate-400 mt-1">{act.description}</p>
+                      <p className="text-[11px] text-zinc-400 mt-0.5">{act.description}</p>
                     )}
                   </div>
                 </div>

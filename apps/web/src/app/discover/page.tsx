@@ -41,36 +41,12 @@ import {
 } from '@/lib/types';
 
 const PRESET_QUERIES = [
-  {
-    label: 'Schools + ERP',
-    query: 'schools needing ERP in Dubai',
-    opp: 'ERP',
-  },
-  {
-    label: 'Clinics + Booking',
-    query: 'clinics without online booking in London',
-    opp: 'Booking',
-  },
-  {
-    label: 'Restaurants + Web',
-    query: 'restaurants needing website in New York',
-    opp: 'Web UX',
-  },
-  {
-    label: 'Real Estate + CRM',
-    query: 'real estate agencies without CRM in Singapore',
-    opp: 'CRM',
-  },
-  {
-    label: 'Law Firms + Automation',
-    query: 'law firms needing automation in Sydney',
-    opp: 'AI Flow',
-  },
-  {
-    label: 'Ecommerce + SEO',
-    query: 'ecommerce brands with poor SEO in Dubai',
-    opp: 'SEO',
-  },
+  { label: 'Schools + ERP', query: 'schools needing ERP in Dubai', opp: 'ERP' },
+  { label: 'Clinics + Booking', query: 'clinics without online booking in London', opp: 'Booking' },
+  { label: 'Restaurants + Web', query: 'restaurants needing website in New York', opp: 'Web UX' },
+  { label: 'Real Estate + CRM', query: 'real estate agencies without CRM in Singapore', opp: 'CRM' },
+  { label: 'Law Firms + Automation', query: 'law firms needing automation in Sydney', opp: 'AI Flow' },
+  { label: 'Ecommerce + SEO', query: 'ecommerce brands with poor SEO in Dubai', opp: 'SEO' },
 ];
 
 export default function DiscoverPage() {
@@ -253,42 +229,24 @@ export default function DiscoverPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="space-y-6 max-w-6xl mx-auto pb-16">
       {/* Top Banner */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/[0.07] pb-5">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center">
-              <Sparkles className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                Universal Client Opportunity Discovery
-                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                  Intent-Driven
-                </span>
-              </h1>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Target Entity controls discovery. Opportunity qualifiers dynamically score value creation gaps.
-              </p>
-            </div>
-          </div>
+          <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+            Universal Client Discovery
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-white/[0.08]">
+              Live Engine
+            </span>
+          </h1>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Identify verified target clients and evaluate conversion opportunities in real time.
+          </p>
         </div>
 
-        {/* Preset Pills & History Link */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <Link
-            href="/clientHistory"
-            className="text-[11px] px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white border border-white/[0.08] transition-all font-medium flex items-center gap-1.5 mr-1"
-          >
-            <HistoryIcon className="w-3.5 h-3.5 text-indigo-400" />
-            Client History
-          </Link>
-
-          <span className="text-[11px] text-zinc-500 font-medium mr-1 flex items-center gap-1">
-            <Flame className="w-3 h-3 text-amber-400" /> Niche Presets:
-          </span>
-
+        {/* Preset Queries */}
+        <div className="flex items-center gap-1.5 flex-wrap text-xs">
+          <span className="text-zinc-500 text-[11px] font-medium mr-1">Presets:</span>
           {PRESET_QUERIES.map((preset) => (
             <button
               key={preset.label}
@@ -299,9 +257,8 @@ export default function DiscoverPage() {
                 setCity('');
                 executeSearch(preset.query);
               }}
-              className="text-[11px] px-2.5 py-1.5 rounded-lg bg-white/[0.02] hover:bg-white/[0.06] text-zinc-300 hover:text-white border border-white/[0.06] hover:border-white/[0.12] transition-all font-medium flex items-center gap-1.5 active:scale-95"
+              className="text-[11px] px-2.5 py-1 rounded-md bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/[0.08] transition-colors"
             >
-              <span className="text-zinc-500 font-mono text-[9px]">[{preset.opp}]</span>
               {preset.label}
             </button>
           ))}
@@ -309,26 +266,24 @@ export default function DiscoverPage() {
       </div>
 
       {/* Main Search Command Box */}
-      <div className="bg-[#0E1118] border border-white/[0.08] rounded-2xl p-5 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-40 bg-gradient-to-bl from-blue-600/5 via-indigo-600/5 to-transparent pointer-events-none rounded-tr-2xl" />
-
-        <form onSubmit={handleStartSearch} className="space-y-4 relative z-10">
-          <div className="flex flex-col sm:flex-row gap-2.5">
+      <div className="rounded-lg border border-white/[0.08] bg-[#111113] p-4 space-y-3">
+        <form onSubmit={handleStartSearch} className="space-y-3">
+          <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search any entity + opportunity, e.g. 'ecommerce brands with poor SEO in Dubai', 'schools needing ERP'..."
-                className="w-full bg-[#090A0F] border border-white/[0.08] focus:border-blue-500/80 focus:ring-1 focus:ring-blue-500/80 rounded-xl pl-10 pr-4 py-3 text-xs text-white placeholder-zinc-500 outline-none transition-all font-medium"
+                placeholder="Search target businesses, e.g. 'ecommerce brands with poor SEO in Dubai'..."
+                className="w-full bg-zinc-900 border border-white/[0.08] focus:border-zinc-500 rounded-md pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-500 outline-none transition-colors"
               />
             </div>
 
             <button
               type="submit"
               disabled={searchStatus === 'running' || !query.trim()}
-              className="bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-semibold py-3 px-6 rounded-xl text-xs transition-all shadow-md shadow-blue-600/25 flex items-center justify-center gap-2 disabled:opacity-50 min-w-[140px]"
+              className="bg-white hover:bg-zinc-200 active:scale-[0.98] text-black font-semibold py-2 px-4 rounded-md text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 shrink-0"
             >
               {searchStatus === 'running' ? (
                 <>
@@ -338,92 +293,51 @@ export default function DiscoverPage() {
               ) : (
                 <>
                   <Sparkles className="w-3.5 h-3.5" />
-                  Discover Clients
+                  Search
                 </>
               )}
             </button>
           </div>
 
-          {/* Real-time Parsed Intent Breakdown Bar */}
+          {/* Parsed Intent Attributes Bar */}
           {parsedIntent && (
-            <div className="pt-3 border-t border-white/[0.06] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-              {/* Target Entity */}
-              <div className="bg-[#090A0F] p-3 rounded-xl border border-white/[0.06] flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
-                  <Building className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[9px] font-bold text-zinc-500 uppercase font-mono tracking-wider">
-                    Target Entity
-                  </div>
-                  <div className="text-xs font-semibold text-zinc-200 truncate">
-                    {parsedIntent.target_entity}
-                  </div>
-                </div>
+            <div className="pt-2 border-t border-white/[0.06] grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="p-2 rounded bg-zinc-900/60 border border-white/[0.04]">
+                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Target Entity</span>
+                <span className="text-zinc-200 font-medium truncate block">{parsedIntent.target_entity}</span>
               </div>
-
-              {/* Opportunity */}
-              <div className="bg-[#090A0F] p-3 rounded-xl border border-white/[0.06] flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
-                  <Zap className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[9px] font-bold text-zinc-500 uppercase font-mono tracking-wider">
-                    Opportunity / Gap
-                  </div>
-                  <div className="text-xs font-semibold text-amber-300 truncate">
-                    {parsedIntent.opportunity_type}
-                  </div>
-                </div>
+              <div className="p-2 rounded bg-zinc-900/60 border border-white/[0.04]">
+                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Opportunity Gap</span>
+                <span className="text-amber-400 font-medium truncate block">{parsedIntent.opportunity_type}</span>
               </div>
-
-              {/* Location & Industry */}
-              <div className="bg-[#090A0F] p-3 rounded-xl border border-white/[0.06] flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
-                  <Globe className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[9px] font-bold text-zinc-500 uppercase font-mono tracking-wider">
-                    Industry & Geo
-                  </div>
-                  <div className="text-xs font-semibold text-zinc-200 truncate">
-                    {parsedIntent.industry} • {parsedIntent.location || 'Global'}
-                  </div>
-                </div>
+              <div className="p-2 rounded bg-zinc-900/60 border border-white/[0.04]">
+                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Location</span>
+                <span className="text-zinc-200 font-medium truncate block">{parsedIntent.location || 'Global'}</span>
               </div>
-
-              {/* Classification */}
-              <div className="bg-[#090A0F] p-3 rounded-xl border border-white/[0.06] flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
-                  <Bot className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[9px] font-bold text-zinc-500 uppercase font-mono tracking-wider">
-                    Intent Classification
-                  </div>
-                  <div className="text-xs font-semibold text-zinc-200 truncate">
-                    {parsedIntent.is_vendor_search ? 'Vendor Search' : 'Client Prospecting'}
-                  </div>
-                </div>
+              <div className="p-2 rounded bg-zinc-900/60 border border-white/[0.04]">
+                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Intent</span>
+                <span className="text-zinc-300 font-medium truncate block">
+                  {parsedIntent.is_vendor_search ? 'Vendor' : 'Prospecting'}
+                </span>
               </div>
             </div>
           )}
         </form>
       </div>
 
-      {/* Progress & Live Ingestion Status Bar */}
+      {/* Progress Line */}
       {searchStatus === 'running' && (
-        <div className="bg-[#0E1118] border border-white/[0.08] rounded-xl p-4 space-y-2">
+        <div className="rounded-lg border border-white/[0.08] bg-[#111113] p-3.5 space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-zinc-300 font-medium">
-              <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+            <div className="flex items-center gap-2 text-zinc-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
               <span>{statusMessage}</span>
             </div>
-            <span className="font-mono text-xs font-semibold text-blue-400">{providerProgress}%</span>
+            <span className="font-mono text-xs text-zinc-400">{providerProgress}%</span>
           </div>
-          <div className="w-full bg-white/[0.05] h-1.5 rounded-full overflow-hidden">
+          <div className="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
             <div
-              className="bg-gradient-to-r from-blue-600 to-cyan-400 h-full rounded-full transition-all duration-300"
+              className="bg-white h-full rounded-full transition-all duration-200"
               style={{ width: `${providerProgress}%` }}
             />
           </div>
@@ -432,13 +346,13 @@ export default function DiscoverPage() {
 
       {/* Results Header */}
       {discoveredBusinesses.length > 0 && (
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-wider font-mono">
-              Discovered Potential Clients
+            <h2 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider font-mono">
+              Discovered Clients
             </h2>
-            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              {discoveredBusinesses.length} FOUND
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-white/[0.08]">
+              {discoveredBusinesses.length}
             </span>
           </div>
 
@@ -446,54 +360,38 @@ export default function DiscoverPage() {
             href="/clientHistory"
             className="text-xs text-zinc-400 hover:text-white flex items-center gap-1 transition-colors"
           >
-            View in Saved History <ArrowRight className="w-3.5 h-3.5" />
+            Open Client History <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       )}
 
       {/* Discovered Businesses Grid */}
       {discoveredBusinesses.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {discoveredBusinesses.map((biz) => {
             const opps = liveOpportunities[biz.id] || [];
             const domain = biz.domain || (biz.website ? new URL(biz.website).hostname.replace(/^www\./, '') : '');
-            const initials = biz.name
-              .split(' ')
-              .map((w) => w[0])
-              .filter(Boolean)
-              .slice(0, 2)
-              .join('')
-              .toUpperCase();
 
             return (
               <div
                 key={biz.id}
-                className="bg-[#0E1118] border border-white/[0.08] hover:border-white/[0.18] rounded-2xl p-5 transition-all duration-200 shadow-xl flex flex-col justify-between group"
+                className="rounded-lg border border-white/[0.08] hover:border-white/[0.18] bg-[#111113] p-4 transition-colors flex flex-col justify-between space-y-3"
               >
                 <div>
-                  {/* Top Bar: Avatar + Priority Badge */}
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600/30 via-indigo-600/20 to-cyan-500/20 border border-blue-500/20 flex items-center justify-center font-bold text-xs text-blue-300 font-mono">
-                        {initials}
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors leading-tight">
-                          {biz.name}
-                        </h3>
-                        <div className="text-[11px] text-zinc-400 mt-0.5">
-                          {biz.industry} • {biz.city || 'Dubai'}, {biz.country || 'UAE'}
-                        </div>
-                      </div>
+                  {/* Top Bar: Name & Priority */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-mono text-zinc-500 uppercase block truncate">
+                        {biz.industry} • {biz.city || 'Dubai'}
+                      </span>
+                      <h3 className="text-sm font-semibold text-white truncate">{biz.name}</h3>
                     </div>
 
                     <span
-                      className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+                      className={`text-[9px] font-mono font-medium px-2 py-0.5 rounded border shrink-0 ${
                         biz.priority === 'HIGH'
-                          ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                          : biz.priority === 'MEDIUM'
                           ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                          : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
+                          : 'bg-zinc-800 text-zinc-400 border-white/[0.06]'
                       }`}
                     >
                       {biz.priority}
@@ -501,8 +399,7 @@ export default function DiscoverPage() {
                   </div>
 
                   {/* Digital Footprint & Contacts */}
-                  <div className="space-y-1.5 py-2.5 border-t border-b border-white/[0.06] text-xs">
-                    {/* Website */}
+                  <div className="space-y-1.5 pt-3 mt-3 border-t border-white/[0.06] text-xs">
                     {biz.website && (
                       <div className="flex items-center justify-between text-zinc-300">
                         <div className="flex items-center gap-1.5 truncate">
@@ -513,23 +410,22 @@ export default function DiscoverPage() {
                           href={biz.website.startsWith('http') ? biz.website : `https://${biz.website}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-zinc-500 hover:text-blue-400 p-0.5 shrink-0 transition-colors"
+                          className="text-zinc-500 hover:text-zinc-300 p-0.5 shrink-0"
                         >
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>
                     )}
 
-                    {/* Email */}
                     {biz.email && (
                       <div className="flex items-center justify-between text-zinc-300">
                         <div className="flex items-center gap-1.5 truncate">
-                          <Mail className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                          <Mail className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                           <span className="text-[11px] font-mono truncate">{biz.email}</span>
                         </div>
                         <button
                           onClick={() => handleCopy(biz.email!, `em-${biz.id}`)}
-                          className="text-zinc-500 hover:text-blue-400 p-0.5 shrink-0 transition-colors"
+                          className="text-zinc-500 hover:text-zinc-300 p-0.5 shrink-0"
                           title="Copy email"
                         >
                           {copiedId === `em-${biz.id}` ? (
@@ -541,16 +437,15 @@ export default function DiscoverPage() {
                       </div>
                     )}
 
-                    {/* Phone */}
                     {biz.phone && (
                       <div className="flex items-center justify-between text-zinc-300">
                         <div className="flex items-center gap-1.5 truncate">
-                          <Phone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <Phone className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                           <span className="text-[11px] font-mono truncate">{biz.phone}</span>
                         </div>
                         <button
                           onClick={() => handleCopy(biz.phone!, `ph-${biz.id}`)}
-                          className="text-zinc-500 hover:text-blue-400 p-0.5 shrink-0 transition-colors"
+                          className="text-zinc-500 hover:text-zinc-300 p-0.5 shrink-0"
                           title="Copy phone"
                         >
                           {copiedId === `ph-${biz.id}` ? (
@@ -563,59 +458,38 @@ export default function DiscoverPage() {
                     )}
                   </div>
 
-                  {/* Opportunities detected preview */}
+                  {/* Opportunities Detected Preview */}
                   {opps.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      <div className="text-[10px] font-bold text-zinc-400 uppercase font-mono tracking-wider flex items-center gap-1">
-                        <Zap className="w-3 h-3 text-amber-400" /> Qualified Gaps ({opps.length})
+                    <div className="mt-3 space-y-1.5">
+                      <div className="text-[10px] font-medium text-zinc-500 uppercase font-mono">
+                        Qualified Gaps ({opps.length})
                       </div>
                       {opps.slice(0, 2).map((opp) => (
                         <div
                           key={opp.id}
-                          className="bg-[#090A0F] border border-white/[0.06] rounded-xl p-2.5 space-y-1"
+                          className="bg-zinc-900/70 border border-white/[0.04] rounded p-2 text-xs space-y-0.5"
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-zinc-200 truncate">{opp.title}</span>
-                          </div>
+                          <div className="font-medium text-zinc-200 truncate">{opp.title}</div>
                           {opp.estimated_revenue_potential && (
-                            <div className="text-[10px] font-mono text-emerald-400 font-semibold">
-                              Est. Value: {opp.estimated_revenue_potential}
+                            <div className="text-[10px] font-mono text-emerald-400">
+                              Est: {opp.estimated_revenue_potential}
                             </div>
                           )}
                         </div>
                       ))}
                     </div>
                   )}
-
-                  {/* Signals badges */}
-                  <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-                    {biz.has_ssl && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono flex items-center gap-1">
-                        <ShieldCheck className="w-2.5 h-2.5" /> SSL
-                      </span>
-                    )}
-                    {biz.is_mobile_friendly && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">
-                        Mobile Ready
-                      </span>
-                    )}
-                    {biz.rating && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono flex items-center gap-1">
-                        <Star className="w-2.5 h-2.5 fill-amber-300" /> {biz.rating}
-                      </span>
-                    )}
-                  </div>
                 </div>
 
                 {/* Footer Action */}
-                <div className="pt-3 mt-4 border-t border-white/[0.06] flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-zinc-500 uppercase">
+                <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-zinc-500">
                     Confidence: {Math.round((biz.confidence || 0.98) * 100)}%
                   </span>
 
                   <Link
                     href={`/businesses/${biz.id}`}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors group-hover:translate-x-0.5 transition-transform"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-white hover:text-zinc-300 transition-colors"
                   >
                     Deep Intelligence <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
@@ -625,13 +499,11 @@ export default function DiscoverPage() {
           })}
         </div>
       ) : searchStatus === 'completed' ? (
-        <div className="bg-[#0E1118] border border-white/[0.08] rounded-2xl p-12 text-center space-y-3">
-          <div className="p-3 bg-white/[0.03] rounded-full w-fit mx-auto text-zinc-400">
-            <Filter className="w-6 h-6" />
-          </div>
-          <h3 className="text-sm font-bold text-white">No Matching Entities Found</h3>
-          <p className="text-xs text-zinc-400 max-w-md mx-auto">
-            Try adjusting your target entity keywords. The intent parser separates the entity target from problem qualifiers.
+        <div className="rounded-lg border border-white/[0.08] bg-[#111113] p-10 text-center space-y-2">
+          <Filter className="w-5 h-5 text-zinc-500 mx-auto" />
+          <h3 className="text-xs font-semibold text-white">No Matching Entities Found</h3>
+          <p className="text-xs text-zinc-400 max-w-sm mx-auto">
+            Try adjusting your search terms or keywords.
           </p>
         </div>
       ) : null}
