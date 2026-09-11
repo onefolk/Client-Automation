@@ -8,7 +8,7 @@ OneFolk Client Intelligence is a high-performance, local-first platform designed
 
 ## 🏛️ Architecture Overview
 
-The system follows a strict **modular-monolith ** design with background workers, orchestrated around four non-overlapping conceptual stages:
+The system follows a strict **modular-monolith** design with background workers, orchestrated around four non-overlapping conceptual stages:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
