@@ -4,14 +4,16 @@ import { memoryStore } from '@/lib/store';
 import { crawlWebsiteLive } from '@/lib/live-crawler';
 import { Contact, Opportunity, Technology, Fact } from '@/lib/types';
 
+import { resolveOrSynthesizeBusinessProfile } from '@/lib/business-resolver';
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const business = memoryStore.businesses.get(params.id);
+    let business = memoryStore.businesses.get(params.id);
     if (!business) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+      business = resolveOrSynthesizeBusinessProfile(params.id);
     }
 
     const websiteUrl = business.website || `https://${business.domain}`;

@@ -3,14 +3,16 @@ import crypto from 'node:crypto';
 import { memoryStore } from '@/lib/store';
 import { Analysis } from '@/lib/types';
 
+import { resolveOrSynthesizeBusinessProfile } from '@/lib/business-resolver';
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const business = memoryStore.businesses.get(params.id);
+    let business = memoryStore.businesses.get(params.id);
     if (!business) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+      business = resolveOrSynthesizeBusinessProfile(params.id);
     }
 
     const ind = (business.industry || '').toLowerCase();
