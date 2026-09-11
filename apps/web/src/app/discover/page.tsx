@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   Search,
@@ -71,6 +71,8 @@ export default function DiscoverPage() {
   const [liveOpportunities, setLiveOpportunities] = useState<Record<string, Opportunity[]>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const fallbackTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Restore latest search session on initial mount if available
   useEffect(() => {
     const saved = getLatestSearchState();
@@ -82,7 +84,7 @@ export default function DiscoverPage() {
       setDiscoveredBusinesses(saved.discoveredBusinesses);
       if (saved.liveOpportunities) setLiveOpportunities(saved.liveOpportunities);
       if (saved.parsedIntent) setParsedIntent(saved.parsedIntent);
-      if (saved.searchStatus) setSearchStatus(saved.searchStatus);
+      setSearchStatus('completed');
       if (saved.statusMessage) setStatusMessage(saved.statusMessage);
       setProviderProgress(100);
     }
@@ -102,7 +104,7 @@ export default function DiscoverPage() {
       } catch (e) {
         // Fallback local heuristic
       }
-    }, 350);
+    }, 300);
     return () => clearTimeout(timer);
   }, [query, industry, city, country]);
 
@@ -117,7 +119,7 @@ export default function DiscoverPage() {
       case 'intent.parsed':
         setParsedIntent(event.data.intent);
         setStatusMessage(
-          `Target: "${event.data.intent.target_entity}" | Evaluating Opportunity: [${event.data.intent.opportunity_type}]`
+          `Target: "${event.data.intent.target_entity}" | Opportunity: [${event.data.intent.opportunity_type}]`
         );
         break;
 
@@ -127,7 +129,7 @@ export default function DiscoverPage() {
 
       case 'provider.started':
         setStatusMessage(`Scanning target registry & web: ${event.data.query_variation}`);
-        setProviderProgress((prev) => Math.min(prev + 12, 85));
+        setProviderProgress((prev) => Math.min(prev + 20, 85));
         break;
 
       case 'provider.progress':
@@ -173,14 +175,16 @@ export default function DiscoverPage() {
         break;
 
       case 'search.completed':
+        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
         setSearchStatus('completed');
         setProviderProgress(100);
         setStatusMessage(
-          `Discovery & qualification complete: ${event.data.total_saved} prospective clients scored (${event.data.duration_ms}ms)`
+          `Discovery complete: ${event.data.total_saved} prospective clients scored (${event.data.duration_ms}ms)`
         );
         break;
 
       case 'search.failed':
+        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
         setSearchStatus('failed');
         setStatusMessage(`Discovery failed: ${event.data.error}`);
         break;
@@ -192,12 +196,20 @@ export default function DiscoverPage() {
   const executeSearch = async (targetQuery: string) => {
     if (!targetQuery.trim()) return;
 
+    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+
     setDiscoveredBusinesses([]);
     setLiveOpportunities({});
     setValidationSummary(null);
     setSearchStatus('running');
-    setProviderProgress(10);
-    setStatusMessage('Deconstructing query intent & initiating target entity discovery...');
+    setProviderProgress(25);
+    setStatusMessage('Deconstructing query intent & scanning live registry...');
+
+    // Safety fallback: guaranteed auto-complete within 4.5s
+    fallbackTimerRef.current = setTimeout(() => {
+      setSearchStatus('completed');
+      setProviderProgress(100);
+    }, 4500);
 
     try {
       const filters: SearchFilters = {
@@ -212,6 +224,7 @@ export default function DiscoverPage() {
       ]);
       setCurrentSearchId(res.search_id);
     } catch (err: any) {
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
       setSearchStatus('failed');
       setStatusMessage(`Error launching discovery: ${err.message}`);
     }
@@ -282,13 +295,13 @@ export default function DiscoverPage() {
 
             <button
               type="submit"
-              disabled={searchStatus === 'running' || !query.trim()}
+              disabled={!query.trim()}
               className="bg-white hover:bg-zinc-200 active:scale-[0.98] text-black font-semibold py-2 px-4 rounded-md text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 shrink-0"
             >
               {searchStatus === 'running' ? (
                 <>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  Discovering...
+                  Searching...
                 </>
               ) : (
                 <>

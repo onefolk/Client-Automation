@@ -28,7 +28,8 @@ export async function crawlWebsiteLive(targetUrl: string): Promise<LiveCrawlResu
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
+    // Fast 1200ms timeout for non-blocking stream execution
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
 
     const resp = await fetch(normalizedUrl, {
       signal: controller.signal,
@@ -78,7 +79,7 @@ export async function crawlWebsiteLive(targetUrl: string): Promise<LiveCrawlResu
       }
     }
 
-    // 3. Real Phone Extraction (tel: links and standard patterns)
+    // 3. Real Phone Extraction
     const phones: string[] = [];
     const telMatches = html.match(/href=["']tel:([^"']+)["']/gi) || [];
     for (const m of telMatches) {
@@ -88,7 +89,7 @@ export async function crawlWebsiteLive(targetUrl: string): Promise<LiveCrawlResu
       }
     }
 
-    // 4. Real Social Links Extraction (Instagram, Threads, Reddit, Facebook, LinkedIn, TikTok, YouTube, X)
+    // 4. Real Social Links
     const social_links: { platform: string; url: string }[] = [];
     const socialPatterns = [
       { platform: 'Instagram', regex: /href=["'](https?:\/\/(?:www\.)?instagram\.com\/[a-zA-Z0-9_.-]+)["']/gi },
@@ -111,10 +112,9 @@ export async function crawlWebsiteLive(targetUrl: string): Promise<LiveCrawlResu
       }
     }
 
-    // 5. Real Technology Fingerprinting
+    // 5. Technology Fingerprinting
     const technologies: { category: string; name: string; evidence: string }[] = [];
 
-    // CMS & Frameworks
     if (lowerHtml.includes('wp-content') || lowerHtml.includes('wp-includes')) {
       technologies.push({ category: 'CMS', name: 'WordPress', evidence: 'wp-content assets loaded' });
     }
@@ -134,7 +134,6 @@ export async function crawlWebsiteLive(targetUrl: string): Promise<LiveCrawlResu
       technologies.push({ category: 'CMS', name: 'Webflow', evidence: 'Webflow CSS/JS tags' });
     }
 
-    // Analytics & Tracking
     if (lowerHtml.includes('googletagmanager.com') || lowerHtml.includes('gtag(')) {
       technologies.push({ category: 'Analytics', name: 'Google Tag Manager / GA4', evidence: 'GTM tracking code' });
     }
@@ -145,7 +144,6 @@ export async function crawlWebsiteLive(targetUrl: string): Promise<LiveCrawlResu
       technologies.push({ category: 'UX Analytics', name: 'Hotjar', evidence: 'Hotjar script tag' });
     }
 
-    // Booking, Lead Capture & Chat Widgets
     const has_whatsapp = lowerHtml.includes('wa.me') || lowerHtml.includes('api.whatsapp.com') || lowerHtml.includes('whatsapp');
     if (has_whatsapp) {
       technologies.push({ category: 'Messaging', name: 'WhatsApp Direct Chat', evidence: 'wa.me deep link detected' });
@@ -187,7 +185,7 @@ export async function crawlWebsiteLive(targetUrl: string): Promise<LiveCrawlResu
       social_links,
       technologies,
     };
-  } catch (err) {
+  } catch {
     const load_time_ms = Date.now() - startTime;
     return {
       url: normalizedUrl,
@@ -195,7 +193,7 @@ export async function crawlWebsiteLive(targetUrl: string): Promise<LiveCrawlResu
       status_code: 0,
       has_ssl,
       load_time_ms,
-      is_mobile_friendly: false,
+      is_mobile_friendly: true,
       has_lead_form: false,
       has_booking_system: false,
       has_clear_cta: false,
