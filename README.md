@@ -1,4 +1,4 @@
-# ONEFOLK CLIENT INTELLIGENCE (v2.7)
+# ONEFOLK CLIENT INTELLIGENCE (v2.71)
 
 > **Autonomous AI-Powered Client Discovery, Opportunity Qualification & Agency Intelligence Platform**
 
