@@ -88,12 +88,12 @@ export default function SettingsPage() {
             <div className="p-3.5 px-4 flex items-center justify-between text-xs">
               <span className="text-zinc-400">Model Provider</span>
               <code className="font-mono text-zinc-200 bg-zinc-900 px-2 py-1 rounded border border-white/[0.06]">
-                grok-beta (xAI)
+                llama-3.3-70b-versatile (Meta / LLaMA)
               </code>
             </div>
             <div className="p-3.5 px-4 flex items-center justify-between text-xs">
               <span className="text-zinc-400">Inference Architecture</span>
-              <span className="text-zinc-300 font-medium">Deterministic Fact-Guided Synthesis</span>
+              <span className="text-zinc-300 font-medium">LLaMA Fact-Guided Deterministic Synthesis</span>
             </div>
           </div>
         </section>

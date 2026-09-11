@@ -273,7 +273,7 @@ Agency Growth Team | OneFolk Client Intelligence`;
               className="px-3 py-1.5 rounded-md bg-white hover:bg-zinc-200 text-black text-xs font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              {analyzeMutation.isPending ? 'Evaluating...' : 'Run Grok Audit'}
+              {analyzeMutation.isPending ? 'Evaluating...' : 'Run LLaMA Audit'}
             </button>
           </div>
         </div>
@@ -568,7 +568,7 @@ Agency Growth Team | OneFolk Client Intelligence`;
             </div>
 
             {!analysis ? (
-              <p className="text-xs text-zinc-400 py-6 text-center">Click &quot;Run Grok Audit&quot; to synthesize strategic SWOT analysis.</p>
+              <p className="text-xs text-zinc-400 py-6 text-center">Click &quot;Run LLaMA Audit&quot; to synthesize strategic SWOT analysis.</p>
             ) : (
               <div className="space-y-4 text-xs">
                 {/* 6 scores */}

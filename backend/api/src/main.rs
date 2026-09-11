@@ -618,7 +618,7 @@ fn synthesize_business_profile_fallback(id: Uuid) -> BusinessProfile {
     let analysis = Some(domain::Analysis {
         id: Uuid::new_v4(),
         business_id: id,
-        model: "Grok-1.5 / OneFolk Deep Intelligence".to_string(),
+        model: "LLaMA 3.3 / OneFolk Deep Intelligence".to_string(),
         digital_presence_score: 82,
         website_score: 85,
         social_score: 88,
@@ -700,7 +700,7 @@ async fn analyze_business(
         domain::Analysis {
             id: Uuid::new_v4(),
             business_id: id,
-            model: "Grok-1.5 / OneFolk Deep Intelligence".to_string(),
+            model: "LLaMA 3.3 / OneFolk Deep Intelligence".to_string(),
             digital_presence_score: 82,
             website_score: 85,
             social_score: 88,
@@ -733,10 +733,10 @@ async fn analyze_business(
             Some(id),
             None,
             "intelligence.analyzed",
-            "Grok-1.5 Deep Intelligence Analysis Complete",
-            Some("Scored full digital presence, website architecture, SEO authority, and generated personalized outreach angles."),
+            "LLaMA 3.3 Deep Intelligence Analysis Complete",
+            Some("Scored full digital presence, website architecture, SEO authority, and generated personalized outreach angles via LLaMA 3.3."),
             &serde_json::json!({
-                "model": "Grok-1.5",
+                "model": "llama-3.3-70b-versatile",
                 "overall_score": 77,
                 "marketing_maturity": "GROWTH"
             }),

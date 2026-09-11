@@ -118,7 +118,7 @@ export async function POST(
     const analysis: Analysis = {
       id: crypto.randomUUID(),
       business_id: business.id,
-      model: 'grok-beta',
+      model: 'llama-3.3-70b-versatile',
       digital_presence_score,
       website_score,
       social_score,
@@ -140,12 +140,12 @@ export async function POST(
       business_id: business.id,
       event_type: 'analysis.completed',
       title: `Fact-Grounded ${business.industry} Intelligence Audit`,
-      description: `Evaluated 6 pillars: ${marketing_maturity} Maturity (Score: ${avg_score}/100) with ${opportunities.length} tailored agency vectors.`,
+      description: `Evaluated 6 pillars: ${marketing_maturity} Maturity (Score: ${avg_score}/100) with ${opportunities.length} tailored agency vectors via LLaMA 3.3.`,
       metadata: {
         industry: business.industry,
         maturity: marketing_maturity,
         avg_score,
-        model: 'grok-beta',
+        model: 'llama-3.3-70b-versatile',
       },
       created_at: new Date().toISOString(),
     });

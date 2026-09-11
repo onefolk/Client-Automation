@@ -275,7 +275,7 @@ export function resolveOrSynthesizeBusinessProfile(id: string): BusinessProfile 
   const analysis: Analysis = {
     id: crypto.randomUUID(),
     business_id: id,
-    model: 'Grok-1.5 / OneFolk Deep Intelligence',
+    model: 'LLaMA-3.3-70B / OneFolk Deep Intelligence',
     digital_presence_score: 82,
     website_score: 85,
     social_score: 88,

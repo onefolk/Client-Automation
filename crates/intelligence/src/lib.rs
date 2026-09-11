@@ -62,8 +62,8 @@ impl GrokClient {
     pub fn new(api_key: &str) -> Self {
         Self {
             api_key: api_key.to_string(),
-            base_url: "https://api.x.ai/v1".to_string(),
-            model: "grok-beta".to_string(),
+            base_url: "https://api.groq.com/openai/v1".to_string(),
+            model: "llama-3.3-70b-versatile".to_string(),
             http_client: Client::new(),
         }
     }
@@ -160,7 +160,7 @@ impl GrokClient {
         Ok(Analysis {
             id: Uuid::new_v4(),
             business_id: business.id,
-            model: "grok-beta".to_string(),
+            model: "llama-3.3-70b-versatile".to_string(),
             digital_presence_score,
             website_score,
             social_score,
