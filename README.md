@@ -1,6 +1,6 @@
 # ONEFOLK CLIENT INTELLIGENCE
 
-> **AI-Powered Client Discovery and Intelligence Platform for Agency**
+> **AI-Powered Client Discovery and Intelligence Platform for  Agency**
 
 OneFolk Client Intelligence is a high-performance, local-first platform designed to help digital agencies discover high-fit prospective clients across any industry, verify and normalize their public digital presence, detect operational gaps (e.g. missing booking systems, weak lead capture, unoptimized websites), and calculate deterministic agency value creation opportunities.
 
