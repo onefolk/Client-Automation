@@ -149,13 +149,10 @@ export function resolveOrSynthesizeBusinessProfile(id: string): BusinessProfile 
   const existing = memoryStore.businesses.get(id);
 
   if (existing) {
-    const existingContacts = memoryStore.contacts.get(existing.id) || [];
-    const existingTech = memoryStore.technologies.get(existing.id) || [];
-    const existingFacts = memoryStore.facts.get(existing.id) || [];
     const existingOpps = memoryStore.opportunities.get(existing.id) || [];
     const existingActivities = memoryStore.activities.filter((a) => a.business_id === existing.id);
 
-    const contacts: Contact[] = existingContacts.length > 0 ? existingContacts : [
+    const contacts: Contact[] = [
       ...(existing.email
         ? [{
             id: crypto.randomUUID(),
@@ -182,7 +179,7 @@ export function resolveOrSynthesizeBusinessProfile(id: string): BusinessProfile 
         : []),
     ];
 
-    const technologies: Technology[] = existingTech.length > 0 ? existingTech : [
+    const technologies: Technology[] = [
       {
         id: crypto.randomUUID(),
         business_id: existing.id,
@@ -193,7 +190,7 @@ export function resolveOrSynthesizeBusinessProfile(id: string): BusinessProfile 
       },
     ];
 
-    const facts: Fact[] = existingFacts.length > 0 ? existingFacts : [
+    const facts: Fact[] = [
       {
         id: crypto.randomUUID(),
         business_id: existing.id,
