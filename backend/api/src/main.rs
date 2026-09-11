@@ -113,8 +113,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/searches/:id", get(get_search))
         .route("/api/searches/:id/events", get(stream_search_events))
         .route("/api/searches/:id/cancel", post(cancel_search))
-        // Businesses
+        // Businesses & Client History
         .route("/api/businesses", get(list_businesses))
+        .route("/api/clientHistory", get(list_businesses))
+        .route("/api/client-history", get(list_businesses))
         .route("/api/businesses/:id", get(get_business_profile))
         .route("/api/businesses/:id/enrich", post(enrich_business))
         .route("/api/businesses/:id/analyze", post(analyze_business))
