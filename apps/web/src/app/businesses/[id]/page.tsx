@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getBusinessProfile, enrichBusiness, analyzeBusiness } from '@/lib/api';
+import { detectGaps } from '@/lib/gap-detector';
 import {
   Building2,
   Globe,
@@ -29,6 +30,11 @@ import {
   Send,
   MapPin,
   Lock,
+  WifiOff,
+  Instagram,
+  CalendarX,
+  Layers,
+  TrendingUp,
 } from 'lucide-react';
 
 const tabs = [
@@ -164,6 +170,13 @@ export default function BusinessDetailPage() {
 
   const annualLoss = monthlyLoss * 12;
 
+  // ── Gap Detection (runs on already-fetched profile, zero extra API calls) ──
+  const gapReport = useMemo(
+    () => detectGaps(profile, monthlyLoss),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [profile.id, monthlyLoss]
+  );
+
   const outreachPitchSubject = `Quick question regarding ${proposedSolution.toLowerCase()} for ${profile.name}`;
   const outreachPitchBody = `Hi ${profile.name} team,
 
@@ -181,7 +194,10 @@ Best regards,
 Agency Growth Team | OneFolk Client Intelligence`;
 
   const handleCopyPitch = () => {
-    navigator.clipboard.writeText(`Subject: ${outreachPitchSubject}\n\n${outreachPitchBody}`);
+    // Copy the gap-personalized version when available, fallback to generic
+    const subjectToCopy = gapReport.personalizedSubject || outreachPitchSubject;
+    const bodyToCopy = gapReport.personalizedBody || outreachPitchBody;
+    navigator.clipboard.writeText(`Subject: ${subjectToCopy}\n\n${bodyToCopy}`);
     setCopiedEmail(true);
     setTimeout(() => setCopiedEmail(false), 2500);
   };
@@ -379,29 +395,140 @@ Agency Growth Team | OneFolk Client Intelligence`;
           </div>
         )}
 
-        {/* 2. Cold Outreach Pitch */}
+        {/* 2. Cold Outreach Pitch — Gap-Aware */}
         {activeTab === 'pitch' && (
-          <div className="space-y-4">
+          <div className="space-y-5">
+            {/* Section header */}
             <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
               <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
-                Cold Outreach Template
+                Gap Diagnostic &amp; Personalized Outreach
               </h3>
               <button
                 onClick={handleCopyPitch}
                 className="px-3 py-1.5 rounded-md bg-white hover:bg-zinc-200 text-black text-xs font-medium transition-colors flex items-center gap-1.5"
               >
                 {copiedEmail ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                {copiedEmail ? 'Copied' : 'Copy Pitch'}
+                {copiedEmail ? 'Copied!' : 'Copy Pitch'}
               </button>
             </div>
 
-            <div className="p-4 rounded-md bg-zinc-900/70 border border-white/[0.06] space-y-3 text-xs">
-              <div className="font-mono text-zinc-300 border-b border-white/[0.06] pb-2 font-medium">
-                Subject: {outreachPitchSubject}
+            {/* ── A. Gap Diagnostic Panel ── */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Digital Gap Signals Detected</p>
+
+              {gapReport.detectedGaps.length === 0 ? (
+                <div className="flex items-center gap-2 p-3 rounded-md bg-emerald-950/40 border border-emerald-500/20 text-xs">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="text-emerald-300 font-medium">No critical digital gaps detected — business is digitally healthy.</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2">
+                  {gapReport.detectedGaps.map((gap) => {
+                    const isCritical = gap.severity === 'critical';
+                    const Icon =
+                      gap.signal === 'NO_WEBSITE' ? WifiOff
+                      : gap.signal === 'WEAK_SOCIAL' ? Instagram
+                      : CalendarX;
+                    return (
+                      <div
+                        key={gap.signal}
+                        className={`flex items-start gap-3 p-3 rounded-md border text-xs ${
+                          isCritical
+                            ? 'bg-rose-950/30 border-rose-500/25'
+                            : 'bg-amber-950/30 border-amber-500/25'
+                        }`}
+                      >
+                        <Icon
+                          className={`w-4 h-4 shrink-0 mt-0.5 ${
+                            isCritical ? 'text-rose-400' : 'text-amber-400'
+                          }`}
+                        />
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={`font-semibold ${
+                                isCritical ? 'text-rose-300' : 'text-amber-300'
+                              }`}
+                            >
+                              {gap.label}
+                            </span>
+                            <span
+                              className={`text-[9px] font-mono px-1.5 py-0.5 rounded border uppercase ${
+                                isCritical
+                                  ? 'bg-rose-900/40 text-rose-400 border-rose-500/30'
+                                  : 'bg-amber-900/40 text-amber-400 border-amber-500/30'
+                              }`}
+                            >
+                              {gap.severity}
+                            </span>
+                          </div>
+                          <p className="text-zinc-400 leading-relaxed">{gap.evidence}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── Recommended Service Card ── */}
+              <div className="mt-1 p-4 rounded-md bg-zinc-900/80 border border-white/[0.08] space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Best-Fit OneFolk Service</p>
+                    <p className="text-sm font-bold text-white">{gapReport.primaryService.serviceName}</p>
+                    <p className="text-xs text-zinc-400 leading-relaxed pt-0.5">{gapReport.primaryService.pitchAngle}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-violet-900/40 text-violet-300 border border-violet-500/30 uppercase">
+                      {gapReport.primaryService.serviceTier}
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-400 font-medium">
+                      {gapReport.primaryService.estimatedValue}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Secondary services */}
+                {gapReport.secondaryServices.length > 0 && (
+                  <div className="border-t border-white/[0.06] pt-3 space-y-1.5">
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">Natural Follow-On</p>
+                    {gapReport.secondaryServices.slice(0, 2).map((s) => (
+                      <div key={s.serviceId} className="flex items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <TrendingUp className="w-3 h-3 text-zinc-500 shrink-0" />
+                          <span className="text-zinc-300 truncate">{s.serviceName}</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-zinc-500 shrink-0">{s.estimatedValue}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Combined pitch angle */}
+                {gapReport.hasGaps && (
+                  <div className="border-t border-white/[0.06] pt-3">
+                    <div className="flex items-start gap-2">
+                      <Layers className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-zinc-400 italic leading-relaxed">
+                        &ldquo;{gapReport.combinedPitchAngle}&rdquo;
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-              <pre className="font-mono text-zinc-300 whitespace-pre-wrap leading-relaxed">
-                {outreachPitchBody}
-              </pre>
+            </div>
+
+            {/* ── B. Personalized Outreach Email ── */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Generated Outreach Message</p>
+              <div className="p-4 rounded-md bg-zinc-900/70 border border-white/[0.06] space-y-3 text-xs">
+                <div className="font-mono text-zinc-200 border-b border-white/[0.06] pb-2 font-medium">
+                  Subject: {gapReport.personalizedSubject}
+                </div>
+                <pre className="font-mono text-zinc-300 whitespace-pre-wrap leading-relaxed text-[11px]">
+                  {gapReport.personalizedBody}
+                </pre>
+              </div>
             </div>
           </div>
         )}

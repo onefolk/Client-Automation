@@ -219,7 +219,10 @@ export interface SocialProfile {
   url: string;
   handle?: string;
   follower_count?: number;
+  post_count?: number;
   is_active: boolean;
+  last_posted_at?: string;
+  bio?: string;
 }
 
 export interface ReviewInfo {
