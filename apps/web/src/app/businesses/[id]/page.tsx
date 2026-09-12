@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -171,11 +171,7 @@ export default function BusinessDetailPage() {
   const annualLoss = monthlyLoss * 12;
 
   // ── Gap Detection (runs on already-fetched profile, zero extra API calls) ──
-  const gapReport = useMemo(
-    () => detectGaps(profile, monthlyLoss),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [profile.id, monthlyLoss]
-  );
+  const gapReport = detectGaps(profile, monthlyLoss);
 
   const outreachPitchSubject = `Quick question regarding ${proposedSolution.toLowerCase()} for ${profile.name}`;
   const outreachPitchBody = `Hi ${profile.name} team,
