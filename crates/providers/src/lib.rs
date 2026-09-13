@@ -144,9 +144,9 @@ impl DiscoveryProvider for PublicRegistryProvider {
             .city
             .clone()
             .or_else(|| filters.location.clone())
-            .unwrap_or_else(|| "Dubai".to_string());
+            .unwrap_or_default();
 
-        let country = filters.country.clone().unwrap_or_else(|| "UAE".to_string());
+        let country = filters.country.clone().unwrap_or_default();
         let industry = filters.industry.clone().unwrap_or_else(|| "Commercial".to_string());
 
         let search_endpoint = format!(

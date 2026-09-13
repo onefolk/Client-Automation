@@ -62,7 +62,7 @@ impl IntentParser {
         let query_without_loc = if let Some(caps) = location_regex.captures(&lower) {
             if let Some(loc_match) = caps.get(1) {
                 let parsed_loc = loc_match.as_str().trim().to_string();
-                if location.is_none() || location.as_deref() == Some("Dubai") {
+                if location.is_none() {
                     location = Some(Self::capitalize_words(&parsed_loc));
                 }
             }

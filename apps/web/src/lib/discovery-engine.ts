@@ -95,7 +95,8 @@ function synthesizeNicheEntities(targetEntity: string, location: string, industr
   review_count: number;
   source_provider: string;
 }> {
-  const loc = location || 'Dubai';
+  const loc = location || '';
+  const locSuffix = loc ? ` ${loc}` : '';
 
   const templates: Record<string, string[]> = {
     ecommerce: [
@@ -105,7 +106,7 @@ function synthesizeNicheEntities(targetEntity: string, location: string, industr
       'Al Khaleej Modern Goods',
       'Zorah Minimalist Studio',
       'Aura Home & Fragrance',
-      'Veloce Streetwear UAE',
+      'Veloce Streetwear',
       'Silk & Saffron Essentials',
     ],
     school: [
@@ -114,7 +115,7 @@ function synthesizeNicheEntities(targetEntity: string, location: string, industr
       'Al Manar Royal College',
       'Apex Scholars Institute',
       'Greenwood Global School',
-      'Emirates Cambridge Academy',
+      'Cambridge International Academy',
     ],
     clinic: [
       'Aura Premier Dental Clinic',
@@ -136,7 +137,7 @@ function synthesizeNicheEntities(targetEntity: string, location: string, industr
       'Prestige Palms Luxury Real Estate',
       'Skyline Oasis Capital Realty',
       'Apex Waterfront Properties',
-      'Golden Gate Estates Dubai',
+      'Golden Gate Estates',
       'Elysian Crest Realty',
     ],
     lawfirm: [
@@ -164,17 +165,17 @@ function synthesizeNicheEntities(targetEntity: string, location: string, industr
 
   return selectedList.map((name, i) => {
     const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const domains = ['.ae', '.com', '.io', '.co'];
-    const domainExt = loc.toLowerCase().includes('dubai') || loc.toLowerCase().includes('uae') ? (i % 2 === 0 ? '.ae' : '.com') : domains[i % domains.length];
+    const domains = ['.org', '.com', '.io', '.co', '.edu'];
+    const domainExt = domains[i % domains.length];
     const webUrl = `https://${slug}${domainExt}`;
     const domain = `${slug}${domainExt}`;
 
     return {
-      name: `${name} ${loc}`,
-      address: `Downtown District, ${loc}`,
-      source_url: `https://duckduckgo.com/?q=${encodeURIComponent(name + ' ' + loc)}`,
+      name: `${name}${locSuffix}`,
+      address: loc ? `Central District, ${loc}` : `Central District`,
+      source_url: `https://duckduckgo.com/?q=${encodeURIComponent(name + (loc ? ' ' + loc : ''))}`,
       website: webUrl,
-      phone: `+971 4 ${Math.floor(100 + Math.random() * 899)} ${Math.floor(1000 + Math.random() * 8999)}`,
+      phone: `+1 555 ${Math.floor(100 + Math.random() * 899)} ${Math.floor(1000 + Math.random() * 8999)}`,
       email: `contact@${domain}`,
       rating: +(4.2 + (i * 0.1) % 0.7).toFixed(1),
       review_count: 32 + (i * 19) % 180,
@@ -190,8 +191,8 @@ export async function runDiscoveryPipelineStream(
   onEvent: (event: SystemEvent) => void
 ) {
   const startedAt = new Date().toISOString();
-  const city = filters.city || filters.location || 'Dubai';
-  const country = filters.country || 'UAE';
+  const city = filters.city || filters.location || '';
+  const country = filters.country || '';
 
   // 1. Announce search started
   onEvent({
@@ -374,8 +375,8 @@ export async function runDiscoveryPipelineStream(
       slug: nameSlug,
       industry: intent.industry || 'Commercial',
       address: entity.address,
-      city: intent.location || city,
-      country,
+      city: (entity as any).city || intent.location || city || undefined,
+      country: (entity as any).country || country || undefined,
       latitude: (entity as any).lat,
       longitude: (entity as any).lon,
       phone: extractedPhone,

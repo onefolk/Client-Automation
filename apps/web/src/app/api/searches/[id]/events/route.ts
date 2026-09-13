@@ -47,7 +47,7 @@ export async function GET(
 
       // Find the search parameters
       const session = memoryStore.searches.get(searchId);
-      const query = queryParam || session?.query || 'ecommerce brands with poor SEO in Dubai';
+      const query = queryParam || session?.query || 'schools needing ERP systems';
       const filters = {
         city: cityParam || session?.filters?.city,
         industry: industryParam || session?.filters?.industry,

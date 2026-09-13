@@ -228,7 +228,7 @@ export function parseSearchIntent(rawQuery: string, filters: SearchFilters = {})
   const locMatch = lower.match(/\s+(?:in|at|near)\s+([a-zA-Z\s,]+)$/i);
   if (locMatch && locMatch[1]) {
     const parsedLoc = locMatch[1].trim();
-    if (!location || location === 'Dubai') {
+    if (!location) {
       location = capitalizeWords(parsedLoc);
     }
     queryWithoutLoc = lower.substring(0, locMatch.index).trim();
