@@ -3,12 +3,12 @@ import { memoryStore } from '@/lib/store';
 import { resolveOrSynthesizeBusinessProfile } from '@/lib/business-resolver';
 
 const SEED_IDS = [
-  'nomad-luxe-apparel-dubai',
-  'desert-bloom-organics-dubai',
-  'oasis-gourmet-living-dubai',
-  'al-safa-aesthetics-wellness-dubai',
-  'prestige-palms-luxury-real-estate-dubai',
-  'horizon-international-academy-dubai',
+  'nomad-luxe-apparel',
+  'desert-bloom-organics',
+  'oasis-gourmet-living',
+  'al-safa-aesthetics-wellness',
+  'prestige-palms-luxury-real-estate',
+  'horizon-international-academy',
 ];
 
 export async function GET(req: NextRequest) {

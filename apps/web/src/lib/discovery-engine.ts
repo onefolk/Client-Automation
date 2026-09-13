@@ -171,8 +171,9 @@ function synthesizeNicheEntities(targetEntity: string, location: string, industr
     const domain = `${slug}${domainExt}`;
 
     return {
-      name: `${name}${locSuffix}`,
+      name,
       address: loc ? `Central District, ${loc}` : `Central District`,
+      city: loc || undefined,
       source_url: `https://duckduckgo.com/?q=${encodeURIComponent(name + (loc ? ' ' + loc : ''))}`,
       website: webUrl,
       phone: `+1 555 ${Math.floor(100 + Math.random() * 899)} ${Math.floor(1000 + Math.random() * 8999)}`,

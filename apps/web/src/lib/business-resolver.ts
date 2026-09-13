@@ -219,7 +219,18 @@ export function resolveOrSynthesizeBusinessProfile(id: string): BusinessProfile 
 
   // Synthesize rich profile if not in ephemeral serverless RAM
   const now = new Date().toISOString();
-  const rawName = id.replace(/[-_]/g, ' ');
+  let rawName = id.replace(/[-_]/g, ' ');
+  let extractedCity: string | undefined = undefined;
+
+  const knownCities = ['dubai', 'chennai', 'london', 'singapore', 'sydney', 'new york'];
+  for (const kc of knownCities) {
+    if (rawName.toLowerCase().endsWith(` ${kc}`)) {
+      extractedCity = kc.charAt(0).toUpperCase() + kc.slice(1);
+      rawName = rawName.substring(0, rawName.length - (kc.length + 1)).trim();
+      break;
+    }
+  }
+
   const capitalizedName = rawName.length > 3
     ? rawName.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
     : 'Client Enterprise';
@@ -235,8 +246,8 @@ export function resolveOrSynthesizeBusinessProfile(id: string): BusinessProfile 
     slug: domainSlug,
     industry: 'Commercial Business',
     address: 'Metropolitan District',
-    city: 'Dubai',
-    country: 'UAE',
+    city: extractedCity,
+    country: undefined,
     phone: '+971 4 438 9200',
     normalized_phone: '+97144389200',
     email: `contact@${domain}`,

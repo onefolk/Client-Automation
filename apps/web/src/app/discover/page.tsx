@@ -395,7 +395,7 @@ export default function DiscoverPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <span className="text-[10px] font-mono text-zinc-500 uppercase block truncate">
-                        {biz.industry} • {biz.city || 'Dubai'}
+                        {biz.industry} • {biz.city || biz.country || 'Global'}
                       </span>
                       <h3 className="text-sm font-semibold text-white truncate">{biz.name}</h3>
                     </div>
