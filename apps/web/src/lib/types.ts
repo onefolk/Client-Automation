@@ -143,7 +143,7 @@ export interface Business {
   city?: string;
   state?: string;
   postal_code?: string;
-  country: string;
+  country?: string;
   country_code?: string;
   latitude?: number;
   longitude?: number;
