@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { SystemEvent } from './types';
 
-const API_BASE_URL = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || '');
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export function useSearchSSE(
   searchId: string | null,
@@ -83,6 +83,9 @@ export function useSearchSSE(
       if (eventSourceRef.current === es) {
         eventSourceRef.current = null;
       }
+      onEventRef.current({ type: 'search.failed', data: {
+        search_id: searchId, error: 'Connection to discovery was lost. Please try again.',
+      } });
     };
 
     return () => {

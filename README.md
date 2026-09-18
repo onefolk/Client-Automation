@@ -2,6 +2,14 @@
 
 > **Autonomous AI-Powered Client Discovery, Opportunity Qualification & Agency Intelligence Platform**
 
+### Standalone web runtime: current behavior
+
+The Next.js discovery flow currently queries OpenStreetMap. It returns real registry candidates, an empty result, or a provider error; it does not fabricate businesses, contacts, ratings, or audit results. Technical opportunities require a separate successful website crawl. AI analysis requires a configured provider key; xAI also requires `XAI_MODEL`.
+
+The standalone API stores sessions, profiles, and audit results **in process memory**. They are lost on restart and are not shared between serverless instances. Browser client history is local to that browser and does not provide durable server-side profiles. Production persistence requires the Rust/PostgreSQL backend (configured with `NEXT_PUBLIC_API_URL`); API calls and event streams use the same configured backend. Shared stream execution/replay applies within one standalone server process.
+
+Run `npm test` for mocked regression tests, `npm run typecheck` for TypeScript checks, and `npm run build` for the production web build. These checks do not validate live provider credentials or PostgreSQL/Redis connectivity.
+
 [![Next.js](https://img.shields.io/badge/Next.js-14.2-black?style=flat&logo=next.js)](https://nextjs.org/)
 [![Rust](https://img.shields.io/badge/Rust-Axum%20%2B%20Tokio-orange?style=flat&logo=rust)](https://www.rust-lang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue?style=flat&logo=postgresql)](https://www.postgresql.org/)

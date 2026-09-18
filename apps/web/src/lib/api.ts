@@ -52,6 +52,7 @@ export async function createSearch(
   providers: string[] = []
 ): Promise<{ search_id: string; query: string; status: string }> {
   const res = await fetch(`${API_BASE_URL}/api/searches`, {
+    signal: AbortSignal.timeout(15000),
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, filters, providers }),
@@ -99,7 +100,10 @@ export async function enrichBusiness(id: string): Promise<{ success: boolean; bu
   const res = await fetch(`${API_BASE_URL}/api/businesses/${id}/enrich`, {
     method: 'POST',
   });
-  if (!res.ok) throw new Error('Failed to enrich business profile');
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.error || 'Failed to enrich business profile');
+  }
   return res.json();
 }
 

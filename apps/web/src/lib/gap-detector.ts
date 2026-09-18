@@ -110,6 +110,7 @@ const BOOKING_URL_PATTERNS = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 function detectNoWebsite(profile: BusinessProfile): DetectedGap | null {
+  if (!profile.last_enriched_at) return null;
   if (profile.has_website && profile.website) return null;
   return {
     signal: 'NO_WEBSITE',
@@ -122,6 +123,7 @@ function detectNoWebsite(profile: BusinessProfile): DetectedGap | null {
 }
 
 function detectWeakSocial(profile: BusinessProfile): DetectedGap | null {
+  if (!profile.social_profiles) return null;
   const socials = profile.social_profiles ?? [];
 
   if (socials.length === 0) {
@@ -144,8 +146,8 @@ function detectWeakSocial(profile: BusinessProfile): DetectedGap | null {
     };
   }
 
-  const followers = instagram.follower_count ?? 0;
-  if (followers < 500) {
+  const followers = instagram.follower_count;
+  if (followers !== undefined && followers < 500) {
     return {
       signal: 'WEAK_SOCIAL',
       label: 'Weak Instagram Presence',
@@ -167,7 +169,7 @@ function detectWeakSocial(profile: BusinessProfile): DetectedGap | null {
     }
   }
 
-  if (!instagram.is_active) {
+  if (instagram.is_active === false) {
     return {
       signal: 'WEAK_SOCIAL',
       label: 'Inactive Instagram Account',
@@ -180,6 +182,8 @@ function detectWeakSocial(profile: BusinessProfile): DetectedGap | null {
 }
 
 function detectNoBooking(profile: BusinessProfile): DetectedGap | null {
+  const audit = profile.facts?.find((fact) => fact.key === 'website_features' && fact.verified);
+  if (audit?.value?.has_booking_system !== false) return null;
   const techs = profile.technologies ?? [];
   const websiteUrl = (profile.website ?? '').toLowerCase();
 
@@ -204,8 +208,8 @@ function detectNoBooking(profile: BusinessProfile): DetectedGap | null {
 
   return {
     signal: 'NO_BOOKING',
-    label: 'No Online Booking System',
-    evidence: `No booking/scheduling platform found in tech stack (detected: ${techNames})`,
+    label: 'Booking Not Detected on Homepage',
+    evidence: `Homepage audit found no recognized booking/scheduling platform (detected technologies: ${techNames}). Other pages may provide booking.`,
     severity: 'critical',
   };
 }
@@ -350,7 +354,7 @@ function buildSubject(
     const g = gaps[0];
     if (g.signal === 'NO_WEBSITE') return `Quick note: ${businessName} has no website — here's the revenue impact`;
     if (g.signal === 'WEAK_SOCIAL') return `${businessName}'s Instagram reach — a quick growth observation`;
-    if (g.signal === 'NO_BOOKING') return `${businessName} is losing bookings every hour (here's why)`;
+    if (g.signal === 'NO_BOOKING') return `A question about ${businessName}'s booking flow`;
   }
   return `${businessName} — 3-minute digital gap audit we ran on your business`;
 }
@@ -369,6 +373,9 @@ function buildBody(
   const rating = profile.rating;
   const reviewCount = profile.review_count ?? 0;
   const domain = profile.domain ?? 'your online presence';
+  if (gaps.length === 0) {
+    return `Hi ${name} team,\n\nI came across ${name} in ${city} and would like to learn more about your current digital workflow. We do not yet have enough evidence to identify specific gaps.\n\nWould you be open to a short conversation about your website, inquiries, and growth priorities?\n\nBest regards,\nAgency Growth Team | OneFolk Client Intelligence`;
+  }
 
   const ratingLine =
     rating && rating > 0
@@ -387,8 +394,8 @@ function buildBody(
 
   const costLine =
     monthlyLossEstimate && monthlyLossEstimate > 0
-      ? `For a business at your scale, these gaps typically account for $${monthlyLossEstimate.toLocaleString()}+/month in avoidable revenue loss.\n\n`
-      : `For a business at your scale, these gaps typically result in significant avoidable revenue loss each month.\n\n`;
+      ? `Our illustrative scenario estimates $${monthlyLossEstimate.toLocaleString()}/month in potential impact. This is not measured revenue loss and needs validation with your operating data.\n\n`
+      : `The business impact of these observations needs validation with your team.\n\n`;
 
   const serviceSection =
     `At OneFolk, we specialise in closing exactly these gaps. Based on your profile, the highest-ROI first step would be:\n\n` +

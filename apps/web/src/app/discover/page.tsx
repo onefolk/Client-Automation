@@ -71,12 +71,14 @@ export default function DiscoverPage() {
   const [liveOpportunities, setLiveOpportunities] = useState<Record<string, Opportunity[]>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const fallbackTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const searchingRef = useRef(false);
+  const [restored, setRestored] = useState(false);
+  const [activeParams, setActiveParams] = useState<SearchFilters & { query: string }>({ query: '' });
 
   // Restore latest search session on initial mount if available
   useEffect(() => {
     const saved = getLatestSearchState();
-    if (saved && saved.discoveredBusinesses && saved.discoveredBusinesses.length > 0) {
+    if (saved && Array.isArray(saved.discoveredBusinesses)) {
       setQuery(saved.query || query);
       if (saved.industry) setIndustry(saved.industry);
       if (saved.city) setCity(saved.city);
@@ -84,15 +86,17 @@ export default function DiscoverPage() {
       setDiscoveredBusinesses(saved.discoveredBusinesses);
       if (saved.liveOpportunities) setLiveOpportunities(saved.liveOpportunities);
       if (saved.parsedIntent) setParsedIntent(saved.parsedIntent);
-      setSearchStatus('completed');
-      if (saved.statusMessage) setStatusMessage(saved.statusMessage);
-      setProviderProgress(100);
+      setSearchStatus(saved.searchStatus === 'running' ? 'failed' : saved.searchStatus || 'completed');
+      setStatusMessage(saved.searchStatus === 'running' ? 'Previous discovery was interrupted. Run the search again.' : saved.statusMessage || '');
+      setProviderProgress(saved.searchStatus === 'completed' ? 100 : 0);
     }
+    setRestored(true);
   }, []);
 
   // Auto-parse preview as user types (debounced)
   useEffect(() => {
-    if (!query.trim()) return;
+    if (!query.trim()) { setParsedIntent(null); return; }
+    let cancelled = false;
     const timer = setTimeout(async () => {
       try {
         const intent = await parseIntent(query, {
@@ -100,12 +104,12 @@ export default function DiscoverPage() {
           city: city || undefined,
           country: country || undefined,
         });
-        setParsedIntent(intent);
+        if (!cancelled) setParsedIntent(intent);
       } catch (e) {
         // Fallback local heuristic
       }
     }, 300);
-    return () => clearTimeout(timer);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [query, industry, city, country]);
 
   // SSE Event Handler
@@ -146,19 +150,6 @@ export default function DiscoverPage() {
             ? prev.map((b) => (b.id === event.data.business.id ? event.data.business : b))
             : [event.data.business, ...prev];
 
-          saveLatestSearchState({
-            query,
-            industry,
-            city,
-            country,
-            discoveredBusinesses: next,
-            parsedIntent,
-            liveOpportunities,
-            searchStatus: 'running',
-            statusMessage,
-            savedAt: new Date().toISOString(),
-          });
-
           return next;
         });
         break;
@@ -167,6 +158,7 @@ export default function DiscoverPage() {
         setLiveOpportunities((prev) => {
           const bizId = event.data.business_id;
           const current = prev[bizId] || [];
+          if (current.some((item) => item.id === event.data.opportunity.id)) return prev;
           return {
             ...prev,
             [bizId]: [...current, event.data.opportunity],
@@ -175,28 +167,49 @@ export default function DiscoverPage() {
         break;
 
       case 'search.completed':
-        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+        searchingRef.current = false;
         setSearchStatus('completed');
         setProviderProgress(100);
         setStatusMessage(
-          `Discovery complete: ${event.data.total_saved} prospective clients scored (${event.data.duration_ms}ms)`
+          `Discovery complete: ${event.data.total_saved} prospective clients found (${event.data.duration_ms}ms)`
         );
         break;
 
       case 'search.failed':
-        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+        searchingRef.current = false;
         setSearchStatus('failed');
         setStatusMessage(`Discovery failed: ${event.data.error}`);
         break;
     }
-  }, [query, industry, city, country, parsedIntent, liveOpportunities, statusMessage]);
+  }, []);
 
-  useSearchSSE(currentSearchId, handleSSEEvent, { query, city, industry, country });
+  const { close: closeStream } = useSearchSSE(currentSearchId, handleSSEEvent, activeParams);
 
-  const executeSearch = async (targetQuery: string) => {
-    if (!targetQuery.trim()) return;
+  const latestSnapshot = useRef<Parameters<typeof saveLatestSearchState>[0] | null>(null);
+  // Debounce storage writes during streaming, and flush the latest snapshot on navigation.
+  useEffect(() => {
+    if (!restored) return;
+    const snapshot = { query, industry, city, country,
+      discoveredBusinesses, parsedIntent, liveOpportunities, searchStatus, statusMessage,
+      savedAt: new Date().toISOString() };
+    latestSnapshot.current = snapshot;
+    const timer = setTimeout(() => saveLatestSearchState(snapshot), 200);
+    return () => clearTimeout(timer);
+  }, [restored, query, industry, city, country, discoveredBusinesses, parsedIntent, liveOpportunities, searchStatus, statusMessage]);
+  useEffect(() => {
+    const flush = () => { if (latestSnapshot.current) saveLatestSearchState(latestSnapshot.current); };
+    window.addEventListener('pagehide', flush);
+    return () => { window.removeEventListener('pagehide', flush); flush(); };
+  }, []);
 
-    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+  const executeSearch = async (targetQuery: string, filters: SearchFilters = {
+    industry: industry || undefined, city: city || undefined, country: country || undefined,
+  }) => {
+    if (!targetQuery.trim() || searchingRef.current) return;
+    searchingRef.current = true;
+    closeStream();
+    setCurrentSearchId(null);
+    setActiveParams({ query: targetQuery, ...filters });
 
     setDiscoveredBusinesses([]);
     setLiveOpportunities({});
@@ -205,26 +218,13 @@ export default function DiscoverPage() {
     setProviderProgress(25);
     setStatusMessage('Deconstructing query intent & scanning live registry...');
 
-    // Safety fallback: guaranteed auto-complete within 4.5s
-    fallbackTimerRef.current = setTimeout(() => {
-      setSearchStatus('completed');
-      setProviderProgress(100);
-    }, 4500);
-
     try {
-      const filters: SearchFilters = {
-        industry: industry || undefined,
-        city: city || undefined,
-        country: country || undefined,
-      };
-
       const res = await createSearch(targetQuery, filters, [
         'live_public_registry',
-        'live_web_search',
       ]);
       setCurrentSearchId(res.search_id);
     } catch (err: any) {
-      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+      searchingRef.current = false;
       setSearchStatus('failed');
       setStatusMessage(`Error launching discovery: ${err.message}`);
     }
@@ -265,10 +265,12 @@ export default function DiscoverPage() {
               key={preset.label}
               type="button"
               onClick={() => {
+                if (searchingRef.current) return;
                 setQuery(preset.query);
                 setIndustry('');
                 setCity('');
-                executeSearch(preset.query);
+                setCountry('');
+                executeSearch(preset.query, {});
               }}
               className="text-[11px] px-2.5 py-1 rounded-md bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/[0.08] transition-colors"
             >
@@ -295,7 +297,7 @@ export default function DiscoverPage() {
 
             <button
               type="submit"
-              disabled={!query.trim()}
+              disabled={!query.trim() || searchStatus === 'running'}
               className="bg-white hover:bg-zinc-200 active:scale-[0.98] text-black font-semibold py-2 px-4 rounded-md text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 shrink-0"
             >
               {searchStatus === 'running' ? (

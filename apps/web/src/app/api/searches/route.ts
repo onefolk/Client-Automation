@@ -3,6 +3,8 @@ import crypto from 'node:crypto';
 import { memoryStore } from '@/lib/store';
 import { SearchSession } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
   try {
     const rawText = await req.text();
@@ -11,14 +13,23 @@ export async function POST(req: Request) {
       try {
         body = JSON.parse(rawText);
       } catch (e) {
-        console.warn('Failed to parse JSON directly', e);
+        return NextResponse.json({ error: 'Invalid JSON request body' }, { status: 400 });
       }
     }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Request body must be an object' }, { status: 400 });
+    }
     const {
-      query = 'Japanese restaurants',
+      query,
       filters = {},
-      providers = ['OpenStreetMap', 'Reddit', 'Threads', 'Live Web Search'],
+      providers = ['live_public_registry'],
     } = body;
+    if (!body || typeof query !== 'string' || !query.trim() || query.length > 2000 ||
+        !filters || typeof filters !== 'object' || Array.isArray(filters) ||
+        !Array.isArray(providers) || providers.some((value) => typeof value !== 'string') ||
+        ['industry', 'city', 'country', 'location'].some((key) => filters[key] !== undefined && typeof filters[key] !== 'string')) {
+      return NextResponse.json({ error: 'Provide a nonempty query, valid filters and a providers array' }, { status: 400 });
+    }
 
     const searchId = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -48,7 +59,7 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error('CRITICAL ERROR IN POST /api/searches:', err);
-    return NextResponse.json({ error: err.message, stack: err.stack }, { status: 500 });
+    return NextResponse.json({ error: 'Unable to create search' }, { status: 500 });
   }
 }
 

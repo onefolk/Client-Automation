@@ -27,12 +27,8 @@ export async function crawlWebsiteLive(targetUrl: string): Promise<LiveCrawlResu
   const has_ssl = normalizedUrl.startsWith('https://');
 
   try {
-    const controller = new AbortController();
-    // Fast 1200ms timeout for non-blocking stream execution
-    const timeoutId = setTimeout(() => controller.abort(), 1200);
-
     const resp = await fetch(normalizedUrl, {
-      signal: controller.signal,
+      signal: AbortSignal.timeout(8000),
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 OneFolkBot/1.0',
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -41,12 +37,11 @@ export async function crawlWebsiteLive(targetUrl: string): Promise<LiveCrawlResu
       redirect: 'follow',
     });
 
-    clearTimeout(timeoutId);
-    const load_time_ms = Date.now() - startTime;
     const status_code = resp.status;
     const is_reachable = resp.ok || (status_code >= 200 && status_code < 400);
 
     const html = await resp.text();
+    const load_time_ms = Date.now() - startTime;
     const lowerHtml = html.toLowerCase();
 
     // 1. Meta Title & Description
@@ -168,10 +163,10 @@ export async function crawlWebsiteLive(targetUrl: string): Promise<LiveCrawlResu
     const has_clear_cta = lowerHtml.includes('book now') || lowerHtml.includes('contact us') || lowerHtml.includes('get a quote') || lowerHtml.includes('order online');
 
     return {
-      url: normalizedUrl,
+      url: resp.url || normalizedUrl,
       is_reachable,
       status_code,
-      has_ssl,
+      has_ssl: (resp.url || normalizedUrl).startsWith('https://'),
       load_time_ms,
       title,
       meta_description,
@@ -193,7 +188,7 @@ export async function crawlWebsiteLive(targetUrl: string): Promise<LiveCrawlResu
       status_code: 0,
       has_ssl,
       load_time_ms,
-      is_mobile_friendly: true,
+      is_mobile_friendly: false,
       has_lead_form: false,
       has_booking_system: false,
       has_clear_cta: false,

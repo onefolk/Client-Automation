@@ -68,6 +68,8 @@ export default function BusinessDetailPage() {
     mutationFn: () => enrichBusiness(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['business-profile', id] });
+      queryClient.invalidateQueries({ queryKey: ['businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['opportunities'] });
     },
   });
 
@@ -285,11 +287,18 @@ Agency Growth Team | OneFolk Client Intelligence`;
               className="px-3 py-1.5 rounded-md bg-white hover:bg-zinc-200 text-black text-xs font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              {analyzeMutation.isPending ? 'Evaluating...' : 'Run LLaMA Audit'}
+              {analyzeMutation.isPending ? 'Evaluating...' : 'Run AI Audit'}
             </button>
           </div>
         </div>
       </div>
+
+      {enrichMutation.isError && (
+        <p role="alert" className="text-xs text-red-400">{enrichMutation.error.message}</p>
+      )}
+      {analyzeMutation.isError && activeTab !== 'analysis' && (
+        <p role="alert" className="text-xs text-red-400">{analyzeMutation.error.message}</p>
+      )}
 
       {/* Tabs Bar */}
       <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-white/[0.08] text-xs">

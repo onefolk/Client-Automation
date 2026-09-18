@@ -1,98 +1,71 @@
 import { NextRequest } from 'next/server';
-import { memoryStore, subscribeSystemEvents } from '@/lib/store';
+import { memoryStore, emitSystemEvent, subscribeSystemEvents } from '@/lib/store';
 import { SystemEvent } from '@/lib/types';
 import { runDiscoveryPipelineStream } from '@/lib/discovery-engine';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const searchId = params.id;
-  const { searchParams } = new URL(req.url);
-  const queryParam = searchParams.get('query');
-  const cityParam = searchParams.get('city');
-  const industryParam = searchParams.get('industry');
-  const countryParam = searchParams.get('country');
-
+  let session = memoryStore.searches.get(searchId);
+  if (!session) {
+    // A serverless stream may land on a different instance than the create request.
+    const query = req.nextUrl.searchParams.get('query')?.trim();
+    if (!query) return Response.json({ error: 'Search session not found. Start a new search.' }, { status: 404 });
+    const now = new Date().toISOString();
+    const filters = Object.fromEntries(['city', 'industry', 'country'].map((key) => [key, req.nextUrl.searchParams.get(key) || undefined]));
+    session = { id: searchId, query, filters, providers_selected: ['live_public_registry'], started_at: now,
+      status: 'PENDING', total_discovered: 0, total_saved: 0, total_enriched: 0, errors: [], created_at: now, updated_at: now };
+    memoryStore.searches.set(searchId, session);
+  }
+  const search = session;
   const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      let isClosed = false;
-
-      const sendEvent = (event: SystemEvent) => {
-        if (isClosed) return;
-        try {
-          const json = JSON.stringify(event);
-          const sseChunk = `event: ${event.type}\ndata: ${json}\n\n`;
-          controller.enqueue(encoder.encode(sseChunk));
-        } catch (e) {
-          console.error('Error enqueuing SSE chunk', e);
-        }
-      };
-
-      // Send initial connection comment
-      controller.enqueue(encoder.encode(': sse connected\n\n'));
-
-      // Subscribe to any external events if running in background
-      const unsubscribe = subscribeSystemEvents(searchId, (event: SystemEvent) => {
-        sendEvent(event);
-      });
-
-      req.signal.addEventListener('abort', () => {
-        isClosed = true;
+  let cleanup = () => {};
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      let closed = false;
+      let unsubscribe = () => {};
+      let heartbeat: ReturnType<typeof setInterval> | undefined;
+      const finish = () => {
+        if (closed) return;
+        closed = true;
         unsubscribe();
-      });
-
-      // Find the search parameters
-      const session = memoryStore.searches.get(searchId);
-      const query = queryParam || session?.query || 'schools needing ERP systems';
-      const filters = {
-        city: cityParam || session?.filters?.city,
-        industry: industryParam || session?.filters?.industry,
-        country: countryParam || session?.filters?.country,
+        clearInterval(heartbeat);
+        req.signal.removeEventListener('abort', finish);
+        try { controller.close(); } catch { /* The consumer may already have cancelled. */ }
       };
-
-      try {
-        // Run discovery directly within the open SSE stream for guaranteed fast execution
-        await runDiscoveryPipelineStream(searchId, query, filters, (event) => {
-          sendEvent(event);
-        });
-
-        // Close after a brief grace period once completed
-        setTimeout(() => {
-          if (!isClosed) {
-            try {
-              controller.close();
-              isClosed = true;
-            } catch (_) {}
-          }
-        }, 800);
-      } catch (err: any) {
-        console.error('Error running discovery stream:', err);
-        sendEvent({
-          type: 'search.failed',
-          data: {
-            search_id: searchId,
-            error: err.message || 'Discovery pipeline failed',
-          },
-        });
-        if (!isClosed) {
-          try {
-            controller.close();
-            isClosed = true;
-          } catch (_) {}
-        }
+      cleanup = finish;
+      const send = (event: SystemEvent) => {
+        if (closed) return;
+        try { controller.enqueue(encoder.encode(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)); }
+        catch { finish(); return; }
+        if (event.type === 'search.completed' || event.type === 'search.failed') finish();
+      };
+      if (req.signal.aborted) { finish(); return; }
+      req.signal.addEventListener('abort', finish, { once: true });
+      controller.enqueue(encoder.encode(': connected\n\n'));
+      unsubscribe = subscribeSystemEvents(searchId, send);
+      heartbeat = setInterval(() => {
+        try { controller.enqueue(encoder.encode(': heartbeat\n\n')); } catch { finish(); }
+      }, 10000);
+      for (const event of memoryStore.searchEvents.get(searchId) || []) send(event);
+      if (closed) return;
+      if (!memoryStore.activeSearches.has(searchId)) {
+        // Register the shared promise before executing the pipeline.
+        const run = Promise.resolve().then(() => runDiscoveryPipelineStream(searchId, search.query, search.filters,
+          (event) => emitSystemEvent(searchId, event)))
+          .catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : 'Discovery failed';
+            search.status = 'FAILED';
+            search.errors.push(message);
+            search.updated_at = search.completed_at = new Date().toISOString();
+            emitSystemEvent(searchId, { type: 'search.failed', data: { search_id: searchId, error: message } });
+          }).finally(() => { memoryStore.activeSearches.delete(searchId); });
+        memoryStore.activeSearches.set(searchId, run);
       }
     },
+    cancel() { cleanup(); },
   });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-    },
-  });
+  return new Response(stream, { headers: { 'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' } });
 }

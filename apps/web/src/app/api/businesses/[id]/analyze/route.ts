@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { memoryStore } from '@/lib/store';
 import { Analysis, Business } from '@/lib/types';
-import { resolveOrSynthesizeBusinessProfile } from '@/lib/business-resolver';
+import { resolveBusinessProfile } from '@/lib/business-resolver';
 
 export async function POST(
   req: NextRequest,
@@ -11,8 +11,10 @@ export async function POST(
   try {
     let business = memoryStore.businesses.get(params.id);
     if (!business) {
-      business = resolveOrSynthesizeBusinessProfile(params.id);
+      business = resolveBusinessProfile(params.id);
     }
+
+    if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
 
     const apiKey =
       process.env.GROQ_API_KEY ||
@@ -33,19 +35,22 @@ export async function POST(
     }
 
     const isGroq = !!(process.env.GROQ_API_KEY || process.env.LLAMA_API_KEY);
+    const isXai = !isGroq && !process.env.OPENAI_API_KEY && !!process.env.XAI_API_KEY;
     const endpoint = isGroq
       ? 'https://api.groq.com/openai/v1/chat/completions'
-      : 'https://api.openai.com/v1/chat/completions';
-    const model = isGroq ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini';
+      : isXai ? 'https://api.x.ai/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
+    const model = isGroq ? 'llama-3.3-70b-versatile' : isXai ? process.env.XAI_MODEL : 'gpt-4o-mini';
+    if (!model) return NextResponse.json({ error: 'Set XAI_MODEL to the model enabled for your xAI account.' }, { status: 400 });
 
     const prompt = `You are a premier agency client intelligence auditor.
-Analyze this verified business profile:
+Analyze the available business data. Treat missing evidence as unknown, and distinguish recommendations from observed facts. Do not invent ratings, crawl findings or contact verification.
 Name: ${business.name}
 Industry: ${business.industry}
 Location: ${business.city}, ${business.country}
 Domain: ${business.domain || business.website}
-Rating: ${business.rating || 4.2} (${business.review_count || 20} reviews)
-Verified Contacts: Email: ${business.email || 'None'}, Phone: ${business.phone || 'None'}
+Rating: ${business.rating ?? 'Unknown'} (${business.review_count ?? 0} recorded reviews)
+Public Contacts: Email: ${business.email || 'Unknown'}, Phone: ${business.phone || 'Unknown'}
+Recorded audit facts: ${JSON.stringify((business as any).facts || [])}
 
 Return ONLY a valid JSON object with this exact structure:
 {
@@ -62,6 +67,7 @@ Return ONLY a valid JSON object with this exact structure:
 }`;
 
     const llmRes = await fetch(endpoint, {
+      signal: AbortSignal.timeout(30000),
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -102,16 +108,22 @@ Return ONLY a valid JSON object with this exact structure:
     }
 
     const parsed = JSON.parse(content);
+    const scoreKeys = ['digital_presence_score', 'website_score', 'social_score', 'seo_score', 'lead_capture_score', 'reputation_score'];
+    if (!parsed || scoreKeys.some((key) => typeof parsed[key] !== 'number' || !Number.isFinite(parsed[key]) || parsed[key] < 0 || parsed[key] > 100) ||
+        !['EARLY_STAGE', 'GROWTH_OPPORTUNITY', 'SCALING'].includes(parsed.marketing_maturity) ||
+        ['strengths', 'weaknesses', 'opportunities'].some((key) => !Array.isArray(parsed[key]) || parsed[key].some((item: unknown) => typeof item !== 'string'))) {
+      return NextResponse.json({ error: 'LLM returned invalid analysis data. Please try again.' }, { status: 502 });
+    }
     const analysis: Analysis = {
       id: crypto.randomUUID(),
       business_id: business.id,
       model: `${model} (Live LLM)`,
-      digital_presence_score: parsed.digital_presence_score || 75,
-      website_score: parsed.website_score || 80,
-      social_score: parsed.social_score || 70,
-      seo_score: parsed.seo_score || 60,
-      lead_capture_score: parsed.lead_capture_score || 55,
-      reputation_score: parsed.reputation_score || 85,
+      digital_presence_score: parsed.digital_presence_score,
+      website_score: parsed.website_score,
+      social_score: parsed.social_score,
+      seo_score: parsed.seo_score,
+      lead_capture_score: parsed.lead_capture_score,
+      reputation_score: parsed.reputation_score,
       marketing_maturity: parsed.marketing_maturity || 'GROWTH_OPPORTUNITY',
       strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
       weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : [],
@@ -120,6 +132,9 @@ Return ONLY a valid JSON object with this exact structure:
     };
 
     (business as any).analysis = analysis;
+    business.last_analyzed_at = analysis.created_at;
+    business.updated_at = analysis.created_at;
+    business.status = 'ANALYZED';
     memoryStore.businesses.set(business.id, business);
 
     memoryStore.activities.unshift({

@@ -4,7 +4,7 @@ import { memoryStore } from '@/lib/store';
 import { crawlWebsiteLive } from '@/lib/live-crawler';
 import { Contact, Opportunity, Technology, Fact } from '@/lib/types';
 
-import { resolveOrSynthesizeBusinessProfile } from '@/lib/business-resolver';
+import { resolveBusinessProfile } from '@/lib/business-resolver';
 
 export async function POST(
   req: NextRequest,
@@ -13,11 +13,17 @@ export async function POST(
   try {
     let business = memoryStore.businesses.get(params.id);
     if (!business) {
-      business = resolveOrSynthesizeBusinessProfile(params.id);
+      business = resolveBusinessProfile(params.id);
     }
+
+    if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+    if (!business.website && !business.domain) return NextResponse.json({ error: 'No website is known for this business' }, { status: 422 });
 
     const websiteUrl = business.website || `https://${business.domain}`;
     const crawlResult = await crawlWebsiteLive(websiteUrl);
+    if (!crawlResult.is_reachable) {
+      return NextResponse.json({ error: 'Website could not be audited. Previous enrichment has been preserved.' }, { status: 502 });
+    }
 
     // 1. Update Core Digital Presence
     business.has_website = crawlResult.is_reachable;
@@ -25,6 +31,10 @@ export async function POST(
     business.is_mobile_friendly = crawlResult.is_mobile_friendly;
     business.website_load_time_ms = crawlResult.load_time_ms;
     business.last_enriched_at = new Date().toISOString();
+    business.updated_at = business.last_enriched_at;
+    business.status = 'ENRICHED';
+    business.email = crawlResult.emails[0] || business.email;
+    business.phone = crawlResult.phones[0] || business.phone;
     business.data_completeness = 95;
 
     // 2. Map & Store Real Extracted Contacts
@@ -93,6 +103,13 @@ export async function POST(
     // 4. Build Fact Store
     const facts: Fact[] = [
       {
+        id: crypto.randomUUID(), business_id: business.id, category: 'website', key: 'website_features',
+        value: { has_booking_system: crawlResult.has_booking_system, has_lead_form: crawlResult.has_lead_form,
+          has_whatsapp: crawlResult.has_whatsapp },
+        source: 'live_http_crawler_l1', source_url: crawlResult.url,
+        confidence: 0.8, verified: true, created_at: new Date().toISOString(),
+      },
+      {
         id: crypto.randomUUID(),
         business_id: business.id,
         category: 'website',
@@ -138,14 +155,14 @@ export async function POST(
       oppList.push({
         id: crypto.randomUUID(),
         business_id: business.id,
-        title: 'Direct Reservation Engine & Aggregator Fee Bypass',
+        title: 'Review Direct Booking Options',
         description:
-          'No direct table reservation system detected on website. Client pays 15-25% third-party portal commission fees.',
+          'No recognized booking integration was found on the audited homepage. Check other pages and confirm scheduling needs before proposing a system.',
         category: 'Web & Conversion Architecture',
         impact: 'HIGH',
         onefolk_service: 'Direct Booking Engine & Custom Landing Architecture',
         service_tier: 'ENTERPRISE',
-        confidence: 0.96,
+        confidence: 0.7,
         estimated_revenue_potential: '$6,000 - $15,000/mo',
         evidence: ['Live crawl confirmed: No OpenTable/SevenRooms/Resy widget installed'],
         status: 'IDENTIFIED',
@@ -158,9 +175,9 @@ export async function POST(
       oppList.push({
         id: crypto.randomUUID(),
         business_id: business.id,
-        title: 'Automated WhatsApp VIP Guest Retention Engine',
+        title: 'Review WhatsApp Contact Options',
         description:
-          'No WhatsApp direct capture flow found. Deploying automated CRM retention increases repeat diner lifetime value by 40%.',
+          'No WhatsApp contact link was found on the audited homepage. Confirm whether this channel would help the business.',
         category: 'Automation & Retention',
         impact: 'HIGH',
         onefolk_service: 'WhatsApp CRM & VIP Guest Retention Engine',
@@ -180,7 +197,7 @@ export async function POST(
         business_id: business.id,
         title: 'High-Converting Inbound Inquiry Pipeline',
         description:
-          'Missing dedicated lead generation form. Implementing conversion-optimized capture can increase inbound client volume by 35-50%.',
+          'No email capture form was detected on the audited homepage. Review the full inquiry flow before recommending changes.',
         category: 'Lead Generation',
         impact: 'MEDIUM',
         onefolk_service: 'Inbound Lead Funnel Optimization',
@@ -196,6 +213,7 @@ export async function POST(
 
     business.priority = priorityScore >= 75 ? 'HIGH' : priorityScore >= 50 ? 'MEDIUM' : 'LOW';
     business.priority_score = priorityScore;
+    if (oppList.length) business.status = 'OPPORTUNITY_FOUND';
 
     memoryStore.businesses.set(business.id, business);
     memoryStore.opportunities.set(business.id, oppList);

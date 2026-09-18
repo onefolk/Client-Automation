@@ -9,7 +9,9 @@
     "dev": "npm --prefix apps/web run dev",
     "build": "npm --prefix apps/web run build",
     "start": "npm --prefix apps/web run start",
-    "lint": "npm --prefix apps/web run lint"
+    "lint": "npm --prefix apps/web run lint",
+    "test": "npm --prefix apps/web run test",
+    "typecheck": "npm --prefix apps/web run typecheck"
   },
   "devDependencies": {
     "typescript": "^5.4.5"

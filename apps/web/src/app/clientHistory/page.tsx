@@ -22,6 +22,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { Business } from '@/lib/types';
+import { encodeCsv } from '@/lib/csv';
 import {
   getClientHistory,
   removeClientFromHistory,
@@ -68,26 +69,18 @@ export default function ClientHistoryPage() {
     if (history.length === 0) return;
     const headers = ['Name', 'Industry', 'City', 'Country', 'Website', 'Email', 'Phone', 'Priority', 'Rating', 'DiscoveredAt'];
     const rows = history.map((b) => [
-      `"${b.name}"`,
-      `"${b.industry || ''}"`,
-      `"${b.city || ''}"`,
-      `"${b.country || ''}"`,
-      `"${b.website || b.domain || ''}"`,
-      `"${b.email || ''}"`,
-      `"${b.phone || ''}"`,
-      `"${b.priority || 'MEDIUM'}"`,
-      b.rating || '',
-      `"${b.discovered_at || b.created_at || ''}"`,
+      b.name, b.industry, b.city, b.country, b.website || b.domain,
+      b.email, b.phone, b.priority, b.rating ?? '', b.discovered_at || b.created_at,
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const encodedUri = URL.createObjectURL(new Blob(['\uFEFF', encodeCsv([headers, ...rows])], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
     link.setAttribute('download', `onefolk_client_history_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(encodedUri), 1000);
   };
 
   const industries = Array.from(new Set(history.map((b) => b.industry).filter(Boolean)));
