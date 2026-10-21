@@ -23,6 +23,7 @@ jobs:
   draft:
     name: Groq AI Drafting & Approval Queue
     runs-on: ubuntu-latest
+    environment: scraper
     timeout-minutes: 30
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 

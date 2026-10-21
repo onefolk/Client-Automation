@@ -26,6 +26,7 @@ jobs:
   discover:
     name: Lead Discovery & Website Research
     runs-on: ubuntu-latest
+    environment: scraper
     timeout-minutes: 50
 
     env:

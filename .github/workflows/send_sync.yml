@@ -22,6 +22,7 @@ jobs:
   sync_and_audit:
     name: Sync Sending Activity and Dashboard
     runs-on: ubuntu-latest
+    environment: scraper
     timeout-minutes: 15
 
     env:
