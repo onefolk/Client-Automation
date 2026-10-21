@@ -54,7 +54,7 @@ class GroqClient:
         self,
         lead: Dict[str, Any],
         research_data: Dict[str, Any],
-        max_retries: int = 3,
+        max_retries: int = 5,
     ) -> Optional[Dict[str, Any]]:
         """Drafts a grounded, 3-paragraph cold email (<70 words) with 2 alternative openings."""
         if not self.is_available():

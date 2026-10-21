@@ -9,6 +9,7 @@ from datetime import datetime, timezone, timedelta
 import json
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from src.config import (
@@ -262,6 +263,7 @@ class MorningQueueManager:
                 if len(new_drafts) >= deficit:
                     break
                 draft_data = self.groq.draft_outreach(lead, lead)
+                time.sleep(1.0)
                 if draft_data:
                     draft_record = {**lead, **draft_data}
                     is_ready, reason = validate_queued_draft(draft_record)
@@ -316,6 +318,7 @@ class MorningQueueManager:
                 if research_result["qualification_status"] == "QUALIFIED":
                     if self.groq.is_available() and not self.dry_run:
                         draft_data = self.groq.draft_outreach(candidate, research_result)
+                        time.sleep(1.0)
                         if draft_data:
                             draft_record = {**research_result, **draft_data}
                             is_ready, reason = validate_queued_draft(draft_record)
