@@ -1,54 +1,11 @@
-name: Approved Gmail Send Synchronization
-
+name: Retired send_sync (use autonomous queue)
 on:
   workflow_dispatch:
-    inputs:
-      notes:
-        description: 'Sync reason or run notes'
-        required: false
-        default: 'Manual reconciliation check'
-  schedule:
-    # 07:30 UTC = 13:00 IST Monday through Friday
-    - cron: '30 7 * * 1-5'
-
 permissions:
   contents: read
-
-concurrency:
-  group: onefolk-sending
-  cancel-in-progress: false
-
 jobs:
-  sync_and_audit:
-    name: Sync Sending Activity and Dashboard
-    if: github.repository == 'Giridharan-E/Client-Automation' || github.event_name == 'workflow_dispatch'
+  retired:
+    if: github.repository == 'Giridharan-E/Client-Automation'
     runs-on: ubuntu-latest
-    environment: scraper
-    timeout-minutes: 15
-
-    env:
-      SHEET_ID: ${{ secrets.SHEET_ID }}
-      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
-
-      - name: Install Dependencies
-        run: |
-          pip install -r requirements.txt
-
-      - name: Fail-Fast Credential Preflight Check
-        run: |
-          python -m src.cli preflight --no-groq
-
-      - name: Synchronize Dashboard & Audit Logs
-        run: |
-          python -m src.cli reconcile
+      - run: echo "Retired to prevent competing Sheet writers. The autonomous morning queue owns orchestration."

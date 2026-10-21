@@ -19,6 +19,8 @@ const TAB_HISTORICAL_SENT = 'Sent Emails';
 const TAB_DASHBOARD = 'Dashboard';
 
 const MAX_DAILY_RECIPIENTS = 50;
+// Deployment interlock: remove only after separate explicit live-send authorization.
+const IMPLEMENTATION_SENDING_LOCK = true;
 const IST_TIMEZONE = 'Asia/Kolkata';
 
 // Historical known bounces and explicit rejections
@@ -106,10 +108,24 @@ function buildSuppressionSet() {
     const data = sentSheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       const email = normalizeKey(data[i][1]); // recipient email
-      if (email) set.add(email);
+      if (email) { set.add(email); set.add(extractDomain(email)); }
     }
   }
 
+  for (const tab of [TAB_APPROVAL_QUEUE, TAB_EMAIL_ACTIVITY]) {
+    const sheet = book.getSheetByName(tab);
+    if (!sheet) throw new Error('Required safety tab missing: ' + tab);
+    const values = sheet.getDataRange().getValues();
+    const h = values[0].map(normalizeKey);
+    for (const row of values.slice(1)) {
+      const st = normalizeKey(row[h.indexOf('status')]);
+      if (tab === TAB_EMAIL_ACTIVITY || ['sent','sending','send_review','bounced','declined','unsubscribed','rejected','positive_reply','reply_review','suppressed'].includes(st)) {
+        const email = normalizeKey(row[h.indexOf(tab === TAB_EMAIL_ACTIVITY ? 'recipient_email' : 'public_email')]);
+        if (email) { set.add(email); set.add(extractDomain(email)); }
+      }
+    }
+  }
+  if (!suppSheet || !sentSheet) throw new Error('Suppression/history unavailable');
   return set;
 }
 
@@ -135,12 +151,15 @@ function isValidApprovedDraft(v, headerMap) {
 
   // Maximum 70 words in body
   const wordCount = body.trim().split(/\s+/).length;
-  if (wordCount > 70) return false;
+  if (wordCount >= 70) return false;
 
   // Exactly 3 paragraphs
   const paragraphs = body.split(/\n\s*\n/).filter(p => p.trim().length > 0);
   if (paragraphs.length !== 3) return false;
 
+  const record = Object.fromEntries(Object.keys(headerMap).map(k => [k, v[headerMap[k]]]));
+  if (!reviewableRecord(record)) return false;
+  if (getProp('APPROVAL_' + record.lead_id) !== draftFingerprint(record)) return false;
   return true;
 }
 
@@ -148,7 +167,7 @@ function isValidApprovedDraft(v, headerMap) {
  * Core Approved Sender: Dispatches up to daily budget through authorized Gmail.
  */
 function approvedSender() {
-  const isEnabled = getProp('ENABLE_SENDING') === 'YES';
+  const isEnabled = !IMPLEMENTATION_SENDING_LOCK && getProp('ENABLE_SENDING') === 'YES';
   if (!isEnabled) {
     Logger.log('DRY RUN: Sending is disabled. Set ENABLE_SENDING=YES in Script Properties to activate.');
     return;
@@ -201,6 +220,7 @@ function approvedSender() {
       updated_at: headers.indexOf('updated_at'),
     };
 
+    headers.forEach((h, i) => { headerMap[h] = i; });
     let consecutiveErrors = 0;
     const dispatchedInBatch = new Set();
 
@@ -224,22 +244,22 @@ function approvedSender() {
 
       // Transition to atomic SENDING state
       dispatchedInBatch.add(email);
+      blocked.add(dom);
+      incrementDailySendCount(); // Reserve quota BEFORE the external side effect; ambiguous sends consume budget.
+      remainingBudget--;
       queueSheet.getRange(rowIdx, headerMap.status + 1).setValue('SENDING');
       SpreadsheetApp.flush();
 
       try {
-        const fullBody = String(v[headerMap.email_body]).trim() +
-          '\n\nRegards,\nTeam OneFolk\nhttps://onefolk.in/work';
+        const fullBody = String(v[headerMap.email_body]).trim();
         const subject = String(v[headerMap.subject]).trim();
 
         // Dispatch via Gmail
-        GmailApp.sendEmail(email, subject, fullBody, {
-          name: 'Team OneFolk'
-        });
+        const message = GmailApp.createDraft(email, subject, fullBody, {name: 'Team OneFolk'}).send();
 
         // Record successful dispatch
-        incrementDailySendCount();
-        remainingBudget--;
+
+
         blocked.add(email);
         consecutiveErrors = 0;
 
@@ -263,8 +283,8 @@ function approvedSender() {
             subject,
             'SENT',
             now,
-            'DISPATCHED_GMAIL_APP',
-            '',
+            message.getId(),
+            message.getThread().getId(),
             'NONE',
             '',
             '',
@@ -293,6 +313,12 @@ function approvedSender() {
  * Scheduled Reply and Bounce Monitoring.
  */
 function monitorReplies() {
+  const lock=LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return;
+  try { monitorRepliesLocked(); } finally { lock.releaseLock(); }
+}
+
+function monitorRepliesLocked() {
   const book = getSpreadsheet();
   let queueSheet = book.getSheetByName(TAB_APPROVAL_QUEUE) || book.getSheetByName(TAB_LEGACY_QUEUE);
   const suppSheet = book.getSheetByName(TAB_SUPPRESSION_LIST);
@@ -311,7 +337,7 @@ function monitorReplies() {
   const sentMap = new Map();
   for (let i = 1; i < rows.length; i++) {
     const st = normalizeKey(rows[i][statusCol]);
-    if (['sent', 'sending', 'send_review'].includes(st)) {
+    if (['sent', 'sending', 'send_review', 'positive_reply', 'reply_review'].includes(st)) {
       const email = normalizeKey(rows[i][emailCol]);
       if (email) sentMap.set(email, i + 1);
     }
@@ -320,9 +346,13 @@ function monitorReplies() {
   if (sentMap.size === 0) return;
 
   // Search recent inbox threads
-  const threads = GmailApp.search('in:inbox newer_than:7d', 0, 100);
+  const page = Number(getProp('INBOX_PAGE') || 0);
+  const threads = GmailApp.search('in:anywhere -in:sent newer_than:14d', page, 100);
+  const processed = new Set(JSON.parse(getProp('PROCESSED_MESSAGES') || '[]'));
   for (const thread of threads) {
     for (const msg of thread.getMessages()) {
+      if (processed.has(msg.getId())) continue;
+      processed.add(msg.getId());
       const fromHeader = String(msg.getFrom() || '');
       const match = fromHeader.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
       const sender = match ? normalizeKey(match[0]) : '';
@@ -337,6 +367,8 @@ function monitorReplies() {
 
         const newStatus = isDeclined ? 'DECLINED' : (isPositive ? 'POSITIVE_REPLY' : 'REPLY_REVIEW');
         queueSheet.getRange(rowIdx, statusCol + 1).setValue(newStatus);
+        recordReplyActivity(activitySheet, sender, newStatus, thread, msg);
+        if (isDeclined) sentMap.delete(sender);
         if (notesCol !== -1) {
           queueSheet.getRange(rowIdx, notesCol + 1).setValue(`Reply received (${newStatus}): ${body.slice(0, 120)}`);
         }
@@ -362,6 +394,8 @@ function monitorReplies() {
           if (sentMap.has(bouncedEmail)) {
             const rowIdx = sentMap.get(bouncedEmail);
             queueSheet.getRange(rowIdx, statusCol + 1).setValue('BOUNCED');
+            recordReplyActivity(activitySheet, bouncedEmail, 'BOUNCED', thread, msg);
+            sentMap.delete(bouncedEmail);
             if (notesCol !== -1) {
               queueSheet.getRange(rowIdx, notesCol + 1).setValue('Delivery failure notice detected in inbox');
             }
@@ -380,202 +414,8 @@ function monitorReplies() {
       }
     }
   }
-}
-
-/**
- * 9 AM Morning Outreach Queue Notification.
- * Delivers an idempotent morning digest to the reviewer's inbox via GmailApp/MailApp.
- */
-function sendMorningQueueDigest() {
-  const dateStr = getISTDateString();
-  const dateKey = 'DIGEST_SENT_' + dateStr;
-
-  // 1. Idempotency Check: Deliver only once per calendar date
-  if (getProp(dateKey) === 'YES') {
-    Logger.log(`Morning queue digest already delivered for date ${dateStr}. Skipping duplicate send.`);
-    return { status: 'SKIPPED_ALREADY_SENT', date: dateStr };
-  }
-
-  const book = getSpreadsheet();
-  const sheetId = book.getId();
-  const sheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
-
-  // 2. Read Approval Queue
-  const queueSheet = book.getSheetByName(TAB_APPROVAL_QUEUE) || book.getSheetByName(TAB_LEGACY_QUEUE);
-  let readyDrafts = 0;
-  let approvedCount = 0;
-  let sentCount = 0;
-  let rejectedCount = 0;
-
-  if (queueSheet) {
-    const data = queueSheet.getDataRange().getValues();
-    if (data.length > 1) {
-      const headers = data[0].map(h => normalizeKey(h));
-      const statusCol = headers.indexOf('status');
-      const emailCol = headers.indexOf('public_email');
-      const bodyCol = headers.indexOf('email_body');
-
-      for (let i = 1; i < data.length; i++) {
-        const row = data[i];
-        const st = normalizeKey(row[statusCol]);
-        const email = String(row[emailCol] || '').trim();
-        const body = String(row[bodyCol] || '').trim();
-
-        if (st === 'approved') {
-          approvedCount++;
-        } else if (st === 'sent') {
-          sentCount++;
-        } else if (st === 'rejected' || st === 'declined') {
-          rejectedCount++;
-        } else if ((st === 'drafted' || st === 'awaiting_review') && email && body) {
-          readyDrafts++;
-        }
-      }
-    }
-  }
-
-  // 3. Read Dashboard for Campaign Failures & Quota
-  const dashSheet = book.getSheetByName(TAB_DASHBOARD);
-  let groqUsage = '0 calls';
-  if (dashSheet) {
-    const dashData = dashSheet.getDataRange().getValues();
-    for (let i = 0; i < dashData.length; i++) {
-      const label = String(dashData[i][0] || '').toLowerCase();
-      if (label.indexOf('groq') !== -1) {
-        groqUsage = String(dashData[i][1] || '0 calls');
-      }
-    }
-  }
-
-  const targetQueue = 50;
-  const shortage = Math.max(0, targetQueue - readyDrafts);
-  const isTargetAchieved = readyDrafts >= targetQueue;
-
-  // 4. Formulate Rich HTML Notification Email
-  const recipient = getProp('NOTIFICATION_EMAIL') || Session.getEffectiveUser().getEmail() || 'contact.onefolk@gmail.com';
-  const subject = `[OneFolk 9 AM Queue] ${readyDrafts}/${targetQueue} Leads Ready for Approval (${dateStr})`;
-
-  const statusColor = isTargetAchieved ? '#0F9D58' : '#F4B400';
-  const statusHeadline = isTargetAchieved
-    ? 'All 50 Qualified Leads Ready for Human Review'
-    : `Queue Shortfall Alert: ${readyDrafts} of ${targetQueue} Ready`;
-
-  const htmlBody = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1f2937; line-height: 1.5;">
-      <div style="background-color: ${statusColor}; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-        <h2 style="margin: 0; font-size: 20px;">OneFolk 9 AM Outreach Queue</h2>
-        <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.95;">${statusHeadline} | Date: ${dateStr}</p>
-      </div>
-
-      <div style="padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; background-color: #ffffff;">
-        <p style="font-size: 15px; margin-top: 0;">Good morning! The automated overnight research pipeline has completed. Here is your outreach summary:</p>
-
-        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-          <tr style="background-color: #f9fafb; border-bottom: 2px solid #e5e7eb;">
-            <th style="padding: 10px; text-align: left; font-size: 13px; color: #4b5563;">Metric</th>
-            <th style="padding: 10px; text-align: right; font-size: 13px; color: #4b5563;">Count</th>
-          </tr>
-          <tr style="border-bottom: 1px solid #e5e7eb;">
-            <td style="padding: 10px; font-weight: 600; color: #111827;">Ready for Human Approval at 9 AM</td>
-            <td style="padding: 10px; text-align: right; font-weight: bold; color: ${statusColor}; font-size: 16px;">${readyDrafts}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #e5e7eb;">
-            <td style="padding: 10px; color: #4b5563;">Target Queue Size</td>
-            <td style="padding: 10px; text-align: right; color: #111827;">${targetQueue}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #e5e7eb;">
-            <td style="padding: 10px; color: #4b5563;">Queue Shortage</td>
-            <td style="padding: 10px; text-align: right; color: ${shortage > 0 ? '#DC2626' : '#059669'};">${shortage}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #e5e7eb;">
-            <td style="padding: 10px; color: #4b5563;">Already Approved / In Transit</td>
-            <td style="padding: 10px; text-align: right; color: #111827;">${approvedCount}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #e5e7eb;">
-            <td style="padding: 10px; color: #4b5563;">Dispatched Historically</td>
-            <td style="padding: 10px; text-align: right; color: #111827;">${sentCount}</td>
-          </tr>
-          <tr>
-            <td style="padding: 10px; color: #4b5563;">Groq API Calls Used</td>
-            <td style="padding: 10px; text-align: right; color: #111827;">${groqUsage}</td>
-          </tr>
-        </table>
-
-        ${shortage > 0 ? `
-          <div style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px; margin-bottom: 20px; font-size: 13px; color: #92400E;">
-            <strong>Shortage Notice:</strong> ${shortage} leads below target. No leads were fabricated to artificially fill the queue. Only genuinely qualified institutions with verified business emails are presented.
-          </div>
-        ` : ''}
-
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${sheetUrl}" style="background-color: #2563EB; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">
-            Open Master Approval Queue Sheet
-          </a>
-        </div>
-
-        <div style="background-color: #F3F4F6; padding: 14px; border-radius: 6px; font-size: 12px; color: #4B5563;">
-          <strong>Review Instructions:</strong>
-          <ul style="margin: 6px 0 0 0; padding-left: 20px;">
-            <li>Review the draft in the <strong>Approval Queue</strong> tab.</li>
-            <li>To authorize dispatch for the 1:00 PM IST sending window, set <code>status = APPROVED</code> and <code>approval = APPROVED</code>.</li>
-            <li>Rejected drafts marked <code>REJECTED</code> will remain permanently unsent.</li>
-            <li><strong>Safety Guarantee:</strong> Live Gmail sending remains strictly locked until dual approval and ENABLE_SENDING=YES.</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // 5. Send Notification via GmailApp or MailApp
-  try {
-    MailApp.sendEmail({
-      to: recipient,
-      subject: subject,
-      htmlBody: htmlBody
-    });
-    setProp(dateKey, 'YES');
-    Logger.log(`Successfully sent morning queue digest to ${recipient} for ${dateStr}`);
-    return { status: 'DELIVERED', recipient: recipient, date: dateStr, readyDrafts: readyDrafts };
-  } catch (err) {
-    Logger.log(`Failed to send morning queue digest: ${err}`);
-    return { status: 'ERROR', error: String(err) };
-  }
-}
-
-/**
- * Trigger installation utility.
- */
-function installTriggers() {
-  const triggers = ScriptApp.getProjectTriggers();
-  for (const t of triggers) {
-    const fn = t.getHandlerFunction();
-    if (fn === 'approvedSender' || fn === 'monitorReplies' || fn === 'sendMorningQueueDigest') {
-      ScriptApp.deleteTrigger(t);
-    }
-  }
-
-  // Morning 9 AM digest (runs at 8:45 AM IST every morning)
-  ScriptApp.newTrigger('sendMorningQueueDigest')
-    .timeBased()
-    .atHour(8)
-    .nearMinute(45)
-    .everyDays(1)
-    .inTimezone(IST_TIMEZONE)
-    .create();
-
-  // Sender runs hourly
-  ScriptApp.newTrigger('approvedSender')
-    .timeBased()
-    .everyHours(1)
-    .create();
-
-  // Monitor runs every 2 hours
-  ScriptApp.newTrigger('monitorReplies')
-    .timeBased()
-    .everyHours(2)
-    .create();
-
-  Logger.log('Triggers successfully installed. Sending remains OFF until ENABLE_SENDING=YES.');
+  setProp('INBOX_PAGE', threads.length === 100 ? page + 100 : 0);
+  setProp('PROCESSED_MESSAGES', JSON.stringify(Array.from(processed).slice(-250)));
 }
 
 /**

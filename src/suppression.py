@@ -80,13 +80,13 @@ class SuppressionManager:
                 status = str(row.get("status", "")).upper().strip()
                 email = clean_email(str(row.get("public_email", "")))
                 dom = extract_domain(str(row.get("website", "")))
-                if status in ("SENT", "CONTACTED", "EMAILED"):
+                if status in ("SENT", "CONTACTED", "EMAILED", "SENDING", "SEND_REVIEW", "POSITIVE_REPLY", "REPLY_REVIEW"):
                     if email:
                         self.contacted_emails.add(email)
                     if dom:
                         self.contacted_domains.add(dom)
 
-                if status in ("BOUNCED", "DECLINED", "UNSUBSCRIBED", "OPTED_OUT", "SUPPRESSED"):
+                if status in ("BOUNCED", "DECLINED", "UNSUBSCRIBED", "OPTED_OUT", "SUPPRESSED", "REJECTED"):
                     if email:
                         self.suppressed_emails.add(email)
                     if dom:
@@ -106,6 +106,9 @@ class SuppressionManager:
         # Check suppressed domains
         if target_domain and target_domain in self.suppressed_domains:
             return True, f"Domain '{target_domain}' is in active suppression list"
+
+        if target_domain in self.contacted_domains:
+            return True, "Previously contacted company"
 
         # Check previously contacted emails (prevent double-contacting without re-approval)
         if clean_addr in self.contacted_emails:

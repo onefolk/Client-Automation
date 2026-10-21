@@ -53,5 +53,7 @@ def test_safe_url_blocking():
     assert not is_safe_url("")
 
     # Public valid URLs
-    assert is_safe_url("https://onefolk.in/work")
-    assert is_safe_url("https://pes.edu")
+    from unittest.mock import patch
+    with patch("socket.getaddrinfo", return_value=[(2,1,6,"",("8.8.8.8",443))]):
+        assert is_safe_url("https://onefolk.in/work")
+        assert is_safe_url("https://pes.edu")

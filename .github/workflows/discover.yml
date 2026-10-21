@@ -1,62 +1,11 @@
-name: Multi-Industry Lead Discovery & Research
-
+name: Retired discover (use autonomous queue)
 on:
   workflow_dispatch:
-    inputs:
-      target_leads:
-        description: 'Target number of qualified leads'
-        required: false
-        default: '100'
-      active_campaign:
-        description: 'Campaign preset from config/campaigns.json'
-        required: false
-        default: 'all_industries_pilot'
-
 permissions:
   contents: read
-
-concurrency:
-  group: onefolk-discovery
-  cancel-in-progress: false
-
 jobs:
-  discover:
-    name: Lead Discovery & Website Research
-    if: github.repository == 'Giridharan-E/Client-Automation' || github.event_name == 'workflow_dispatch'
+  retired:
+    if: github.repository == 'Giridharan-E/Client-Automation'
     runs-on: ubuntu-latest
-    environment: scraper
-    timeout-minutes: 50
-
-    env:
-      SHEET_ID: ${{ secrets.SHEET_ID }}
-      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-120b' }}
-      QUALIFIED_TARGET: ${{ github.event.inputs.target_leads || '100' }}
-      ACTIVE_CAMPAIGN: ${{ github.event.inputs.active_campaign || 'all_industries_pilot' }}
-      MAX_AI_CALLS: '120'
-      MAX_HTTP_FETCHES: '500'
-      MAX_DIRECTORY_LINKS: '600'
-      HTTP_TIMEOUT_SECONDS: '10'
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
-
-      - name: Install Dependencies
-        run: |
-          pip install -r requirements.txt
-
-      - name: Fail-Fast Credential Preflight Check
-        run: |
-          python -m src.cli preflight
-
-      - name: Run Multi-Industry Discovery & Research Pipeline
-        run: |
-          python -m src.cli run --target ${{ env.QUALIFIED_TARGET }}
+      - run: echo "Retired to prevent competing Sheet writers. The autonomous morning queue owns orchestration."

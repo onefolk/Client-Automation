@@ -68,8 +68,8 @@ class GroqClient:
         observation_url = research_data.get("observation_url", lead.get("website", ""))
 
         contexts_summary = [
-            {"url": url, "snippet": text[:2000]}
-            for text, url in research_data.get("page_contexts", [])[:3]
+            {"url": url, "snippet": text[:1000]}
+            for text, url in research_data.get("page_contexts", [])[:2]
         ]
 
         system_prompt = (
@@ -86,6 +86,7 @@ class GroqClient:
                 "website": lead.get("website"),
             },
             "verified_observation": observation,
+            "verified_opportunity": research_data.get('opportunity',''),
             "observation_url": observation_url,
             "approved_portfolio_proof": proof_line,
             "approved_project": proof_project,
@@ -103,15 +104,33 @@ class GroqClient:
             ],
         }
 
+        if research_data.get('strict_grounding'):
+            user_prompt['strict_rules'] += [
+                'Paragraph 1 MUST equal verified_observation verbatim. Do not add or change claims.',
+                'Paragraph 2 MUST equal approved_portfolio_proof verbatim.',
+                'Paragraph 3 MUST be: Would online submission help your team?',
+                'Alternative openings must introduce the same observed manual form workflow without new facts.'
+            ]
+
         payload = {
             "model": self.model,
             "temperature": 0.2,
+            "max_completion_tokens": 1024,
             "response_format": {"type": "json_object"},
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": json.dumps(user_prompt)},
             ],
         }
+
+        if self.model.startswith('openai/gpt-oss'):
+            payload['reasoning_effort'] = 'low'
+            payload['response_format'] = {'type':'json_schema', 'json_schema':{
+                'name':'outreach_draft', 'strict':True, 'schema':{
+                    'type':'object','additionalProperties':False,
+                    'properties':{**{k:{'type':'string'} for k in ('subject','email_body','alt_opening_1','alt_opening_2')},'skip':{'type':'boolean'}},
+                    'required':['subject','email_body','alt_opening_1','alt_opening_2','skip']
+                }}}
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -121,7 +140,7 @@ class GroqClient:
         attempt = 0
         backoff = 2.0
 
-        while attempt < max_retries:
+        while attempt < max_retries and self.is_available():
             attempt += 1
             self.calls_used += 1
 
@@ -131,7 +150,10 @@ class GroqClient:
                 if response.status_code == 429:
                     retry_after = float(response.headers.get("Retry-After", backoff))
                     logger.warning("Groq 429 Rate Limit encountered. Backing off for %.1f seconds...", retry_after)
-                    time.sleep(retry_after + random.uniform(0.5, 1.5))
+                    if retry_after > 60:
+                        self.quota_exhausted = True
+                        return None
+                    time.sleep(min(60, retry_after + random.uniform(0.5, 1.5)))
                     backoff *= 2.0
                     continue
 
@@ -215,8 +237,13 @@ class GroqClient:
                 return None
 
         # Check total word count (< 70 words)
+        if research_data.get('strict_grounding') and (
+            paragraphs[0] != research_data.get('observation') or paragraphs[1] != approved_proof
+            or paragraphs[2] != 'Would online submission help your team?'
+        ):
+            return None
         words = body.split()
-        if len(words) > 70:
+        if len(words) >= 70:
             return None
 
         # Check verbatim inclusion of approved proof line
@@ -225,7 +252,7 @@ class GroqClient:
             paragraphs[1] = approved_proof
             body = "\n\n".join(paragraphs)
             words = body.split()
-            if len(words) > 70:
+            if len(words) >= 70:
                 return None
 
         # Verify observation URL matches fetched pages

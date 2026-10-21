@@ -77,13 +77,17 @@ def clean_email(email: str) -> str:
 
 def is_valid_syntax(email: str) -> bool:
     """Validates structural syntax of an email address."""
-    email = clean_email(email)
+    email = email.strip().lower()
     if not email or "@" not in email:
         return False
     parts = email.split("@")
     if len(parts) != 2:
         return False
     local, domain = parts
+    if local.startswith(".") or local.endswith(".") or ".." in local:
+        return False
+    if any(not label or len(label)>63 or label.startswith("-") or label.endswith("-") for label in domain.split(".")):
+        return False
     if not local or not domain or "." not in domain:
         return False
     if len(email) > 254 or len(local) > 64:
@@ -92,7 +96,7 @@ def is_valid_syntax(email: str) -> bool:
 
 
 def has_valid_mx_records(domain: str, timeout: float = 3.0) -> bool:
-    """Verifies that the email domain has valid DNS MX or fallback A records."""
+    """Verifies that the email domain has valid DNS non-null MX records (not mailbox existence)."""
     domain = domain.strip().lower()
     if not domain:
         return False
@@ -102,8 +106,8 @@ def has_valid_mx_records(domain: str, timeout: float = 3.0) -> bool:
 
     if not DNS_AVAILABLE:
         # Fallback to true if dnspython is not installed
-        MX_CACHE[domain] = True
-        return True
+        MX_CACHE[domain] = False
+        return False
 
     try:
         resolver = dns.resolver.Resolver()
@@ -113,19 +117,10 @@ def has_valid_mx_records(domain: str, timeout: float = 3.0) -> bool:
         # First check MX records
         try:
             answers = resolver.resolve(domain, "MX")
-            if answers and len(answers) > 0:
+            if answers and any(str(a.exchange).strip(".") for a in answers):
                 MX_CACHE[domain] = True
                 return True
         except (dns.resolver.NoAnswer, dns.resolver.NoNameservers):
-            pass
-
-        # If no MX, check if fallback A record exists (RFC 5321 Section 5.1)
-        try:
-            answers = resolver.resolve(domain, "A")
-            if answers and len(answers) > 0:
-                MX_CACHE[domain] = True
-                return True
-        except Exception:
             pass
 
         MX_CACHE[domain] = False

@@ -1,0 +1,25 @@
+{
+  "endpoint": "https://overpass-api.de/api/interpreter",
+  "license": "https://www.openstreetmap.org/copyright",
+  "policy": "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html",
+  "cities": [
+    {"name":"Chennai","bbox":[12.85,80.05,13.25,80.35]},
+    {"name":"Bengaluru","bbox":[12.80,77.40,13.15,77.80]},
+    {"name":"Mumbai","bbox":[18.90,72.77,19.30,73.05]},
+    {"name":"Pune","bbox":[18.40,73.70,18.65,74.00]},
+    {"name":"Hyderabad","bbox":[17.20,78.25,17.60,78.65]},
+    {"name":"Delhi NCR","bbox":[28.40,76.90,28.85,77.40]},
+    {"name":"Kolkata","bbox":[22.40,88.20,22.75,88.50]},
+    {"name":"Ahmedabad","bbox":[22.90,72.40,23.20,72.75]}
+  ],
+  "industries": {
+    "education":["amenity~\"^(college|school|university)$\""],
+    "professional-services":["office~\"^(accountant|consulting|lawyer|company)$\""],
+    "architecture":["office=architect"],
+    "retail":["shop~\"^(clothes|furniture|jewelry|books)$\""],
+    "hospitality":["tourism~\"^(hotel|guest_house)$\"","amenity=restaurant"],
+    "events":["amenity~\"^(events_venue|conference_centre)$\""],
+    "training":["amenity~\"^(language_school|music_school|driving_school)$\""],
+    "other":["craft~\"^(photographer|caterer)$\""]
+  }
+}

@@ -1,97 +1,82 @@
-"""Tests for morning queue resilience: delayed execution, duplicate reruns, and failure handling."""
-
-from unittest.mock import MagicMock, patch
+"""Exercise the actual orchestrator with isolated service boundaries."""
+import copy
+from unittest.mock import MagicMock
 import pytest
+from src import morning_queue as mq
+from tests.test_morning_queue import valid_record
 
-from src.morning_queue import MorningQueueManager
+class Store:
+    def __init__(self): self.data={}
+    def get(self,k,d=None): return copy.deepcopy(self.data.get(k,d))
+    def put(self,k,v): self.data[k]=copy.deepcopy(v)
+    def values(self,p): return [copy.deepcopy(v) for k,v in self.data.items() if k.startswith(p)]
+    def put_many_new(self,records):
+        for k,v in records.items(): self.data.setdefault(k,v)
 
+@pytest.fixture
+def rig(monkeypatch):
+    store=Store(); queue=[]
+    manager=mq.MorningQueueManager(target_queue=2)
+    manager.sheets=MagicMock()
+    manager.sheets.connect.return_value=True
+    manager.sheets.load_historical_suppression_data.side_effect=lambda:([],[],copy.deepcopy(queue))
+    manager.sheets.spreadsheet.worksheet.return_value.get_all_records.return_value=[]
+    manager.sheets.spreadsheet.worksheet.return_value.row_values.return_value=['lead_id','status']
+    monkeypatch.setattr(mq,'ReserveStore',lambda _:store)
+    monkeypatch.setattr(mq,'validate_credentials',lambda **_:None)
+    monkeypatch.setattr(mq.OpenDiscovery,'harvest',lambda _: ([],[]))
+    monkeypatch.setenv('SCHEDULE_SLOT','test_slot')
+    monkeypatch.setenv('GITHUB_EVENT_NAME','schedule')
+    def append(sheets,tab,rows,**kwargs):
+        if tab=='Approval Queue':
+            for r in rows:
+                if not any(x['lead_id']==r['lead_id'] for x in queue): queue.append(copy.deepcopy(r))
+        return len(rows)
+    monkeypatch.setattr(mq,'append_records',append)
+    return manager,store,queue
 
-def test_morning_queue_rerun_idempotency_zero_duplicates():
-    """Verify that rerunning the morning queue when the target is already met creates zero duplicates."""
-    manager = MorningQueueManager(target_queue=2, dry_run=True)
-    manager.sheets.spreadsheet = MagicMock()
-    manager.discovery.harvest_candidates = MagicMock(return_value=([], {}))
+def seed(store,index=1):
+    r=valid_record(index)
+    store.put('prospect:'+r['company_id'],dict(company_id=r['company_id'],name=r['business'],website=r['website'],state='DRAFTED',record=r))
 
-    # Approval Queue already has 2 ready, valid drafts
-    mock_ws = MagicMock()
-    manager.sheets.spreadsheet.worksheet.return_value = mock_ws
-    mock_ws.get_all_records.return_value = [
-        {
-            "lead_id": f"lead_{i}",
-            "business": f"Institution {i}",
-            "website": f"https://inst{i}.edu",
-            "public_email": f"info@inst{i}.edu",
-            "email_source_url": f"https://inst{i}.edu/contact",
-            "observation": "Observation",
-            "observation_url": f"https://inst{i}.edu/contact",
-            "subject": "Inquiry",
-            "email_body": "P1\n\nOur team designed and built the OneFolk website.\n\nP3?",
-            "alt_opening_1": "Alt1",
-            "alt_opening_2": "Alt2",
-            "status": "DRAFTED",
-            "approval": "",
-            "created_at": "2026-10-21T18:00:00Z",
-        }
-        for i in range(2)
-    ]
+def test_crash_outbox_resume_then_second_run_no_duplicates(rig,monkeypatch):
+    manager,store,queue=rig
+    seed(store,1); seed(store,2)
+    # These are persisted drafts from an interrupted previous run, not generated on retry.
+    result=manager.run()
+    assert result['ready_for_approval']==2 and result['status']=='READY'
+    assert len(queue)==2
+    assert manager.run()['run_id']==result['run_id']
+    assert len(queue)==2
+    monkeypatch.setenv('SCHEDULE_SLOT','next_slot')
+    assert manager.run()['ready_for_approval']==2 and len(queue)==2
 
-    summary = manager.run()
+def test_write_failure_cannot_publish_ready(rig,monkeypatch):
+    manager,store,queue=rig; seed(store)
+    def fail(*a,**k): raise RuntimeError('Sheet write failed')
+    monkeypatch.setattr(mq,'append_records',fail)
+    with pytest.raises(RuntimeError): manager.run()
+    assert store.get('health:last_attempt')['status']=='FAILED'
+    assert not store.get('health:last_success')
+    assert store.get('prospect:company_1')['state']=='DRAFTED'
 
-    # Target queue (2) was already fulfilled by backlog
-    assert summary["ready_for_approval"] == 2
-    assert summary["drawn_from_backlog"] == 2
-    assert summary["qualified_overnight"] == 0
-    assert summary["shortage"] == 0
-    assert summary["is_campaign_ready"] is True
+def test_silent_missing_write_readback_prevents_false_count(rig,monkeypatch):
+    manager,store,queue=rig; seed(store)
+    monkeypatch.setattr(mq,'append_records',lambda *a,**k:0)
+    result=manager.run()
+    assert result['ready_for_approval']==0 and result['shortage']==2
+    assert result['status']=='SHORTFALL'
 
+def test_groq_failure_preserves_qualified_reserve(rig,monkeypatch):
+    manager,store,queue=rig; r=valid_record()
+    store.put('prospect:company_1',dict(company_id='company_1',website=r['website'],name=r['business'],state='QUALIFIED',research=r))
+    monkeypatch.setattr(mq.GroqClient,'draft_outreach',lambda *a:None)
+    monkeypatch.setattr(mq.GroqClient,'is_available',lambda *a:True)
+    result=manager.run()
+    assert result['api_failures']==1 and result['ready_for_approval']==0
+    assert store.get('prospect:company_1')['state']=='QUALIFIED'
 
-@patch("src.morning_queue.validate_credentials")
-def test_morning_queue_recovers_from_api_failures(mock_val):
-    """Verify that if Groq fails or times out, the pipeline records the failure and reports actual shortfall."""
-    manager = MorningQueueManager(target_queue=3, dry_run=False)
-    manager.sheets.spreadsheet = MagicMock()
-    manager.sheets.connect = MagicMock(return_value=True)
-    manager.sheets.initialize_schema = MagicMock()
-    manager.sheets.load_historical_suppression_data = MagicMock(return_value=([], [], []))
-    manager.sheets.append_leads = MagicMock()
-    manager.sheets.append_approval_queue = MagicMock()
-
-    # Mock empty queue
-    mock_ws = MagicMock()
-    mock_ws.get_all_records.return_value = []
-    manager.sheets.spreadsheet.worksheet.return_value = mock_ws
-
-    # Mock discovery yielding 2 candidates
-    mock_candidates = [
-        {"name": "PES University", "website": "https://pes.edu", "industry": "education"},
-        {"name": "RVCE", "website": "https://rvce.edu.in", "industry": "education"},
-    ]
-    manager.discovery.harvest_candidates = MagicMock(return_value=(mock_candidates, {}))
-
-    # Mock researcher qualifying them
-    mock_research = {
-        "lead_id": "lead_pes",
-        "business": "PES University",
-        "website": "https://pes.edu",
-        "public_email": "admissions@pes.edu",
-        "email_source_url": "https://pes.edu/contact",
-        "observation": "Public inquiries rely on standard mailto links.",
-        "observation_url": "https://pes.edu/admissions",
-        "qualification_status": "QUALIFIED",
-        "qualification_score": 85,
-        "proof_line": "Our portfolio includes a campus ordering web application.",
-    }
-    manager.researcher.investigate = MagicMock(return_value=mock_research)
-
-    # Mock Groq failing (e.g. rate limit exhaustion returns None)
-    manager.groq.draft_outreach = MagicMock(return_value=None)
-    manager.groq.is_available = MagicMock(return_value=True)
-
-    summary = manager.run()
-
-    # Both drafts failed AI drafting
-    assert summary["ready_for_approval"] == 0
-    assert summary["api_failures"] == 2
-    assert summary["shortage"] == 3
-    assert summary["is_campaign_ready"] is False
-    assert any("failed Groq validation" in r for r in summary["shortage_reasons"])
+def test_publish_does_not_call_discovery(rig,monkeypatch):
+    manager,store,queue=rig
+    monkeypatch.setattr(mq.OpenDiscovery,'harvest',lambda _:pytest.fail('Discovery called during readback'))
+    assert manager.run(publish_only=True)['shortage']==2

@@ -270,6 +270,10 @@ def main():
     dry_parser = subparsers.add_parser("dry-run", help="Run simulated dry run with zero network/API side effects")
     dry_parser.add_argument("--target", type=int, default=10, help="Target lead count for dry run")
 
+    morning = subparsers.add_parser("morning-queue", help="Durable scheduled discovery and drafting")
+    morning.add_argument("--target", type=int, default=50)
+    morning.add_argument("--publish-only", action="store_true")
+
     reconcile_parser = subparsers.add_parser("reconcile", help="Reconcile statuses, approvals and suppressions")
 
     preflight_parser = subparsers.add_parser("preflight", help="Validate credentials and API connectivity")
@@ -279,25 +283,18 @@ def main():
         help="Skip Groq validation if not required by workflow",
     )
 
-    morning_parser = subparsers.add_parser("morning-queue", help="Execute 9 AM morning outreach queue orchestration")
-    morning_parser.add_argument("--target", type=int, default=50, help="Target ready reviewable leads in queue")
-    morning_parser.add_argument("--dry-run", action="store_true", help="Run simulated morning queue without external mutations")
-
     args = parser.parse_args()
 
     if args.command in ("run", None):
         target = getattr(args, "target", QUALIFIED_TARGET)
         dry = getattr(args, "dry_run", False)
         run_pipeline(target_count=target, dry_run=dry)
-    elif args.command == "morning-queue":
-        from src.morning_queue import MorningQueueManager
-        target = getattr(args, "target", 50)
-        dry = getattr(args, "dry_run", False)
-        manager = MorningQueueManager(target_queue=target, dry_run=dry)
-        manager.run()
     elif args.command == "dry-run":
         target = getattr(args, "target", 10)
         run_pipeline(target_count=target, dry_run=True)
+    elif args.command == "morning-queue":
+        from src.morning_queue import MorningQueueManager
+        print(json.dumps(MorningQueueManager(args.target).run(publish_only=args.publish_only), indent=2))
     elif args.command == "reconcile":
         sheets = SheetsManager()
         if sheets.connect():

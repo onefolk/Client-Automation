@@ -1,53 +1,11 @@
-name: Qualification and AI Email Drafting
-
+name: Retired draft (use autonomous queue)
 on:
   workflow_dispatch:
-    inputs:
-      target_drafts:
-        description: 'Number of pending leads to draft'
-        required: false
-        default: '50'
-
 permissions:
   contents: read
-
-concurrency:
-  group: onefolk-drafting
-  cancel-in-progress: false
-
 jobs:
-  draft:
-    name: Groq AI Drafting & Approval Queue
+  retired:
+    if: github.repository == 'Giridharan-E/Client-Automation'
     runs-on: ubuntu-latest
-    environment: scraper
-    timeout-minutes: 30
-    if: (github.repository == 'Giridharan-E/Client-Automation') && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
-
-    env:
-      SHEET_ID: ${{ secrets.SHEET_ID }}
-      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-120b' }}
-      MAX_AI_CALLS: '120'
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
-
-      - name: Install Dependencies
-        run: |
-          pip install -r requirements.txt
-
-      - name: Fail-Fast Credential Preflight Check
-        run: |
-          python -m src.cli preflight
-
-      - name: Execute Factual Drafting & Sheets Sync
-        run: |
-          python -m src.cli run --target ${{ github.event.inputs.target_drafts || '50' }}
+      - run: echo "Retired to prevent competing Sheet writers. The autonomous morning queue owns orchestration."

@@ -49,7 +49,7 @@ class SheetsManager:
         try:
             creds_data = json.loads(self.raw_creds)
             credentials = Credentials.from_service_account_info(creds_data, scopes=SCOPES)
-            self.client = gspread.authorize(credentials)
+            self.client = gspread.authorize(credentials, http_client=gspread.BackOffHTTPClient)
             self.spreadsheet = self.client.open_by_key(self.spreadsheet_id)
             logger.info("Successfully connected to Google Sheet ID: %s", self.spreadsheet_id)
             return True
@@ -121,34 +121,18 @@ class SheetsManager:
 
         return lead_ids
 
-    def load_historical_suppression_data(self) -> Tuple[List[Dict[str, str]], List[List[str]], List[Dict[str, str]]]:
-        """Loads data from Suppression List, Sent Emails, and Approval Queue."""
-        suppression_rows = []
-        sent_rows = []
-        queue_rows = []
-
+    def load_historical_suppression_data(self):
+        """Fail closed: a missing/unreadable safety tab cannot mean no suppressions."""
         if not self.spreadsheet:
-            return suppression_rows, sent_rows, queue_rows
-
-        try:
-            ws = self.spreadsheet.worksheet(TAB_SUPPRESSION_LIST)
-            suppression_rows = ws.get_all_records()
-        except Exception:
-            pass
-
-        try:
-            ws = self.spreadsheet.worksheet(TAB_HISTORICAL_SENT)
-            sent_rows = ws.get_all_values()[1:]  # skip header
-        except Exception:
-            pass
-
-        try:
-            ws = self.spreadsheet.worksheet(TAB_APPROVAL_QUEUE)
-            queue_rows = ws.get_all_records()
-        except Exception:
-            pass
-
-        return suppression_rows, sent_rows, queue_rows
+            raise RuntimeError("Sheet unavailable")
+        supp = self.spreadsheet.worksheet(TAB_SUPPRESSION_LIST).get_all_records()
+        sent = self.spreadsheet.worksheet(TAB_HISTORICAL_SENT).get_all_values()[1:]
+        queue = self.spreadsheet.worksheet(TAB_APPROVAL_QUEUE).get_all_records()
+        activity = self.spreadsheet.worksheet(TAB_EMAIL_ACTIVITY).get_all_records()
+        for row in activity:
+            if row.get('recipient_email'):
+                sent.append(['', row['recipient_email']])
+        return supp, sent, queue
 
     def upsert_leads(self, leads: List[Dict[str, Any]]) -> int:
         """Idempotently appends newly discovered leads to the Lead Database tab."""
