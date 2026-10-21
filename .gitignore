@@ -25,6 +25,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 scratch/
+*.db
+*.db-shm
+*.db-wal
+data/*.db*
 
 # Python
 __pycache__/
