@@ -164,10 +164,26 @@ class GroqClient:
         research_data: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
         """Deterministically validates that the AI draft meets all length and grounding rules."""
-        subject = str(raw_result.get("subject", "")).strip()
-        body = str(raw_result.get("email_body", "")).strip()
-        alt1 = str(raw_result.get("alt_opening_1", "")).strip()
-        alt2 = str(raw_result.get("alt_opening_2", "")).strip()
+        def normalize_unicode(s: str) -> str:
+            replacements = {
+                "\u2011": "-",
+                "\u2012": "-",
+                "\u2013": "-",
+                "\u2014": "--",
+                "\u2018": "'",
+                "\u2019": "'",
+                "\u201c": '"',
+                "\u201d": '"',
+                "\u00a0": " ",
+            }
+            for orig, rep in replacements.items():
+                s = s.replace(orig, rep)
+            return s
+
+        subject = normalize_unicode(str(raw_result.get("subject", ""))).strip()
+        body = normalize_unicode(str(raw_result.get("email_body", ""))).strip()
+        alt1 = normalize_unicode(str(raw_result.get("alt_opening_1", ""))).strip()
+        alt2 = normalize_unicode(str(raw_result.get("alt_opening_2", ""))).strip()
 
         if not subject or not body:
             return None

@@ -333,7 +333,7 @@ function monitorReplies() {
       if (sender && sentMap.has(sender)) {
         const rowIdx = sentMap.get(sender);
         const isDeclined = /not interested|unsubscribe|remove me|please remove|do not contact|stop/i.test(body);
-        const isPositive = /schedule|meeting|call|discuss|interested|rates|quote|portfolio/i.test(body);
+        const isPositive = /schedule|meeting|call|discuss (?:further|details|options|project)|interested|rates|quote|pricing|price|portfolio/i.test(body);
 
         const newStatus = isDeclined ? 'DECLINED' : (isPositive ? 'POSITIVE_REPLY' : 'REPLY_REVIEW');
         queueSheet.getRange(rowIdx, statusCol + 1).setValue(newStatus);

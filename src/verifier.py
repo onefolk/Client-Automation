@@ -105,8 +105,9 @@ def has_valid_mx_records(domain: str, timeout: float = 3.0) -> bool:
 
     try:
         resolver = dns.resolver.Resolver()
-        resolver.lifetime = timeout
-        resolver.timeout = timeout
+        resolver.nameservers = ["8.8.8.8", "1.1.1.1", "8.8.4.4"]
+        resolver.lifetime = max(timeout, 4.0)
+        resolver.timeout = max(timeout, 4.0)
         # First check MX records
         try:
             answers = resolver.resolve(domain, "MX")
@@ -168,8 +169,8 @@ def extract_emails_from_html(html: str, target_domain: str, source_url: str, che
         return []
 
     soup = BeautifulSoup(html, "html.parser")
-    # Decompose non-content elements
-    for tag in soup(["script", "style", "noscript", "svg", "header", "footer"]):
+    # Decompose non-content elements (do NOT decompose footer or header as they contain contact emails)
+    for tag in soup(["script", "style", "noscript", "svg"]):
         tag.decompose()
 
     text = soup.get_text(" ", strip=True)

@@ -61,7 +61,7 @@ def classify_inbox_reply(subject: str, body: str) -> str:
         return "BOUNCED"
     if any(k in b for k in ["not interested", "unsubscribe", "remove me", "please remove", "do not contact", "stop"]):
         return "DECLINED"
-    if any(k in b for k in ["schedule", "meeting", "call", "discuss", "interested", "rates", "quote"]):
+    if re.search(r"schedule|meeting|call|discuss (?:further|details|options|project)|interested|rates|quote|pricing|price", b):
         return "POSITIVE_REPLY"
     return "REPLY_REVIEW"
 
