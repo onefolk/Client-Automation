@@ -35,6 +35,21 @@ class GroqClient:
         """Checks if the client has a configured API key and budget remaining."""
         return bool(self.api_key) and self.calls_used < self.max_calls and not self.quota_exhausted
 
+    def test_connection(self) -> bool:
+        """Verifies API key validity and connectivity to Groq without consuming chat tokens."""
+        if not self.api_key:
+            return False
+        try:
+            resp = requests.get(
+                "https://api.groq.com/openai/v1/models",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                timeout=10,
+            )
+            return resp.status_code == 200
+        except Exception as e:
+            logger.warning("Groq connection test failed: %s", str(e))
+            return False
+
     def draft_outreach(
         self,
         lead: Dict[str, Any],

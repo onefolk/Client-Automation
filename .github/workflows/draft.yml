@@ -48,6 +48,10 @@ jobs:
         run: |
           pip install -r requirements.txt
 
+      - name: Fail-Fast Credential Preflight Check
+        run: |
+          python -m src.cli preflight
+
       - name: Execute Factual Drafting & Sheets Sync
         run: |
           python -m src.cli run --target ${{ github.event.inputs.target_drafts || '50' }}
