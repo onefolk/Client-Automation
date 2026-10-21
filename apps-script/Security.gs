@@ -4,6 +4,7 @@
  */
 
 const DEFAULT_AUTHORIZED_ADMINS = [
+  'team.onefolk@gmail.com',
   'contact.onefolk@gmail.com',
   'giridharane01@gmail.com'
 ];

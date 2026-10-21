@@ -16,7 +16,7 @@ const scriptProps = new Map();
 scriptProps.set('SPREADSHEET_ID', '1U3JxQUcxSyqfZySnHNdLIwExtr3ikfcYlj0a3YY7ATM');
 scriptProps.set('ENABLE_SENDING', 'NO');
 scriptProps.set('NOTIFICATION_EMAIL', 'contact.onefolk@gmail.com');
-scriptProps.set('AUTHORIZED_ADMINS', 'contact.onefolk@gmail.com,giridharane01@gmail.com');
+scriptProps.set('AUTHORIZED_ADMINS', 'team.onefolk@gmail.com,contact.onefolk@gmail.com,giridharane01@gmail.com');
 
 let currentActiveUser = 'contact.onefolk@gmail.com';
 let currentEffectiveUser = 'contact.onefolk@gmail.com';
