@@ -146,9 +146,10 @@ class ProspectResearcher:
             sub_domain = extract_domain(resolved)
             if sub_domain == target_domain and resolved not in target_urls:
                 lower_url = resolved.lower()
-                if any(k in lower_url for k in NAVIGATION_KEYWORDS):
+                anchor_text = a.get_text(" ", strip=True).lower()
+                if any(k in lower_url or k in anchor_text for k in NAVIGATION_KEYWORDS):
                     target_urls.append(resolved)
-                    if len(target_urls) >= 4:
+                    if len(target_urls) >= 5:
                         break
 
         # 3. Scrape pages, extract emails and context

@@ -1,8 +1,10 @@
 """Contact verification, email syntax parsing, and DNS/MX record verification."""
 
+import html as html_parser
 import logging
 import re
 from typing import Dict, List, Optional, Tuple
+from urllib.parse import unquote
 from bs4 import BeautifulSoup
 
 try:
@@ -173,17 +175,19 @@ def extract_emails_from_html(html: str, target_domain: str, source_url: str, che
     for tag in soup(["script", "style", "noscript", "svg"]):
         tag.decompose()
 
-    text = soup.get_text(" ", strip=True)
+    text = html_parser.unescape(soup.get_text(" ", strip=True))
     raw_emails = set(EMAIL_REGEX.findall(text))
 
     # Also extract mailto links
-    for link in soup.select('a[href^="mailto:"]'):
+    for link in soup.select('a[href*="mailto:"]'):
         href = link.get("href", "")
-        clean_href = href.replace("mailto:", "").split("?")[0]
-        for candidate in clean_href.split(","):
-            candidate = clean_email(candidate)
-            if candidate:
-                raw_emails.add(candidate)
+        unquoted = html_parser.unescape(unquote(href))
+        if "mailto:" in unquoted:
+            clean_href = unquoted.split("mailto:", 1)[-1].split("?")[0]
+            for candidate in clean_href.split(","):
+                candidate = clean_email(candidate)
+                if candidate and is_valid_syntax(candidate):
+                    raw_emails.add(candidate)
 
     valid_results = []
     for raw in raw_emails:

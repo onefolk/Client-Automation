@@ -74,6 +74,12 @@ def run_pipeline(
     drafts: List[Dict[str, Any]] = []
     qualified_count = 0
     needs_research_count = 0
+    researched_count = 0
+    duplicate_count = 0
+    suppressed_count = 0
+    rejected_count = 0
+    api_failures_count = 0
+    shortage_reasons: List[str] = []
 
     for candidate in candidates:
         if qualified_count >= target_count:
@@ -81,20 +87,30 @@ def run_pipeline(
             break
 
         website = candidate.get("website", "")
-        # Check domain suppression
+        # Check domain suppression / deduplication
         is_supp, reason = suppression.is_suppressed("", website)
         if is_supp:
+            if "ALREADY_CONTACTED" in reason or "DUPLICATE" in reason:
+                duplicate_count += 1
+            else:
+                suppressed_count += 1
             logger.debug("Skipping candidate: %s", reason)
             continue
 
+        researched_count += 1
         # Conduct bounded crawl and signal extraction
         research_result = researcher.investigate(candidate)
         if not research_result:
+            rejected_count += 1
             continue
 
         public_email = research_result["public_email"]
         is_supp, reason = suppression.is_suppressed(public_email, website)
         if is_supp:
+            if "ALREADY_CONTACTED" in reason or "DUPLICATE" in reason:
+                duplicate_count += 1
+            else:
+                suppressed_count += 1
             logger.debug("Skipping researched contact: %s", reason)
             continue
 
@@ -108,6 +124,8 @@ def run_pipeline(
                 if draft_data:
                     draft_record = {**research_result, **draft_data}
                     drafts.append(draft_record)
+                else:
+                    api_failures_count += 1
             elif dry_run:
                 # Simulated draft for dry run
                 drafts.append({
@@ -124,9 +142,20 @@ def run_pipeline(
                 })
         else:
             needs_research_count += 1
+            rejected_count += 1
 
     end_time = datetime.now(timezone.utc)
     duration = int((end_time - start_time).total_seconds())
+
+    if qualified_count < target_count:
+        if rejected_count > 0:
+            shortage_reasons.append(f"{rejected_count} candidates lacked verifiable public contact emails or failed qualification threshold")
+        if suppressed_count > 0:
+            shortage_reasons.append(f"{suppressed_count} candidates were excluded by suppression rules")
+        if duplicate_count > 0:
+            shortage_reasons.append(f"{duplicate_count} candidates were previously contacted duplicates")
+        if api_failures_count > 0:
+            shortage_reasons.append(f"{api_failures_count} drafting attempts failed due to rate limits or validation rejects")
 
     summary = {
         "run_id": f"run_{int(start_time.timestamp())}",
@@ -135,12 +164,20 @@ def run_pipeline(
         "end_time": end_time.isoformat(),
         "duration_seconds": duration,
         "prospects_discovered": len(candidates),
+        "prospects_researched": researched_count,
         "prospects_scraped": fetcher.count,
         "qualified_leads": qualified_count,
         "needs_research": needs_research_count,
         "emails_drafted": len(drafts),
+        "duplicate_count": duplicate_count,
+        "suppressed_count": suppressed_count,
+        "rejected_count": rejected_count,
+        "api_failures": api_failures_count,
         "ai_calls_used": groq.calls_used,
         "http_fetches_used": fetcher.count,
+        "target_qualified": target_count,
+        "shortage": max(0, target_count - qualified_count),
+        "shortage_reasons": shortage_reasons,
         "status": "COMPLETED",
     }
 
@@ -152,7 +189,36 @@ def run_pipeline(
         sheets.update_dashboard(summary)
         logger.info("Synchronized all discoveries and drafts to Google Sheet.")
 
-    logger.info("Pipeline completed successfully in %ds: %d qualified, %d drafted.", duration, qualified_count, len(drafts))
+    # 7. Print Comprehensive Campaign Metrics
+    logger.info(
+        "\n============================================================\n"
+        "ONEFOLK CAMPAIGN EXECUTION METRICS\n"
+        "============================================================\n"
+        "  * Discovered:      %d candidates across target industries\n"
+        "  * Researched:      %d candidate websites investigated\n"
+        "  * Qualified:       %d leads met qualification criteria (Target: %d)\n"
+        "  * Drafted:         %d emails in Approval Queue (Status: DRAFTED)\n"
+        "  * Duplicate:       %d historical duplicate contacts prevented\n"
+        "  * Suppressed:      %d contacts excluded by suppression list\n"
+        "  * Rejected:        %d disqualified (no contact/unverifiable signals)\n"
+        "  * API Failures:    %d\n"
+        "  * Execution Time:  %ds\n"
+        "  * Shortage:        %d %s\n"
+        "============================================================",
+        summary["prospects_discovered"],
+        summary["prospects_researched"],
+        summary["qualified_leads"],
+        summary["target_qualified"],
+        summary["emails_drafted"],
+        summary["duplicate_count"],
+        summary["suppressed_count"],
+        summary["rejected_count"],
+        summary["api_failures"],
+        duration,
+        summary["shortage"],
+        f"({'; '.join(shortage_reasons)})" if shortage_reasons else "(None - Target Achieved)",
+    )
+
     return summary
 
 
