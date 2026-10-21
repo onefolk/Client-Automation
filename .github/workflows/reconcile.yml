@@ -1,0 +1,42 @@
+name: Bounce and Reply Reconciliation
+
+on:
+  schedule:
+    # 12:30 UTC = 18:00 IST Monday through Friday
+    - cron: '30 12 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: onefolk-reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile Inbox Feedback and Update Suppression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      SHEET_ID: ${{ secrets.SHEET_ID }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Reconcile Statuses and Sync Dashboard
+        run: |
+          python -m src.cli reconcile

@@ -1,0 +1,50 @@
+[
+  {
+    "project": "Campus Kiosk",
+    "proof": "Our portfolio includes a multi-vendor campus ordering web application with live order status and QR pickup.",
+    "fits": ["education", "restaurant", "hospitality", "retail", "events"],
+    "deliverables": ["PWA ordering interface", "Kitchen display system", "QR validation scanner"],
+    "type": "portfolio-described platform",
+    "evidence_url": "https://onefolk.in/work#campus-kiosk"
+  },
+  {
+    "project": "Event Operations Platform",
+    "proof": "Our portfolio includes an event registration, ticketing and QR access-management platform.",
+    "fits": ["events", "education", "hospitality", "entertainment", "other"],
+    "deliverables": ["Custom attendee registration portal", "Dynamic ticket generation", "Staff QR scanning check-in"],
+    "type": "portfolio-described platform",
+    "evidence_url": "https://onefolk.in/work#event-operations"
+  },
+  {
+    "project": "Hostel Room Allocation Suite",
+    "proof": "Our portfolio includes a digital room allocation and accommodation management system.",
+    "fits": ["education", "hospitality", "property", "co-living"],
+    "deliverables": ["Automated student room allocation", "Inventory audit dashboard", "Maintenance reporting workflow"],
+    "type": "portfolio-described platform",
+    "evidence_url": "https://onefolk.in/work#hostel-allocation"
+  },
+  {
+    "project": "Enterprise Invoicing Suite",
+    "proof": "Our portfolio includes an invoicing, tax computation and financial operations web application.",
+    "fits": ["professional-services", "retail", "creative", "property", "logistics", "other"],
+    "deliverables": ["Automated tax calculations", "Client ledger tracking", "PDF generation & payment reconciliation"],
+    "type": "portfolio-described platform",
+    "evidence_url": "https://onefolk.in/work#enterprise-invoicing"
+  },
+  {
+    "project": "Internal Workforce Operations Suite",
+    "proof": "Our portfolio includes an internal workforce operations suite with role-based project and attendance tracking.",
+    "fits": ["professional-services", "creative", "architecture", "retail", "hospitality", "other"],
+    "deliverables": ["Role-based access permissions", "Real-time task tracking", "Automated shift & attendance logs"],
+    "type": "portfolio-described platform",
+    "evidence_url": "https://onefolk.in/work#workforce-operations"
+  },
+  {
+    "project": "OneFolk website",
+    "proof": "Our team designed and built the OneFolk website.",
+    "fits": ["education", "events", "restaurant", "hospitality", "professional-services", "creative", "architecture", "retail", "property", "other"],
+    "deliverables": ["Responsive modern landing page", "Optimized performance architecture", "Interactive case study showcase"],
+    "type": "own-site",
+    "evidence_url": "https://onefolk.in/work"
+  }
+]

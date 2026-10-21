@@ -1,0 +1,6 @@
+Institution Name,Campus Name,Parent Organization,Website,City,Country,Notes
+"Synthetic Greenfield Academy","Main Campus","Synthetic Education Group","https://greenfield-sample.example","London","United Kingdom","Synthetic test fixture lead"
+"Synthetic Greenfield Academy","Downtown Branch","Synthetic Education Group","https://greenfield-sample.example","London","United Kingdom","Synthetic campus sharing domain"
+"Synthetic Heritage College",,"Synthetic Trusts","https://heritage-sample.example","Dubai","United Arab Emirates","Synthetic international school"
+"Synthetic Rural Vocational Center",,,"","Leeds","United Kingdom","Synthetic institution with no website on record"
+"Synthetic Coastal Institute",,"Synthetic Foundation","https://127.0.0.1:9090","Sydney","Australia","Synthetic SSRF test target (blocked destination)"

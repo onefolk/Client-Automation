@@ -1,0 +1,87 @@
+{
+  "active_campaign": "all_industries_pilot",
+  "campaigns": {
+    "all_industries_pilot": {
+      "name": "OneFolk Multi-Industry Pilot 2026",
+      "target_lead_count": 100,
+      "min_qualification_score": 60,
+      "industries": [
+        "education",
+        "events",
+        "hospitality",
+        "professional-services",
+        "creative",
+        "architecture",
+        "retail",
+        "other"
+      ],
+      "target_cities": [
+        "Bengaluru",
+        "Mumbai",
+        "Delhi NCR",
+        "Hyderabad",
+        "Pune",
+        "Chennai",
+        "Kolkata",
+        "Ahmedabad"
+      ],
+      "keywords": [
+        "college",
+        "academy",
+        "institute",
+        "conference",
+        "convention",
+        "summit",
+        "catering",
+        "resort",
+        "consulting",
+        "agency",
+        "studio",
+        "architects",
+        "design",
+        "boutique",
+        "apparel"
+      ],
+      "exclusions": [
+        "government.in",
+        "nic.in",
+        "gov.in",
+        "edu.in",
+        "wikipedia.org",
+        "facebook.com",
+        "instagram.com",
+        "linkedin.com",
+        "youtube.com",
+        "twitter.com",
+        "x.com"
+      ]
+    },
+    "education_focus": {
+      "name": "Higher Education & Training Institutions",
+      "target_lead_count": 100,
+      "min_qualification_score": 65,
+      "industries": ["education"],
+      "target_cities": ["Bengaluru", "Mumbai", "Pune", "Delhi NCR", "Hyderabad"],
+      "keywords": ["university", "college", "institute", "polytechnic", "training centre", "academy"],
+      "exclusions": ["gov.in", "nic.in"]
+    },
+    "creative_architecture": {
+      "name": "Creative Agencies & Architecture Studios",
+      "target_lead_count": 100,
+      "min_qualification_score": 60,
+      "industries": ["creative", "architecture", "professional-services"],
+      "target_cities": ["Mumbai", "Bengaluru", "Delhi NCR", "Goa"],
+      "keywords": ["architects", "interior design", "creative studio", "branding agency", "digital studio"],
+      "exclusions": []
+    },
+    "hospitality_events": {
+      "name": "Hospitality & Event Spaces",
+      "target_lead_count": 100,
+      "min_qualification_score": 60,
+      "industries": ["hospitality", "events", "restaurant"],
+      "target_cities": ["Bengaluru", "Mumbai", "Delhi NCR", "Goa", "Jaipur"],
+      "keywords": ["resort", "hotel", "convention center", "event venue", "fine dining", "hospitality"],
+      "exclusions": []
+    }
+  }
+}

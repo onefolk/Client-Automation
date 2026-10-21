@@ -12,9 +12,11 @@ import {
   Settings,
   ShieldCheck,
   Zap,
+  GraduationCap,
 } from 'lucide-react';
 
 const navigation = [
+  { name: 'Institutional Leads', href: '/', icon: GraduationCap },
   { name: 'Live Discovery', href: '/discover', icon: Compass },
   { name: 'Client History', href: '/clientHistory', icon: History },
   { name: 'Client Directory', href: '/businesses', icon: Building2 },
@@ -56,8 +58,8 @@ export function Sidebar() {
           <nav className="space-y-0.5">
             {navigation.map((item) => {
               const isActive =
-                item.href === '/discover'
-                  ? pathname === '/' || pathname === '/discover'
+                item.href === '/'
+                  ? pathname === '/'
                   : pathname.startsWith(item.href);
 
               return (
