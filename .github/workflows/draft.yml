@@ -7,10 +7,6 @@ on:
         description: 'Number of pending leads to draft'
         required: false
         default: '50'
-  workflow_run:
-    workflows: ["Multi-Industry Lead Discovery & Research"]
-    types:
-      - completed
 
 permissions:
   contents: read

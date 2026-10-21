@@ -192,3 +192,40 @@ npm test
 
 ### Testing with Synthetic Fixtures
 A clearly labeled synthetic test fixture is available at `fixtures/sample_institutions.csv`. You can import this file via the **Import CSV** button on the dashboard to test campus differentiation, no-website qualification, and SSRF loopback blocking without using real leads.
+
+---
+
+## 5. OneFolk 9 AM Morning Outreach Queue (Fully Automated Architecture)
+
+The system automatically prepares an evergreen target of **at least 50 fresh, qualified, personalized leads** with complete email drafts in the Master Google Sheet by **9:00 AM IST** every business day.
+
+### Automated Nightly Schedule
+| Time (IST) | Time (UTC) | Workflow / Trigger | Autonomous Actions Taken |
+| :--- | :---: | :--- | :--- |
+| **10:00 PM** | 16:30 UTC | `morning_queue.yml` | Audits Approval Queue reserve; executes multi-industry discovery & bounded research; drafts personalized 3-paragraph emails via Groq for deficit leads. |
+| **8:30 AM** | 03:00 UTC | `morning_queue.yml` | Verifies reserve freshness, checks retro-suppressions, and performs morning top-up if any leads were modified or disqualified. |
+| **9:00 AM** | 03:30 UTC | GitHub Summary | Publishes morning queue readiness report with exact counts and direct link to Approval Queue. |
+| **1:00 PM** | 07:30 UTC | `send_sync.yml` | Midday sync of Gmail sending activity and quota audit logs with Dashboard tab. |
+| **6:00 PM** | 12:30 UTC | `reconcile.yml` | Reconciles inbox bounces, replies, unsubscriptions, and updates permanent suppression lists. |
+
+### Lead Quality & Grounding Guarantees
+Every lead presented in the **Approval Queue** has:
+1. **Public Contact Provenance**: Exact source webpage URL for the public business email and website observation.
+2. **Deterministic Qualification**: Verified domain email, active HTTPS, mobile viewport, and transparent scoring (>= 60).
+3. **Factual Grounding**: Strictly 3 paragraphs, strictly under 70 words, approved portfolio line included verbatim, and two alternative opening lines for review.
+4. **Evergreen Reserve Separation**:
+   - `Newly discovered today`: Fresh candidates crawled overnight.
+   - `Qualified overnight`: Researched and scored >= 60.
+   - `Drawn from validated backlog`: Unsent fresh drafts maintained in the queue (< 14 days old).
+   - `Ready for approval at 9 AM`: Total actionable queue.
+   - `Needs research / Rejected`: Unverifiable contacts or technical failures.
+   - `Suppressed or duplicate`: Filtered out automatically.
+
+### Dual-Key Human Approval Protocol
+- **Live Gmail Sending is STRICTLY DISABLED** by default (`ENABLE_SENDING=false`).
+- In the **Approval Queue** tab:
+  - All new records arrive with `status = DRAFTED` and `approval = ""` (blank).
+  - To authorize a lead for sending, set BOTH `status = APPROVED` and `approval = APPROVED`.
+  - The scheduled Apps Script gateway strictly enforces a daily ceiling of **50 recipients per IST calendar day**.
+  - Rejected drafts marked `REJECTED` are permanently skipped and never dispatched.
+

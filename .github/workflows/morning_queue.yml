@@ -1,0 +1,62 @@
+name: OneFolk 9 AM Morning Outreach Queue
+run-name: 9 AM Morning Queue (Target ${{ github.event.inputs.target_queue || '50' }} Leads)
+
+on:
+  schedule:
+    # 10:00 PM IST (16:30 UTC) Monday-Friday: Overnight discovery, enrichment & drafting
+    - cron: '30 16 * * 1-5'
+    # 8:30 AM IST (03:00 UTC) Monday-Friday: Morning queue verification & final 9 AM publishing
+    - cron: '0 3 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      target_queue:
+        description: 'Target fresh, reviewable leads in morning Approval Queue'
+        required: false
+        default: '50'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: onefolk-morning-queue
+  cancel-in-progress: false
+
+jobs:
+  morning_queue:
+    name: Orchestrate 9 AM Outreach Queue
+    runs-on: ubuntu-latest
+    environment: scraper
+    timeout-minutes: 50
+
+    env:
+      SHEET_ID: ${{ secrets.SHEET_ID }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-120b' }}
+      TARGET_QUEUE: ${{ github.event.inputs.target_queue || '50' }}
+      MAX_AI_CALLS: '120'
+      MAX_HTTP_FETCHES: '500'
+      HTTP_TIMEOUT_SECONDS: '10'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Fail-Fast Credential Preflight Check
+        run: |
+          python -m src.cli preflight
+
+      - name: Orchestrate 9 AM Morning Outreach Queue
+        run: |
+          python -m src.cli morning-queue --target ${{ env.TARGET_QUEUE }}
