@@ -103,3 +103,10 @@ def test_preflight_check_fails_on_missing_env(monkeypatch):
     monkeypatch.setenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
     monkeypatch.setenv("GROQ_API_KEY", "")
     assert preflight_check() is False
+
+
+def test_preflight_check_without_groq(valid_env, monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "")
+    with patch("src.sheets.SheetsManager.connect", return_value=True):
+        assert preflight_check(require_groq=False) is True
+

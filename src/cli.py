@@ -156,16 +156,17 @@ def run_pipeline(
     return summary
 
 
-def preflight_check() -> bool:
+def preflight_check(require_groq: bool = True) -> bool:
     """Executes a fail-fast credential and connectivity check without printing secret values."""
-    logger.info("Executing fail-fast credential preflight check...")
+    logger.info("Executing fail-fast credential preflight check (require_groq=%s)...", require_groq)
     from src.config import validate_credentials
     try:
-        details = validate_credentials(require_groq=True, require_sheets=True)
+        details = validate_credentials(require_groq=require_groq, require_sheets=True)
         logger.info(
-            "Preflight syntax passed: Sheet ID length %d, Service Account: %s, Groq: configured.",
+            "Preflight syntax passed: Sheet ID length %d, Service Account: %s, Groq: %s.",
             details.get("sheet_id_length", 0),
             details.get("service_account_email", "N/A"),
+            "configured" if details.get("groq_configured") else "skipped",
         )
     except ValueError as e:
         logger.error(str(e))
@@ -179,12 +180,13 @@ def preflight_check() -> bool:
         return False
     logger.info("Google Sheets connection verified: '%s'", sheets.spreadsheet.title if sheets.spreadsheet else "OK")
 
-    from src.groq_client import GroqClient
-    groq = GroqClient()
-    if not groq.test_connection():
-        logger.error("Preflight failed: Groq API key could not authenticate with Groq API.")
-        return False
-    logger.info("Groq API authentication and connectivity verified.")
+    if require_groq:
+        from src.groq_client import GroqClient
+        groq = GroqClient()
+        if not groq.test_connection():
+            logger.error("Preflight failed: Groq API key could not authenticate with Groq API.")
+            return False
+        logger.info("Groq API authentication and connectivity verified.")
 
     logger.info("All preflight credential and API checks PASSED.")
     return True
@@ -205,6 +207,11 @@ def main():
     reconcile_parser = subparsers.add_parser("reconcile", help="Reconcile statuses, approvals and suppressions")
 
     preflight_parser = subparsers.add_parser("preflight", help="Validate credentials and API connectivity")
+    preflight_parser.add_argument(
+        "--no-groq",
+        action="store_true",
+        help="Skip Groq validation if not required by workflow",
+    )
 
     args = parser.parse_args()
 
@@ -224,7 +231,8 @@ def main():
             logger.error("Could not connect to Google Sheets for reconciliation.")
             sys.exit(1)
     elif args.command == "preflight":
-        success = preflight_check()
+        require_groq = not getattr(args, "no_groq", False)
+        success = preflight_check(require_groq=require_groq)
         sys.exit(0 if success else 1)
     else:
         parser.print_help()
