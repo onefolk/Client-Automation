@@ -74,16 +74,17 @@ class SuppressionManager:
                 if dom:
                     self.contacted_domains.add(dom)
 
-        # 3. From active Queue rows (if status indicates bounce/decline/opt-out)
+        # 3. From active Queue rows (if status indicates sent, bounce/decline/opt-out)
         if queue_rows:
             for row in queue_rows:
                 status = str(row.get("status", "")).upper().strip()
                 email = clean_email(str(row.get("public_email", "")))
                 dom = extract_domain(str(row.get("website", "")))
-                if email:
-                    self.contacted_emails.add(email)
-                if dom:
-                    self.contacted_domains.add(dom)
+                if status in ("SENT", "CONTACTED", "EMAILED"):
+                    if email:
+                        self.contacted_emails.add(email)
+                    if dom:
+                        self.contacted_domains.add(dom)
 
                 if status in ("BOUNCED", "DECLINED", "UNSUBSCRIBED", "OPTED_OUT", "SUPPRESSED"):
                     if email:

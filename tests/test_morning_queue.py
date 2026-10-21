@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 import pytest
 
-from src.morning_queue import MorningQueueManager
+from src.morning_queue import MorningQueueManager, validate_queued_draft
 
 
 def test_morning_queue_audit_and_maintenance():
@@ -17,7 +17,16 @@ def test_morning_queue_audit_and_maintenance():
             "lead_id": "lead_1",
             "business": "PES University",
             "public_email": "admissions@pes.edu",
+            "email_source_url": "https://pes.edu/contact",
             "website": "https://pes.edu",
+            "observation": "Inquiries use mailto links rather than structured forms.",
+            "observation_url": "https://pes.edu/admissions",
+            "proof_project": "Campus Kiosk",
+            "proof_line": "Our portfolio includes a multi-vendor campus ordering web application.",
+            "subject": "Web workflow inquiry for PES University",
+            "email_body": "Paragraph 1 observation on admissions.\n\nOur portfolio includes a multi-vendor campus ordering web application.\n\nWould you be open to a 5-minute call?",
+            "alt_opening_1": "I was reviewing PES University's digital resources.",
+            "alt_opening_2": "Your admissions portal came to my attention.",
             "status": "DRAFTED",
             "approval": "",
             "created_at": "2026-10-21T18:00:00Z",
@@ -49,14 +58,55 @@ def test_morning_queue_audit_and_maintenance():
             "approval": "APPROVED",
             "created_at": "2026-10-20T10:00:00Z",
         },
+        {
+            "lead_id": "lead_5",
+            "business": "Incomplete Lead",
+            "public_email": "info@incomplete.edu",
+            "website": "https://incomplete.edu",
+            "status": "DRAFTED",
+            "approval": "",
+            "created_at": "2026-10-21T18:00:00Z",
+            # Missing email_body, observation, proof
+        },
     ]
 
-    valid_drafts, stale_count, supp_count = manager.audit_existing_queue()
+    valid_drafts, stale_count, supp_count, unready_count = manager.audit_existing_queue()
 
     assert len(valid_drafts) == 1
     assert valid_drafts[0]["lead_id"] == "lead_1"
     assert stale_count == 1
     assert supp_count == 1
+    assert unready_count == 1
+
+
+def test_validate_queued_draft():
+    compliant = {
+        "business": "PES University",
+        "website": "https://pes.edu",
+        "public_email": "admissions@pes.edu",
+        "email_source_url": "https://pes.edu/contact",
+        "observation": "Public portal inquiry observation",
+        "observation_url": "https://pes.edu/admissions",
+        "subject": "Web workflow inquiry",
+        "email_body": "P1 observation.\n\nOur team designed and built the OneFolk website.\n\nOpen to a brief call?",
+        "alt_opening_1": "Alt 1",
+        "alt_opening_2": "Alt 2",
+    }
+    is_ok, reason = validate_queued_draft(compliant)
+    assert is_ok is True
+    assert reason == "READY"
+
+    # Missing email source URL
+    missing_src = {**compliant, "email_source_url": ""}
+    is_ok, reason = validate_queued_draft(missing_src)
+    assert is_ok is False
+    assert "Missing contact provenance" in reason
+
+    # Body exceeding 70 words
+    long_body = {**compliant, "email_body": "word " * 75}
+    is_ok, reason = validate_queued_draft(long_body)
+    assert is_ok is False
+    assert "70-word limit" in reason or "3 paragraphs" in reason
 
 
 def test_morning_queue_draw_from_backlog_deficit():

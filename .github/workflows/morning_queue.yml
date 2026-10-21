@@ -3,8 +3,8 @@ run-name: 9 AM Morning Queue (Target ${{ github.event.inputs.target_queue || '50
 
 on:
   schedule:
-    # 10:00 PM IST (16:30 UTC) Monday-Friday: Overnight discovery, enrichment & drafting
-    - cron: '30 16 * * 1-5'
+    # 10:00 PM IST (16:30 UTC) Sunday-Thursday: Overnight discovery, enrichment & drafting (prepares Mon-Fri morning queues)
+    - cron: '30 16 * * 0-4'
     # 8:30 AM IST (03:00 UTC) Monday-Friday: Morning queue verification & final 9 AM publishing
     - cron: '0 3 * * 1-5'
   workflow_dispatch:
@@ -24,6 +24,7 @@ concurrency:
 jobs:
   morning_queue:
     name: Orchestrate 9 AM Outreach Queue
+    if: github.repository == 'Giridharan-E/Client-Automation' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: scraper
     timeout-minutes: 50

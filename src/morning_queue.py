@@ -35,6 +35,62 @@ DEFAULT_TARGET_QUEUE = 50
 MAX_DRAFT_AGE_DAYS = 14
 
 
+def validate_queued_draft(record: Dict[str, Any]) -> Tuple[bool, str]:
+    """Strictly validates that a queued record is complete, compliant, and ready for human review."""
+    business = str(record.get("business", "")).strip()
+    if not business:
+        return False, "Missing business name"
+
+    website = str(record.get("website", "")).strip()
+    if not website or not website.startswith(("http://", "https://")):
+        return False, "Missing or invalid official website URL"
+
+    public_email = str(record.get("public_email", "")).strip().lower()
+    if not public_email or "@" not in public_email or "." not in public_email.split("@")[-1]:
+        return False, "Missing or invalid public contact email"
+
+    # Contact source URL must be present
+    email_src = str(record.get("email_source_url", "")).strip() or str(record.get("source_url", "")).strip()
+    if not email_src or not email_src.startswith(("http://", "https://")):
+        return False, "Missing contact provenance source URL"
+
+    # Observation and observation evidence URL must be present
+    observation = str(record.get("observation", "")).strip()
+    if not observation:
+        return False, "Missing verified website technical observation"
+
+    obs_url = str(record.get("observation_url", "")).strip() or website
+    if not obs_url or not obs_url.startswith(("http://", "https://")):
+        return False, "Missing observation evidence URL"
+
+    # Email body must be non-empty, exactly 3 paragraphs, under 70 words
+    body = str(record.get("email_body", "")).strip()
+    if not body:
+        return False, "Missing personalized email body"
+
+    paragraphs = [p.strip() for p in body.split("\n\n") if p.strip()]
+    if len(paragraphs) != 3:
+        paragraphs = [p.strip() for p in body.split("\n") if p.strip()]
+        if len(paragraphs) != 3:
+            return False, f"Email body must have exactly 3 paragraphs (found {len(paragraphs)})"
+
+    words = body.split()
+    if len(words) > 70:
+        return False, f"Email body exceeds 70-word limit ({len(words)} words)"
+
+    # Subject and alternative opening lines
+    subject = str(record.get("subject", "")).strip()
+    if not subject:
+        return False, "Missing email subject"
+
+    alt1 = str(record.get("alt_opening_1", "")).strip()
+    alt2 = str(record.get("alt_opening_2", "")).strip()
+    if not alt1 or not alt2:
+        return False, "Missing required alternative opening lines for review"
+
+    return True, "READY"
+
+
 class MorningQueueManager:
     """Manages the overnight discovery, qualification, drafting, and 9 AM queue publishing."""
 
@@ -53,28 +109,45 @@ class MorningQueueManager:
         self.groq = GroqClient()
         self.sheets = SheetsManager()
 
-    def audit_existing_queue(self) -> Tuple[List[Dict[str, Any]], int, int]:
-        """Audits the Approval Queue for existing valid drafts, stale records, and retro-suppressions.
+    def audit_existing_queue(self) -> Tuple[List[Dict[str, Any]], int, int, int]:
+        """Audits the Approval Queue for existing valid drafts, stale records, retro-suppressions, and readiness.
 
         Returns:
-            Tuple of (valid_ready_drafts, stale_count, suppressed_count)
+            Tuple of (valid_ready_drafts, stale_count, suppressed_count, unready_count)
         """
         if not self.sheets.spreadsheet:
-            return [], 0, 0
+            return [], 0, 0, 0
 
         try:
             ws = self.sheets.spreadsheet.worksheet(TAB_APPROVAL_QUEUE)
             records = ws.get_all_records()
         except Exception as e:
             logger.warning("Could not read Approval Queue tab: %s", str(e))
-            return [], 0, 0
+            return [], 0, 0, 0
 
         valid_drafts: List[Dict[str, Any]] = []
         stale_count = 0
         suppressed_count = 0
+        unready_count = 0
         now = datetime.now(timezone.utc)
 
+        # Lookup provenance URL from Lead Database for Approval Queue records if not present in tab
+        lead_src_map = {}
+        try:
+            ws_ld = self.sheets.spreadsheet.worksheet(TAB_LEAD_DATABASE)
+            for l_rec in ws_ld.get_all_records():
+                lid = str(l_rec.get("lead_id", "")).strip()
+                esrc = str(l_rec.get("email_source_url", "")).strip() or str(l_rec.get("source_url", "")).strip()
+                if lid and esrc:
+                    lead_src_map[lid] = esrc
+        except Exception:
+            pass
+
         for r in records:
+            lid = str(r.get("lead_id", "")).strip()
+            if not r.get("email_source_url") and lid in lead_src_map:
+                r["email_source_url"] = lead_src_map[lid]
+
             status = str(r.get("status", "")).strip().upper()
             approval = str(r.get("approval", "")).strip().upper()
 
@@ -101,9 +174,16 @@ class MorningQueueManager:
                 except Exception:
                     pass
 
+            # Readiness check: Every queued record must meet all evidence & drafting criteria
+            is_ready, reason = validate_queued_draft(r)
+            if not is_ready:
+                logger.info("Draft for '%s' failed readiness check: %s", r.get("business", "Unknown"), reason)
+                unready_count += 1
+                continue
+
             valid_drafts.append(r)
 
-        return valid_drafts, stale_count, suppressed_count
+        return valid_drafts, stale_count, suppressed_count, unready_count
 
     def get_undrafted_leads(self, existing_draft_ids: Set[str]) -> List[Dict[str, Any]]:
         """Retrieves qualified leads from the Lead Database that have not yet been drafted."""
@@ -147,16 +227,18 @@ class MorningQueueManager:
         existing_ready_drafts: List[Dict[str, Any]] = []
         stale_count = 0
         suppressed_in_queue = 0
+        unready_in_queue = 0
         existing_draft_ids: Set[str] = set()
 
-        if not self.dry_run:
-            existing_ready_drafts, stale_count, suppressed_in_queue = self.audit_existing_queue()
+        if self.sheets.spreadsheet:
+            existing_ready_drafts, stale_count, suppressed_in_queue, unready_in_queue = self.audit_existing_queue()
             existing_draft_ids = {str(d.get("lead_id", "")).strip() for d in existing_ready_drafts}
             logger.info(
-                "Existing queue audit: %d drafts ready for approval, %d stale skipped, %d retro-suppressed",
+                "Existing queue audit: %d drafts ready for approval, %d stale skipped, %d retro-suppressed, %d unready skipped",
                 len(existing_ready_drafts),
                 stale_count,
                 suppressed_in_queue,
+                unready_in_queue,
             )
 
         drawn_from_backlog = len(existing_ready_drafts)
@@ -182,8 +264,13 @@ class MorningQueueManager:
                 draft_data = self.groq.draft_outreach(lead, lead)
                 if draft_data:
                     draft_record = {**lead, **draft_data}
-                    new_drafts.append(draft_record)
-                    existing_draft_ids.add(lead["lead_id"])
+                    is_ready, reason = validate_queued_draft(draft_record)
+                    if is_ready:
+                        new_drafts.append(draft_record)
+                        existing_draft_ids.add(lead["lead_id"])
+                    else:
+                        logger.warning("Backlog draft failed readiness validation: %s", reason)
+                        api_failures += 1
                 else:
                     api_failures += 1
 
@@ -231,13 +318,18 @@ class MorningQueueManager:
                         draft_data = self.groq.draft_outreach(candidate, research_result)
                         if draft_data:
                             draft_record = {**research_result, **draft_data}
-                            new_drafts.append(draft_record)
-                            existing_draft_ids.add(research_result["lead_id"])
+                            is_ready, reason = validate_queued_draft(draft_record)
+                            if is_ready:
+                                new_drafts.append(draft_record)
+                                existing_draft_ids.add(research_result["lead_id"])
+                            else:
+                                logger.warning("New draft failed readiness validation: %s", reason)
+                                api_failures += 1
                         else:
                             api_failures += 1
                     elif self.dry_run:
                         # Simulated draft for dry run
-                        new_drafts.append({
+                        sim_record = {
                             **research_result,
                             "subject": f"Web workflow inquiry for {research_result['business']}",
                             "email_body": (
@@ -248,7 +340,11 @@ class MorningQueueManager:
                             "alt_opening_1": f"I was reviewing {research_result['business']}'s online resources recently.",
                             "alt_opening_2": f"Your digital portal at {research_result['website']} came to my attention.",
                             "word_count": 48,
-                        })
+                        }
+                        is_ready, reason = validate_queued_draft(sim_record)
+                        if is_ready:
+                            new_drafts.append(sim_record)
+                            existing_draft_ids.add(research_result["lead_id"])
                 else:
                     needs_research_count += 1
                     rejected_count += 1

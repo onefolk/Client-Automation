@@ -21,6 +21,7 @@ concurrency:
 jobs:
   sync_and_audit:
     name: Sync Sending Activity and Dashboard
+    if: github.repository == 'Giridharan-E/Client-Automation' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: scraper
     timeout-minutes: 15

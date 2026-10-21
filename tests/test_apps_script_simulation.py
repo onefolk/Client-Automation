@@ -143,3 +143,53 @@ def test_reply_classification():
 
     # Ambiguous / general
     assert classify_inbox_reply("Re: Web inquiry", "Received, forwarding to our IT coordinator.") == "REPLY_REVIEW"
+
+
+def simulate_morning_digest(rows: list, sent_dates: set, date_str: str) -> dict:
+    """Simulates Apps Script sendMorningQueueDigest idempotency and calculation."""
+    if date_str in sent_dates:
+        return {"status": "SKIPPED_ALREADY_SENT", "date": date_str}
+
+    ready_drafts = sum(
+        1 for r in rows
+        if str(r.get("status", "")).upper() in ("DRAFTED", "AWAITING_REVIEW")
+        and r.get("public_email")
+        and r.get("email_body")
+    )
+    target = 50
+    shortage = max(0, target - ready_drafts)
+    sent_dates.add(date_str)
+
+    return {
+        "status": "DELIVERED",
+        "date": date_str,
+        "ready_drafts": ready_drafts,
+        "target": target,
+        "shortage": shortage,
+        "is_ready": ready_drafts >= target,
+    }
+
+
+def test_morning_digest_idempotency_and_shortfall():
+    sent_dates = set()
+    rows = [
+        {"public_email": f"lead{i}@pes.edu", "email_body": "Body", "status": "DRAFTED"}
+        for i in range(35)
+    ]
+
+    # First delivery: delivered with exact count and shortfall
+    res1 = simulate_morning_digest(rows, sent_dates, "2026-10-22")
+    assert res1["status"] == "DELIVERED"
+    assert res1["ready_drafts"] == 35
+    assert res1["shortage"] == 15
+    assert res1["is_ready"] is False
+
+    # Second delivery attempt on same date: skipped idempotently (no duplicate email)
+    res2 = simulate_morning_digest(rows, sent_dates, "2026-10-22")
+    assert res2["status"] == "SKIPPED_ALREADY_SENT"
+
+    # Next date: delivered afresh
+    res3 = simulate_morning_digest(rows, sent_dates, "2026-10-23")
+    assert res3["status"] == "DELIVERED"
+    assert res3["date"] == "2026-10-23"
+

@@ -16,6 +16,7 @@ concurrency:
 jobs:
   reconcile:
     name: Reconcile Inbox Feedback and Update Suppression
+    if: github.repository == 'Giridharan-E/Client-Automation' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: scraper
     timeout-minutes: 20
