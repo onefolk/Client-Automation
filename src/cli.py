@@ -45,8 +45,14 @@ def run_pipeline(
     groq = GroqClient()
     sheets = SheetsManager()
 
-    # 2. Connect to Sheets & Load Historical Suppression (if not in mock dry-run)
-    if not dry_run and sheets.connect():
+    # 2. Validate Credentials & Connect to Sheets (if not in mock dry-run)
+    if not dry_run:
+        from src.config import validate_credentials
+        validate_credentials(require_groq=True, require_sheets=True)
+
+        if not sheets.connect():
+            raise RuntimeError("CRITICAL: Failed to connect to Google Sheets with configured credentials.")
+
         sheets.initialize_schema()
         supp_rows, sent_rows, queue_rows = sheets.load_historical_suppression_data()
         suppression.load_from_sheet_data(supp_rows, sent_rows, queue_rows)
@@ -55,6 +61,9 @@ def run_pipeline(
             len(suppression.suppressed_emails),
             len(suppression.contacted_emails),
         )
+
+        if not groq.is_available():
+            raise RuntimeError("CRITICAL: Groq API client is not configured or unavailable.")
 
     # 3. Discovery Phase
     candidates, disc_report = discovery.harvest_candidates(fetcher)
@@ -147,6 +156,40 @@ def run_pipeline(
     return summary
 
 
+def preflight_check() -> bool:
+    """Executes a fail-fast credential and connectivity check without printing secret values."""
+    logger.info("Executing fail-fast credential preflight check...")
+    from src.config import validate_credentials
+    try:
+        details = validate_credentials(require_groq=True, require_sheets=True)
+        logger.info(
+            "Preflight syntax passed: Sheet ID length %d, Service Account: %s, Groq: configured.",
+            details.get("sheet_id_length", 0),
+            details.get("service_account_email", "N/A"),
+        )
+    except ValueError as e:
+        logger.error(str(e))
+        return False
+
+    # Connectivity checks
+    from src.sheets import SheetsManager
+    sheets = SheetsManager()
+    if not sheets.connect():
+        logger.error("Preflight failed: Could not connect to Google Sheets with configured GOOGLE_SERVICE_ACCOUNT_JSON.")
+        return False
+    logger.info("Google Sheets connection verified: '%s'", sheets.spreadsheet.title if sheets.spreadsheet else "OK")
+
+    from src.groq_client import GroqClient
+    groq = GroqClient()
+    if not groq.test_connection():
+        logger.error("Preflight failed: Groq API key could not authenticate with Groq API.")
+        return False
+    logger.info("Groq API authentication and connectivity verified.")
+
+    logger.info("All preflight credential and API checks PASSED.")
+    return True
+
+
 def main():
     """CLI parser and router."""
     parser = argparse.ArgumentParser(description="OneFolk Outreach Engine CLI")
@@ -160,6 +203,8 @@ def main():
     dry_parser.add_argument("--target", type=int, default=10, help="Target lead count for dry run")
 
     reconcile_parser = subparsers.add_parser("reconcile", help="Reconcile statuses, approvals and suppressions")
+
+    preflight_parser = subparsers.add_parser("preflight", help="Validate credentials and API connectivity")
 
     args = parser.parse_args()
 
@@ -177,6 +222,10 @@ def main():
             logger.info("Reconciliation complete.")
         else:
             logger.error("Could not connect to Google Sheets for reconciliation.")
+            sys.exit(1)
+    elif args.command == "preflight":
+        success = preflight_check()
+        sys.exit(0 if success else 1)
     else:
         parser.print_help()
 

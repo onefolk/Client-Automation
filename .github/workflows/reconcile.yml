@@ -17,6 +17,7 @@ jobs:
   reconcile:
     name: Reconcile Inbox Feedback and Update Suppression
     runs-on: ubuntu-latest
+    environment: scraper
     timeout-minutes: 20
 
     env:
@@ -36,6 +37,10 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install -r requirements.txt
+
+      - name: Fail-Fast Credential Preflight Check
+        run: |
+          python -m src.cli preflight
 
       - name: Reconcile Statuses and Sync Dashboard
         run: |

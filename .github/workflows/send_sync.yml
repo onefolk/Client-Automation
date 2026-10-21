@@ -22,6 +22,7 @@ jobs:
   sync_and_audit:
     name: Sync Sending Activity and Dashboard
     runs-on: ubuntu-latest
+    environment: scraper
     timeout-minutes: 15
 
     env:
@@ -41,6 +42,10 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install -r requirements.txt
+
+      - name: Fail-Fast Credential Preflight Check
+        run: |
+          python -m src.cli preflight
 
       - name: Synchronize Dashboard & Audit Logs
         run: |

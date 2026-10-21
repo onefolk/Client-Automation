@@ -26,6 +26,7 @@ jobs:
   discover:
     name: Lead Discovery & Website Research
     runs-on: ubuntu-latest
+    environment: scraper
     timeout-minutes: 50
 
     env:
@@ -53,6 +54,10 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install -r requirements.txt
+
+      - name: Fail-Fast Credential Preflight Check
+        run: |
+          python -m src.cli preflight
 
       - name: Run Multi-Industry Discovery & Research Pipeline
         run: |

@@ -23,6 +23,7 @@ jobs:
   draft:
     name: Groq AI Drafting & Approval Queue
     runs-on: ubuntu-latest
+    environment: scraper
     timeout-minutes: 30
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
@@ -46,6 +47,10 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install -r requirements.txt
+
+      - name: Fail-Fast Credential Preflight Check
+        run: |
+          python -m src.cli preflight
 
       - name: Execute Factual Drafting & Sheets Sync
         run: |
