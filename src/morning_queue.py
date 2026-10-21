@@ -25,7 +25,7 @@ from src.config import (
 )
 from src.discovery import DiscoveryEngine
 from src.groq_client import GroqClient
-from src.network import SafeFetcher
+from src.network import SafeFetcher, extract_domain
 from src.research import ProspectResearcher
 from src.sheets import SheetsManager
 from src.suppression import SuppressionManager
@@ -230,10 +230,12 @@ class MorningQueueManager:
         suppressed_in_queue = 0
         unready_in_queue = 0
         existing_draft_ids: Set[str] = set()
+        existing_domains: Set[str] = set()
 
         if self.sheets.spreadsheet:
             existing_ready_drafts, stale_count, suppressed_in_queue, unready_in_queue = self.audit_existing_queue()
             existing_draft_ids = {str(d.get("lead_id", "")).strip() for d in existing_ready_drafts}
+            existing_domains = {extract_domain(str(d.get("website", "")).strip()) for d in existing_ready_drafts if d.get("website")}
             logger.info(
                 "Existing queue audit: %d drafts ready for approval, %d stale skipped, %d retro-suppressed, %d unready skipped",
                 len(existing_ready_drafts),
@@ -291,6 +293,11 @@ class MorningQueueManager:
                     break
 
                 website = candidate.get("website", "")
+                cand_domain = extract_domain(website)
+                if cand_domain and cand_domain in existing_domains:
+                    duplicate_count += 1
+                    continue
+
                 is_supp, reason = self.suppression.is_suppressed("", website)
                 if is_supp:
                     if "ALREADY_CONTACTED" in reason or "DUPLICATE" in reason:
@@ -305,6 +312,10 @@ class MorningQueueManager:
                     continue
 
                 public_email = research_result["public_email"]
+                if research_result.get("lead_id") in existing_draft_ids:
+                    duplicate_count += 1
+                    continue
+
                 is_supp, reason = self.suppression.is_suppressed(public_email, website)
                 if is_supp:
                     if "ALREADY_CONTACTED" in reason or "DUPLICATE" in reason:
