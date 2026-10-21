@@ -11,7 +11,6 @@
 ---
 
 ## 1. Executive Overview
-
 The **OneFolk Outreach Engine** is an autonomous, cloud-hosted, zero-additional-cost (₹0 / $0) B2B prospecting, website research, and email outreach system. It operates entirely in the cloud without requiring any local user computer, privately rented server, or paid API subscription.
 
 ### Key Capabilities
