@@ -17,6 +17,7 @@ jobs:
   reconcile:
     name: Reconcile Inbox Feedback and Update Suppression
     runs-on: ubuntu-latest
+    environment: scraper
     timeout-minutes: 20
 
     env:

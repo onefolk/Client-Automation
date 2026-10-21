@@ -40,3 +40,13 @@ jobs:
           SHEET_ID: "1U3JxQUcxSyqfZySnHNdLIwExtr3ikfcYlj0a3YY7ATM"
         run: |
           pytest -v --durations=10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Web Test Suite
+        run: |
+          npm test
+
