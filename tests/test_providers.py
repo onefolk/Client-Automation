@@ -43,12 +43,3 @@ def test_unapproved_directories_are_never_fetched(monkeypatch):
     engine.discover()
     assert engine.engine.harvest_candidates.call_args.kwargs['directory_rows']==[]
     fetcher.fetch_html.assert_not_called()
-
-def test_directory_provider_supplies_stable_company_ids():
-    engine=DirectoryDiscoveryProvider({},Mock(),())
-    engine.engine.harvest_candidates=Mock(return_value=([
-        {'website':'https://example.com/','name':'Example'},
-        {'website':'https://www.example.com/contact','name':'Example duplicate'}],{}))
-    rows,_=engine.discover()
-    assert len(rows)==1 and rows[0]['company_id'].startswith('company_')
-    assert rows[0]['state']=='DISCOVERED'

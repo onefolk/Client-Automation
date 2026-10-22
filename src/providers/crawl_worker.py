@@ -14,12 +14,10 @@ async def render(data):
     async with AsyncWebCrawler(config=config) as crawler:
         crawler.crawler_strategy.set_hook('on_page_context_created',offline)
         result=await crawler.arun(url='raw:'+data['html'], config=CrawlerRunConfig(
-            cache_mode=CacheMode.BYPASS, process_in_browser=True, base_url=data['url'],
-            wait_until='domcontentloaded', page_timeout=15000, delay_before_return_html=0.2,
+            cache_mode=CacheMode.BYPASS, page_timeout=15000, delay_before_return_html=0.2,
             word_count_threshold=1, verbose=False))
         return {'success':result.success,'html':result.html,'source_url':data['url']}
 
 if __name__=='__main__':
-    data=json.loads(sys.stdin.read(2000000))
-    if len(data['html'])>250000: raise ValueError('Snapshot exceeds transport limit')
+    data=json.loads(sys.stdin.read(300000))
     print('ONEFOLK_RESULT='+json.dumps(asyncio.run(render(data))))
