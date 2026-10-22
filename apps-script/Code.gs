@@ -309,6 +309,59 @@ function disableProductionSendingNow() {
 }
 
 /**
+ * 1-Click Helper to upgrade legacy 3-paragraph drafts in Approval Queue
+ * to the approved 4-paragraph structure (70-120 words target).
+ */
+function upgradeLegacyThreeParagraphDrafts() {
+  const book = getSpreadsheet();
+  const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+  if (!sheet) {
+    Logger.log('Approval Queue sheet not found.');
+    return;
+  }
+
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0].map(h => normalizeKey(h));
+  const bodyCol = headers.indexOf('email_body');
+  const oppCol = headers.indexOf('opportunity');
+  const wordCountCol = headers.indexOf('word_count');
+  const statusCol = headers.indexOf('status');
+  const proofCol = headers.indexOf('proof_line');
+  const businessCol = headers.indexOf('business');
+
+  let upgraded = 0;
+  for (let i = 1; i < rows.length; i++) {
+    const st = normalizeKey(rows[i][statusCol]);
+    if (['sent', 'sending', 'bounced', 'declined', 'positive_reply'].includes(st)) continue;
+
+    const rawBody = String(rows[i][bodyCol] || '').trim();
+    const paras = rawBody.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+
+    if (paras.length === 3) {
+      const p1 = paras[0].trim();
+      const p2 = paras[1].trim();
+      const p3 = paras[2].trim();
+      const opp = String(rows[i][oppCol] || '').trim() || 'streamlining digital customer touchpoints';
+      const proof = String(rows[i][proofCol] || 'Our team designed and built the OneFolk website.').trim();
+
+      const recPara = `Introducing an interactive digital workflow for ${opp.toLowerCase()} could make consultation requests substantially easier for prospective clients to submit and simplify tracking for your team.`;
+      const onefolkPara = p2.toLowerCase().includes('onefolk') ? p2 : `At OneFolk, ${p2.toLowerCase()}`;
+      const newBody = `${p1}\n\n${recPara}\n\n${onefolkPara}\n\n${p3}`;
+      const wc = newBody.split(/\s+/).length;
+
+      sheet.getRange(i + 1, bodyCol + 1).setValue(sanitizeCellValue(newBody));
+      if (wordCountCol !== -1) {
+        sheet.getRange(i + 1, wordCountCol + 1).setValue(wc);
+      }
+      upgraded++;
+      Logger.log(`Upgraded row ${i + 1} (${rows[i][businessCol]}): ${paras.length} -> 4 paras (${wc} words)`);
+    }
+  }
+
+  Logger.log(`Upgrade complete. Upgraded ${upgraded} drafts to the 4-paragraph standard.`);
+}
+
+/**
  * Core Approved Sender: Dispatches up to daily budget through authorized Gmail.
  */
 function approvedSender() {
