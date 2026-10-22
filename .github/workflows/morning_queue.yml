@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   queue:
-    if: github.repository == 'Giridharan-E/Client-Automation' && github.ref == 'refs/heads/main'
+    if: (github.repository == 'onefolk/Client-Automation' || github.repository == 'Giridharan-E/Client-Automation') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: scraper
     timeout-minutes: 12
