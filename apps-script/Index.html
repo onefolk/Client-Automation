@@ -546,6 +546,47 @@
       color: #6B21A8;
       border-color: #E9D5FF;
     }
+    .status-badge.sending {
+      background: #EFF6FF;
+      color: #1D4ED8;
+      border-color: #BFDBFE;
+    }
+    .status-badge.send_review {
+      background: #FFFBEB;
+      color: #B45309;
+      border-color: #FCD34D;
+    }
+    .status-badge.bounced {
+      background: #FEF2F2;
+      color: #B91C1C;
+      border-color: #FECACA;
+    }
+    .status-badge.replied {
+      background: #ECFDF5;
+      color: #047857;
+      border-color: #A7F3D0;
+    }
+
+    .btn-emergency-stop {
+      background: #DC2626;
+      color: #FFFFFF;
+      border: 1px solid #B91C1C;
+      border-radius: var(--radius-sm);
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    .btn-emergency-stop:hover {
+      background: #B91C1C;
+    }
+    .btn-emergency-stop:active {
+      transform: scale(0.98);
+    }
 
     .tag-industry {
       background: var(--bg-subtle);
@@ -1209,6 +1250,9 @@
     </div>
 
     <div class="header-actions">
+      <button class="btn-emergency-stop" onclick="triggerEmergencyStop()" id="btnHeaderEmergencyStop" title="Immediately disarm all automatic outbound sending">
+        🚨 Emergency Stop
+      </button>
       <span class="user-identity-pill" id="headerUserEmail"><?= userEmail || 'team.onefolk@gmail.com' ?></span>
       <button class="btn-paper" onclick="refreshCurrentTab()" title="Reload live data">
         <span>Refresh ↺</span>
@@ -1493,6 +1537,36 @@
             </div>
           </div>
         </div>
+
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-line); border-radius: var(--radius-md); padding: 22px; box-shadow: var(--shadow-sm);">
+          <h4 style="font-family: var(--font-serif); font-size: 18px; margin-bottom: 14px;">Production Sending Controls & Test</h4>
+          <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-line); padding-bottom: 8px;">
+              <span style="color: var(--text-secondary);">Internal Test Verification:</span>
+              <span id="healthInternalTestState" style="font-weight: 700; color: #D97706;">PENDING TEST</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-tertiary);">Internal Test Recipient (OneFolk Admin)</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="email" id="inputInternalTestEmail" value="contact.onefolk@gmail.com" style="flex: 1; padding: 6px 10px; border: 1px solid var(--border-line); border-radius: var(--radius-sm); font-size: 12px; font-family: var(--font-mono);">
+                <button class="btn-paper" onclick="sendInternalTestEmailAction()" id="btnSendInternalTest">Send Test ↗</button>
+              </div>
+            </div>
+            <div style="border-top: 1px solid var(--border-line); padding-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+              <div style="font-size: 12px; color: var(--text-secondary);">
+                Authorizes scheduled automatic Gmail dispatch for newly approved drafts:
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <button class="btn-modal-approve" onclick="authorizeProductionSendingAction()" id="btnAuthorizeSending" style="font-size: 12px; padding: 7px 14px;">
+                  Authorize Production Sending 🚀
+                </button>
+                <button class="btn-emergency-stop" onclick="triggerEmergencyStop()" style="font-size: 12px; padding: 7px 14px;">
+                  Emergency Stop 🚨
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1697,11 +1771,14 @@
         </div>
 
         <div class="modal-footer-right">
+          <button class="btn-modal-cancel-auth" onclick="cancelApprovalAction()" id="btnModalCancelAuth" style="display:none; background:#FFFBEB; color:#B45309; border:1px solid #FCD34D; border-radius:var(--radius-sm); padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer;">
+            Cancel Sending ✕
+          </button>
           <button class="btn-modal-save" onclick="saveDraftAction()" id="btnModalSave">
             Save Draft
           </button>
-          <button class="btn-modal-approve" onclick="approveDraftAction()" id="btnModalApprove">
-            Approve ↗
+          <button class="btn-modal-approve" onclick="confirmAndApproveDraftAction()" id="btnModalApprove">
+            Approve & Authorize Send ↗
           </button>
         </div>
       </div>
@@ -1862,7 +1939,10 @@
           document.getElementById('overviewShortage').innerHTML = `<span style="color:var(--color-success);">Target met (≥10 qualified)</span>`;
         }
 
-        if (!sys.sendingLocked && sys.enableSending === 'YES') {
+        if (sys.emergencyStopActive) {
+          document.getElementById('headerSendingStatus').textContent = 'EMERGENCY STOP (HALTED)';
+          document.querySelector('.status-lock-dot').style.background = '#DC2626';
+        } else if (!sys.sendingLocked && sys.enableSending === 'YES') {
           document.getElementById('headerSendingStatus').textContent = 'SENDING ACTIVE';
           document.querySelector('.status-lock-dot').style.background = '#15803D';
         } else {
@@ -2021,8 +2101,36 @@
         document.getElementById('modalBusinessName').textContent = lead.business || 'Unnamed Prospect';
         const st = String(lead.status || 'AWAITING_REVIEW').toUpperCase();
         const badge = document.getElementById('modalStatusBadge');
-        badge.textContent = st;
-        badge.className = 'status-badge ' + (st === 'APPROVED' ? 'approved' : st === 'REJECTED' ? 'rejected' : st === 'NEEDS_RESEARCH' ? 'needs_research' : 'awaiting');
+        badge.textContent = (st === 'APPROVED' || st === 'QUEUED') ? 'QUEUED FOR SEND' : st;
+        let badgeClass = 'awaiting';
+        if (st === 'APPROVED' || st === 'QUEUED') badgeClass = 'approved';
+        else if (st === 'REJECTED') badgeClass = 'rejected';
+        else if (st === 'NEEDS_RESEARCH') badgeClass = 'needs_research';
+        else if (st === 'SENDING') badgeClass = 'sending';
+        else if (st === 'SENT') badgeClass = 'sent';
+        else if (st === 'SEND_REVIEW') badgeClass = 'send_review';
+        else if (st === 'BOUNCED') badgeClass = 'bounced';
+        else if (st === 'POSITIVE_REPLY') badgeClass = 'replied';
+        badge.className = 'status-badge ' + badgeClass;
+
+        const btnCancelAuth = document.getElementById('btnModalCancelAuth');
+        const btnApprove = document.getElementById('btnModalApprove');
+        if (st === 'APPROVED' || st === 'QUEUED') {
+          if (btnCancelAuth) btnCancelAuth.style.display = 'inline-flex';
+          if (btnApprove) btnApprove.textContent = 'Re-Authorize & Save ↗';
+        } else if (['SENT', 'SENDING', 'BOUNCED', 'POSITIVE_REPLY'].includes(st)) {
+          if (btnCancelAuth) btnCancelAuth.style.display = 'none';
+          if (btnApprove) {
+            btnApprove.textContent = st === 'SENT' ? 'Already Dispatched' : st;
+            btnApprove.disabled = true;
+          }
+        } else {
+          if (btnCancelAuth) btnCancelAuth.style.display = 'none';
+          if (btnApprove) {
+            btnApprove.textContent = 'Approve & Authorize Send ↗';
+            btnApprove.disabled = false;
+          }
+        }
 
         const score = Number(lead.priority_score || lead.qualification_score || 0);
         let breakdown = {};
@@ -2257,6 +2365,26 @@
       }
     }
 
+    async function confirmAndApproveDraftAction() {
+      if (!state.queue.selectedLead) return;
+      const lead = state.queue.selectedLead;
+      const subject = document.getElementById('editorSubject').value.trim();
+      const email = lead.public_email || 'recipient@domain.com';
+      const biz = lead.business || 'Prospect';
+
+      const confirmed = confirm(
+        `SENDING AUTHORIZATION CONFIRMATION\n\n` +
+        `Recipient: ${email}\n` +
+        `Business: ${biz}\n` +
+        `Subject: "${subject}"\n\n` +
+        `Clicking OK authorizes automatic Gmail dispatch of this exact version.\n` +
+        `Proceed with authorization?`
+      );
+
+      if (!confirmed) return;
+      await approveDraftAction();
+    }
+
     async function approveDraftAction() {
       if (!state.queue.selectedLead) return;
       const leadId = state.queue.selectedLead.lead_id;
@@ -2269,14 +2397,97 @@
 
       try {
         const res = await api.call('apiApproveLead', leadId, subject, body);
-        showToast(`Draft for ${leadId} authorized with SHA-256 fingerprint!`, 'success');
+        showToast(`Draft for ${leadId} authorized and queued for dispatch!`, 'success');
         closeReviewModal();
         loadQueueData();
         loadOverviewData();
       } catch (err) {
         showToast('Approval rejected: ' + err, 'error');
         btn.disabled = false;
-        btn.textContent = 'Approve & Authorize ↗';
+        btn.textContent = 'Approve & Authorize Send ↗';
+      }
+    }
+
+    async function cancelApprovalAction() {
+      if (!state.queue.selectedLead) return;
+      const leadId = state.queue.selectedLead.lead_id;
+      if (!confirm(`Cancel sending authorization for lead ${leadId}?\n\nThis will remove it from the dispatch queue and return it to awaiting review.`)) return;
+
+      const btn = document.getElementById('btnModalCancelAuth');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Cancelling...';
+      }
+
+      try {
+        const res = await api.call('apiCancelApproval', leadId);
+        showToast(res.message || 'Authorization cancelled', 'info');
+        closeReviewModal();
+        loadQueueData();
+        loadOverviewData();
+      } catch (err) {
+        showToast('Error cancelling authorization: ' + err, 'error');
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Cancel Sending ✕';
+        }
+      }
+    }
+
+    async function triggerEmergencyStop() {
+      if (!confirm("EMERGENCY STOP WARNING:\n\nAre you sure you want to immediately halt all automatic outbound email sending?\n\nThis will disarm the background dispatcher.")) return;
+      try {
+        const res = await api.call('apiEmergencyStop');
+        showToast(res.message || 'Emergency Stop Activated', 'error');
+        loadOverviewData();
+        loadHealthData();
+      } catch (err) {
+        showToast('Error activating emergency stop: ' + err, 'error');
+      }
+    }
+
+    async function authorizeProductionSendingAction() {
+      if (!confirm("AUTHORIZE PRODUCTION SENDING\n\nAre you sure you want to enable automatic outbound Gmail sending for freshly approved leads?\n\nThis allows the scheduled background dispatcher to send all newly approved cold emails up to the 50/day cap.")) return;
+      try {
+        const res = await api.call('apiAuthorizeSystemSending');
+        showToast(res.message || 'Production sending authorized', 'success');
+        loadOverviewData();
+        loadHealthData();
+      } catch (err) {
+        showToast('Error authorizing sending: ' + err, 'error');
+      }
+    }
+
+    async function sendInternalTestEmailAction() {
+      const input = document.getElementById('inputInternalTestEmail');
+      const target = (input ? input.value : '').trim();
+      if (!target) {
+        alert('Please enter an authorized OneFolk administrator email address.');
+        return;
+      }
+      if (!confirm(`Send internal verification email to ${target}?\n\nThis will send one real email via GmailApp to confirm message formatting, delivery acceptance, and Google Sheet activity logging.`)) return;
+
+      const btn = document.getElementById('btnSendInternalTest');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+      }
+
+      try {
+        const res = await api.call('apiSendInternalTestEmail', target);
+        showToast(`Internal test delivered to ${target}! Message ID: ${res.messageId.slice(0, 16)}...`, 'success');
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Send Test ↗';
+        }
+        loadHealthData();
+        loadRepliesData();
+      } catch (err) {
+        showToast('Internal test failed: ' + err, 'error');
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Send Test ↗';
+        }
       }
     }
 
@@ -2423,7 +2634,25 @@
         const safety = health.safetyGates || {};
         document.getElementById('healthImplLock').textContent = safety.implementationLockActive ? 'ACTIVE (TRUE)' : 'UNLOCKED';
         document.getElementById('healthEnableSending').textContent = safety.enableSendingValue || 'NO';
-        document.getElementById('healthDispatchState').textContent = safety.liveDispatchActive ? 'LIVE' : 'DISARMED (OFF)';
+
+        let dispatchText = 'DISARMED (OFF)';
+        if (safety.emergencyStopActive) {
+          dispatchText = 'EMERGENCY STOP (HALTED)';
+        } else if (safety.liveDispatchActive) {
+          dispatchText = 'LIVE ACTIVE';
+        }
+        document.getElementById('healthDispatchState').textContent = dispatchText;
+
+        const testEl = document.getElementById('healthInternalTestState');
+        if (testEl) {
+          if (safety.internalTestVerified) {
+            testEl.textContent = 'VERIFIED (' + (safety.internalTestTimestamp ? safety.internalTestTimestamp.slice(0, 10) : 'RECENT') + ')';
+            testEl.style.color = '#15803D';
+          } else {
+            testEl.textContent = 'PENDING TEST';
+            testEl.style.color = '#D97706';
+          }
+        }
 
         const q = health.quotas || {};
         document.getElementById('healthMailQuota').textContent = (q.mailAppRemainingQuota || 0) + ' remaining today';
@@ -2511,6 +2740,28 @@
               alt_opening_1: 'I noticed your prospectus answers how applicants submit completed forms.',
               alt_opening_2: 'Your admissions page mentions physical form submission.',
               status: 'AWAITING_REVIEW'
+            });
+          } else if (method === 'apiCancelApproval') {
+            resolve({ success: true, message: 'Authorization cancelled. Lead returned to review queue.' });
+          } else if (method === 'apiEmergencyStop') {
+            resolve({ success: true, message: 'EMERGENCY STOP ACTIVATED: Outbound sending is immediately disarmed.' });
+          } else if (method === 'apiAuthorizeSystemSending') {
+            resolve({ success: true, message: 'System-level sending authorization active. Newly approved messages will be dispatched automatically.' });
+          } else if (method === 'apiSendInternalTestEmail') {
+            resolve({ success: true, messageId: 'msg_test_mock_123', threadId: 'thread_mock_456', recipient: args[0] || 'contact.onefolk@gmail.com' });
+          } else if (method === 'apiGetSystemHealth') {
+            resolve({
+              userEmail: 'team.onefolk@gmail.com',
+              authorizedAdmins: ['team.onefolk@gmail.com', 'contact.onefolk@gmail.com', 'giridharane01@gmail.com'],
+              quotas: { mailAppRemainingQuota: 100, dailySendsToday: 0, maxDailyRecipients: 50 },
+              safetyGates: {
+                implementationLockActive: true,
+                enableSendingValue: 'NO',
+                liveDispatchActive: false,
+                emergencyStopActive: false,
+                internalTestVerified: false,
+                activationTimestamp: 'NONE'
+              }
             });
           } else {
             resolve({ success: true, message: 'Mock response' });

@@ -146,6 +146,15 @@ const mockContext = {
     getRemainingDailyQuota: () => 100,
     sendEmail: () => {}
   },
+  GmailApp: {
+    createDraft: (recipient, subject, plainText, options) => ({
+      send: () => ({
+        getId: () => 'mock_msg_987654321',
+        getThread: () => ({ getId: () => 'mock_thread_123456' })
+      })
+    }),
+    search: () => []
+  },
   LockService: {
     getScriptLock: () => ({
       tryLock: () => true,
@@ -433,6 +442,119 @@ assert.equal(campaigns.length, 1);
 assert.equal(campaigns[0].run_id, 'run_overnight_1001');
 console.log('✓ System health and campaign logs passed.\n');
 
+// -----------------------------------------------------------------------------
+// TEST 11: Cancellation of QUEUED / APPROVED Leads
+// -----------------------------------------------------------------------------
+console.log('Test 11: Cancel Authorization before Dispatch');
+// Reset and approve lead_test_01
+const queueSheet = sheetStore.get('Approval Queue');
+const rows = queueSheet.getDataRange().getValues();
+const statusCol = rows[0].indexOf('status');
+const approvalCol = rows[0].indexOf('approval');
+
+// Set back to AWAITING_REVIEW and approve
+queueSheet.getRange(2, statusCol + 1).setValue('AWAITING_REVIEW');
+queueSheet.getRange(2, approvalCol + 1).setValue('PENDING');
+const approved = vm.runInContext("apiApproveLead('lead_test_01')", mockContext);
+assert.equal(approved.success, true);
+assert.equal(queueSheet.getDataRange().getValues()[1][statusCol], 'APPROVED');
+
+// Now cancel authorization
+const cancelRes = vm.runInContext("apiCancelApproval('lead_test_01')", mockContext);
+assert.equal(cancelRes.success, true);
+const rowsAfterCancel = queueSheet.getDataRange().getValues();
+assert.equal(rowsAfterCancel[1][statusCol], 'AWAITING_REVIEW', 'Status must revert to AWAITING_REVIEW');
+assert.equal(rowsAfterCancel[1][approvalCol], 'PENDING', 'Approval must revert to PENDING');
+assert.equal(scriptProps.get('APPROVAL_lead_test_01'), '', 'Approval fingerprint must be wiped');
+assert.equal(scriptProps.get('APPROVAL_META_lead_test_01'), '', 'Approval metadata must be wiped');
+console.log('✓ Cancellation of queued/approved leads passed.\n');
+
+// -----------------------------------------------------------------------------
+// TEST 12: Emergency Stop & Sending Gate Authorization
+// -----------------------------------------------------------------------------
+console.log('Test 12: Emergency Stop & System-Level Sending Authorization');
+const stopRes = vm.runInContext('apiEmergencyStop()', mockContext);
+assert.equal(stopRes.success, true);
+assert.equal(scriptProps.get('ENABLE_SENDING'), 'NO');
+assert.equal(scriptProps.get('EMERGENCY_STOP_ACTIVE'), 'YES');
+
+const healthAfterStop = vm.runInContext('apiGetSystemHealth()', mockContext);
+assert.equal(healthAfterStop.safetyGates.emergencyStopActive, true);
+assert.equal(healthAfterStop.safetyGates.enableSendingValue, 'NO');
+
+// Test system sending authorization
+const authRes = vm.runInContext('apiAuthorizeSystemSending()', mockContext);
+assert.equal(authRes.success, true);
+assert.equal(scriptProps.get('ENABLE_SENDING'), 'YES');
+assert.equal(scriptProps.get('EMERGENCY_STOP_ACTIVE'), 'NO');
+assert.ok(scriptProps.get('ACTIVATION_TIMESTAMP'), 'Activation timestamp must be recorded');
+console.log('✓ Emergency stop and system sending authorization passed.\n');
+
+// -----------------------------------------------------------------------------
+// TEST 13: Authorized Internal Test Email Sending
+// -----------------------------------------------------------------------------
+console.log('Test 13: Authorized Internal Test Email Sending');
+// Valid admin target
+const internalRes = vm.runInContext("apiSendInternalTestEmail('contact.onefolk@gmail.com')", mockContext);
+assert.equal(internalRes.success, true);
+assert.equal(internalRes.recipient, 'contact.onefolk@gmail.com');
+assert.equal(internalRes.messageId, 'mock_msg_987654321');
+
+const actSheet = sheetStore.get('Email Activity');
+const actRows = actSheet.getDataRange().getValues();
+assert.ok(actRows.length >= 2, 'Email Activity must contain test log');
+const lastAct = actRows[actRows.length - 1];
+assert.equal(lastAct[1], 'internal_test_lead');
+assert.equal(lastAct[3], 'contact.onefolk@gmail.com');
+assert.equal(lastAct[5], 'SENT');
+assert.equal(lastAct[7], 'mock_msg_987654321');
+assert.equal(scriptProps.get('INTERNAL_TEST_VERIFIED'), 'YES');
+
+// Non-admin target must fail closed
+assert.throws(() => {
+  vm.runInContext("apiSendInternalTestEmail('stranger@external.com')", mockContext);
+}, /not an authorized OneFolk administrator email/, 'Internal test must reject unauthorized recipients');
+console.log('✓ Authorized internal test email sending passed.\n');
+
+// -----------------------------------------------------------------------------
+// TEST 14: Historical Backlog Exclusion
+// -----------------------------------------------------------------------------
+console.log('Test 14: Historical Backlog Safeguard (Zero Auto-Dispatch of Old Backlog)');
+// Set activation timestamp to current moment
+const activationTime = new Date().toISOString();
+scriptProps.set('ACTIVATION_TIMESTAMP', activationTime);
+
+// A legacy row that has status='APPROVED' and approval='APPROVED' but NO approval property
+const headerMap = {};
+rows[0].forEach((h, i) => { headerMap[h] = i; });
+const legacyRow = [...rows[1]];
+legacyRow[headerMap['status']] = 'APPROVED';
+legacyRow[headerMap['approval']] = 'APPROVED';
+legacyRow[headerMap['lead_id']] = 'legacy_backlog_lead';
+
+mockContext.legacyRow = legacyRow;
+mockContext.headerMap = headerMap;
+
+// Without ScriptProperty APPROVAL_legacy_backlog_lead, it must fail validation
+assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Legacy approved row without fingerprint must be rejected');
+
+// Even if someone manually sets the fingerprint but with an old approval timestamp < activationTime
+const recordMock = Object.fromEntries(Object.keys(headerMap).map(k => [k, legacyRow[headerMap[k]]]));
+mockContext.recordMock = recordMock;
+scriptProps.set('APPROVAL_legacy_backlog_lead', vm.runInContext('draftFingerprint(recordMock)', mockContext));
+scriptProps.set('APPROVAL_META_legacy_backlog_lead', JSON.stringify({
+  approved_by: 'old_admin@onefolk.in',
+  approved_at: '2026-10-20T00:00:00.000Z', // Before activation
+  recipient: legacyRow[headerMap['public_email']],
+  subject: legacyRow[headerMap['subject']]
+}));
+
+assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Pre-activation historical approval must be blocked from automatic dispatch');
+
+// Re-set ENABLE_SENDING to NO for safety during testing
+scriptProps.set('ENABLE_SENDING', 'NO');
+console.log('✓ Historical backlog safeguard passed.\n');
+
 console.log('====================================================');
-console.log('ALL 10 WEB DASHBOARD BACKEND ACCEPTANCE TESTS PASSED!');
+console.log('ALL 14 WEB DASHBOARD BACKEND ACCEPTANCE TESTS PASSED!');
 console.log('====================================================');

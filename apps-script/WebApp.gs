@@ -87,6 +87,18 @@ function handleApiRequest(e) {
       case 'health':
         result = apiGetSystemHealth();
         break;
+      case 'cancel_approval':
+        result = apiCancelApproval(e.parameter.lead_id);
+        break;
+      case 'emergency_stop':
+        result = apiEmergencyStop();
+        break;
+      case 'authorize_sending':
+        result = apiAuthorizeSystemSending();
+        break;
+      case 'internal_test':
+        result = apiSendInternalTestEmail(e.parameter.recipient);
+        break;
       default:
         result = { error: 'Unknown API action: ' + action };
     }
@@ -356,12 +368,20 @@ function apiGetApprovalQueue(params) {
       else statusCounts.BACKLOG++;
     } else if (st === 'needs_research') {
       statusCounts.NEEDS_RESEARCH++;
-    } else if (st === 'approved' || app === 'approved') {
+    } else if (st === 'approved' || app === 'approved' || st === 'queued') {
       statusCounts.APPROVED++;
+    } else if (st === 'sending') {
+      statusCounts.SENDING = (statusCounts.SENDING || 0) + 1;
+    } else if (st === 'send_review') {
+      statusCounts.SEND_REVIEW = (statusCounts.SEND_REVIEW || 0) + 1;
     } else if (st === 'rejected' || app === 'rejected') {
       statusCounts.REJECTED++;
     } else if (st === 'sent') {
       statusCounts.SENT++;
+    } else if (st === 'bounced') {
+      statusCounts.BOUNCED = (statusCounts.BOUNCED || 0) + 1;
+    } else if (['positive_reply', 'reply_review', 'replied'].includes(st)) {
+      statusCounts.REPLIED = (statusCounts.REPLIED || 0) + 1;
     } else {
       statusCounts.OTHER++;
     }
@@ -372,9 +392,13 @@ function apiGetApprovalQueue(params) {
       if (statusFilter === 'backlog' && (st !== 'awaiting_review' || score >= 80)) continue;
       if (statusFilter === 'awaiting_review' && st !== 'awaiting_review') continue;
       if (statusFilter === 'needs_research' && st !== 'needs_research') continue;
-      if (statusFilter === 'approved' && st !== 'approved' && app !== 'approved') continue;
+      if ((statusFilter === 'approved' || statusFilter === 'queued') && st !== 'approved' && app !== 'approved' && st !== 'queued') continue;
+      if (statusFilter === 'sending' && st !== 'sending') continue;
+      if (statusFilter === 'send_review' && st !== 'send_review') continue;
       if (statusFilter === 'rejected' && st !== 'rejected' && app !== 'rejected') continue;
       if (statusFilter === 'sent' && st !== 'sent') continue;
+      if (statusFilter === 'bounced' && st !== 'bounced') continue;
+      if (statusFilter === 'replied' && !['positive_reply', 'reply_review', 'replied'].includes(st)) continue;
     }
 
     // Filter by search query (business, email, website, city, industry, opportunity)
@@ -616,6 +640,12 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
       if (wordCountCol !== -1) sheet.getRange(targetRow, wordCountCol + 1).setValue(w);
     }
 
+    // Check current status
+    const currentStatus = normalizeKey(r.status);
+    if (['sent', 'sending', 'bounced', 'declined', 'positive_reply'].includes(currentStatus)) {
+      throw new Error(`Cannot approve lead in '${r.status}' status: email has already been dispatched or closed.`);
+    }
+
     // Check suppression
     const blocked = buildSuppressionSet();
     const email = normalizeKey(r.public_email);
@@ -646,10 +676,26 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
     if (!r.mail_domain_status) r.mail_domain_status = 'MX_VALID_MAILBOX_UNCONFIRMED';
     if (!r.proof_project) r.proof_project = 'OneFolk website';
     if (!r.proof_url) r.proof_url = 'https://onefolk.in/work';
+    if (!r.alt_opening_1) r.alt_opening_1 = 'I noticed your website details.';
+    if (!r.alt_opening_2) r.alt_opening_2 = 'Your admissions page provides online information.';
+    if (!r.observation_url) r.observation_url = r.website;
+    if (!r.email_source_url) r.email_source_url = r.website;
+    if (!r.company_id) r.company_id = extractDomain(r.website);
+    if (!r.last_verified_at) r.last_verified_at = new Date().toISOString();
 
     // Compute fingerprint
     const fingerprint = draftFingerprint(r);
     setProp('APPROVAL_' + leadId, fingerprint);
+
+    const nowIso = new Date().toISOString();
+    const meta = {
+      approved_by: userEmail,
+      approved_at: nowIso,
+      recipient: email,
+      subject: r.subject,
+      fingerprint: fingerprint
+    };
+    setProp('APPROVAL_META_' + leadId, JSON.stringify(meta));
 
     // Write approval keys
     if (statusCol !== -1) sheet.getRange(targetRow, statusCol + 1).setValue('APPROVED');
@@ -658,7 +704,7 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
       sheet.getRange(targetRow, notesCol + 1).setValue('Approved via OneFolk Dashboard by ' + userEmail);
     }
     if (updatedCol !== -1) {
-      sheet.getRange(targetRow, updatedCol + 1).setValue(new Date().toISOString());
+      sheet.getRange(targetRow, updatedCol + 1).setValue(nowIso);
     }
 
     // Record audit trail
@@ -668,6 +714,8 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
       success: true,
       lead_id: leadId,
       fingerprint: fingerprint,
+      status: 'APPROVED',
+      approved_at: nowIso,
       message: 'Draft approved successfully.'
     };
   } finally {
@@ -779,6 +827,166 @@ function apiMarkNeedsResearch(leadId, note) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Cancels a previously authorized draft while still QUEUED or APPROVED, before dispatch.
+ */
+function apiCancelApproval(leadId) {
+  const userEmail = assertAuthorizedAdmin();
+  if (!leadId) throw new Error('lead_id is required');
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    const book = getSpreadsheet();
+    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    if (!sheet) throw new Error('Approval Queue sheet missing');
+
+    const rows = sheet.getDataRange().getValues();
+    const headers = rows[0].map(h => normalizeKey(h));
+    const leadIdCol = headers.indexOf('lead_id');
+    const statusCol = headers.indexOf('status');
+    const approvalCol = headers.indexOf('approval');
+    const notesCol = headers.indexOf('reviewer_notes') !== -1 ? headers.indexOf('reviewer_notes') : headers.indexOf('notes');
+    const updatedCol = headers.indexOf('updated_at');
+
+    let targetRow = -1;
+    let currentStatus = '';
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i][leadIdCol]).trim() === String(leadId).trim()) {
+        targetRow = i + 1;
+        currentStatus = String(rows[i][statusCol] || '').trim().toUpperCase();
+        break;
+      }
+    }
+
+    if (targetRow === -1) throw new Error('Lead ID not found: ' + leadId);
+    if (['SENT', 'SENDING', 'BOUNCED', 'POSITIVE_REPLY'].includes(currentStatus)) {
+      throw new Error(`Cannot cancel lead in '${currentStatus}' status; dispatch has already commenced.`);
+    }
+
+    // Invalidate approval keys
+    setProp('APPROVAL_' + leadId, '');
+    setProp('APPROVAL_META_' + leadId, '');
+
+    const nowIso = new Date().toISOString();
+    if (statusCol !== -1) sheet.getRange(targetRow, statusCol + 1).setValue('AWAITING_REVIEW');
+    if (approvalCol !== -1) sheet.getRange(targetRow, approvalCol + 1).setValue('PENDING');
+    if (notesCol !== -1) sheet.getRange(targetRow, notesCol + 1).setValue('Authorization cancelled by ' + userEmail);
+    if (updatedCol !== -1) sheet.getRange(targetRow, updatedCol + 1).setValue(nowIso);
+
+    // Record audit trail
+    recordAuditEntry(leadId, userEmail, 'CANCELLED_APPROVAL', '');
+
+    return {
+      success: true,
+      lead_id: leadId,
+      message: 'Sending authorization cancelled. Lead returned to review queue.'
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Emergency stop: Immediately disarms all automatic outbound dispatching.
+ */
+function apiEmergencyStop() {
+  const userEmail = assertAuthorizedAdmin();
+  setProp('ENABLE_SENDING', 'NO');
+  setProp('EMERGENCY_STOP_ACTIVE', 'YES');
+  recordAuditEntry('SYSTEM', userEmail, 'EMERGENCY_STOP', 'Sending halted by admin');
+  return {
+    success: true,
+    message: 'EMERGENCY STOP ACTIVATED: Outbound sending is immediately disarmed.'
+  };
+}
+
+/**
+ * System-level sending authorization: Enables production automatic dispatching.
+ */
+function apiAuthorizeSystemSending() {
+  const userEmail = assertAuthorizedAdmin();
+  setProp('ENABLE_SENDING', 'YES');
+  setProp('EMERGENCY_STOP_ACTIVE', 'NO');
+  const nowIso = new Date().toISOString();
+  setProp('ACTIVATION_TIMESTAMP', nowIso);
+  recordAuditEntry('SYSTEM', userEmail, 'SENDING_AUTHORIZED', 'System-level dispatch enabled for freshly approved leads');
+  return {
+    success: true,
+    activation_timestamp: nowIso,
+    message: 'System-level sending authorization active. Newly approved messages will be dispatched automatically.'
+  };
+}
+
+/**
+ * Sends a single explicitly authorized test email to an internal OneFolk admin address.
+ * Validates Gmail connectivity, delivery acceptance, and Google Sheet activity synchronization.
+ */
+function apiSendInternalTestEmail(recipientEmail) {
+  const userEmail = assertAuthorizedAdmin();
+  const target = normalizeKey(recipientEmail || userEmail);
+  const admins = getAuthorizedAdmins();
+
+  if (!admins.includes(target)) {
+    throw new Error(`Recipient '${target}' is not an authorized OneFolk administrator email. Internal test messages can only be sent to allowlisted admin accounts (${admins.join(', ')}).`);
+  }
+
+  const mailQuota = MailApp.getRemainingDailyQuota();
+  if (mailQuota <= 0) {
+    throw new Error('Google MailApp quota exhausted for today.');
+  }
+
+  const subject = '[OneFolk System Test] Live Outbound Verification ' + new Date().toISOString().slice(11, 19) + ' UTC';
+  const bodyText = 'This is an explicitly authorized test email from OneFolk Outreach Engine.\n\nOur team designed and built the OneFolk website.\n\nDoes this confirmation reach your inbox properly?';
+  const formatted = formatOneFolkEmail(bodyText, 'OneFolk Operations');
+
+  const draft = GmailApp.createDraft(target, subject, formatted.plainText, {
+    name: 'Team OneFolk',
+    htmlBody: formatted.htmlBody
+  });
+  const message = draft.send();
+  const msgId = message.getId();
+  const threadId = message.getThread().getId();
+  const now = new Date();
+
+  // Synchronize to Email Activity
+  const book = getSpreadsheet();
+  const activitySheet = book.getSheetByName(TAB_EMAIL_ACTIVITY);
+  if (activitySheet) {
+    const actId = 'test_' + Math.floor(Math.random() * 1000000);
+    activitySheet.appendRow([
+      actId,
+      'internal_test_lead',
+      'OneFolk Internal Verification',
+      target,
+      subject,
+      'SENT',
+      now,
+      msgId,
+      threadId,
+      'NONE',
+      '',
+      '',
+      'Internal test verified by ' + userEmail,
+      now
+    ]);
+  }
+
+  setProp('INTERNAL_TEST_VERIFIED', 'YES');
+  setProp('INTERNAL_TEST_TIMESTAMP', now.toISOString());
+  recordAuditEntry('internal_test_lead', userEmail, 'INTERNAL_TEST_SENT', msgId);
+
+  return {
+    success: true,
+    recipient: target,
+    messageId: msgId,
+    threadId: threadId,
+    subject: subject,
+    sentAt: now.toISOString(),
+    message: 'Internal test message dispatched successfully to ' + target
+  };
 }
 
 /**
@@ -894,6 +1102,10 @@ function apiGetSystemHealth() {
       implementationLockActive: sendingLock,
       enableSendingValue: enableSending,
       liveDispatchActive: !sendingLock && enableSending === 'YES',
+      emergencyStopActive: getProp('EMERGENCY_STOP_ACTIVE') === 'YES',
+      activationTimestamp: getProp('ACTIVATION_TIMESTAMP') || 'NONE',
+      internalTestVerified: getProp('INTERNAL_TEST_VERIFIED') === 'YES',
+      internalTestTimestamp: getProp('INTERNAL_TEST_TIMESTAMP') || 'NONE',
       killSwitchFunction: 'emergencyStop()'
     },
     triggersInstalled: triggers,

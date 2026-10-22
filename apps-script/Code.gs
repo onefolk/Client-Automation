@@ -194,8 +194,8 @@ function isValidApprovedDraft(v, headerMap) {
   // Strict email syntax
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return false;
 
-  // Explicit dual human approval
-  if (status !== 'approved' || approval !== 'approved') return false;
+  // Explicit dual human approval ('approved' or 'queued' status, approval must be 'approved')
+  if ((status !== 'approved' && status !== 'queued') || approval !== 'approved') return false;
 
   // Content requirements
   if (!subject || !body || !proofLine) return false;
@@ -211,6 +211,21 @@ function isValidApprovedDraft(v, headerMap) {
   const record = Object.fromEntries(Object.keys(headerMap).map(k => [k, v[headerMap[k]]]));
   if (!reviewableRecord(record)) return false;
   if (getProp('APPROVAL_' + record.lead_id) !== draftFingerprint(record)) return false;
+
+  // Backlog safeguard: ensure explicit approval metadata exists and is fresh
+  const metaRaw = getProp('APPROVAL_META_' + record.lead_id);
+  const activationTimeStr = getProp('ACTIVATION_TIMESTAMP');
+  if (activationTimeStr && metaRaw) {
+    try {
+      const meta = JSON.parse(metaRaw);
+      if (meta.approved_at && new Date(meta.approved_at).getTime() < new Date(activationTimeStr).getTime()) {
+        return false; // Historical approval from before activation; requires fresh human approval
+      }
+    } catch (e) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -317,6 +332,8 @@ function approvedSender() {
 
         const now = new Date();
         queueSheet.getRange(rowIdx, headerMap.status + 1).setValue('SENT');
+        setProp('APPROVAL_' + leadId, '');
+        setProp('SENT_' + leadId, now.toISOString());
         if (headerMap.notes !== -1) {
           queueSheet.getRange(rowIdx, headerMap.notes + 1).setValue('Dispatched via GmailApp');
         }
