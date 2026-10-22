@@ -9,6 +9,10 @@ const TAB_APPROVAL_AUDIT = 'Approval Audit';
 const TAB_LEAD_DATABASE = 'Lead Database';
 const TAB_SETTINGS = 'Settings';
 const TAB_AUTOMATION_STATE = 'Automation State';
+const TAB_DASHBOARD_NAME = typeof TAB_DASHBOARD !== 'undefined' ? TAB_DASHBOARD : 'Dashboard';
+const TAB_EMAIL_ACTIVITY_NAME = typeof TAB_EMAIL_ACTIVITY !== 'undefined' ? TAB_EMAIL_ACTIVITY : 'Email Activity';
+const TAB_HISTORICAL_SENT_NAME = typeof TAB_HISTORICAL_SENT !== 'undefined' ? TAB_HISTORICAL_SENT : 'Sent Emails';
+const TAB_SUPPRESSION_LIST_NAME = typeof TAB_SUPPRESSION_LIST !== 'undefined' ? TAB_SUPPRESSION_LIST : 'Suppression List';
 
 /**
  * Resolves the primary queue worksheet, supporting both 'Approval Queue' and legacy 'Lead Queue'.
@@ -264,23 +268,37 @@ function apiGetDashboardData() {
   }
 
   // 2. Metrics from Dashboard sheet
-  const dashSheet = book.getSheetByName(TAB_DASHBOARD);
+  const dashSheet = book ? book.getSheetByName(TAB_DASHBOARD_NAME) : null;
   const sheetKpis = {};
   if (dashSheet) {
-    const dRows = dashSheet.getDataRange().getValues();
-    for (let i = 1; i < dRows.length; i++) {
-      const metric = String(dRows[i][0] || '').trim();
-      const val = String(dRows[i][1] || '').trim();
-      if (metric) {
-        sheetKpis[metric] = val;
+    try {
+      const dRows = dashSheet.getDataRange().getValues();
+      for (let i = 1; i < dRows.length; i++) {
+        const metric = String(dRows[i][0] || '').trim();
+        const val = String(dRows[i][1] || '').trim();
+        if (metric) {
+          sheetKpis[metric] = val;
+        }
       }
+    } catch (e) {
+      Logger.log('Dashboard read error: ' + e);
     }
   }
 
   // 3. Automation & health snapshot
   let healthInfo = {};
   try {
-    healthInfo = automationSnapshot();
+    if (typeof automationSnapshot === 'function') {
+      healthInfo = automationSnapshot();
+    } else {
+      healthInfo = {
+        ready: readyToReview,
+        needs: needsResearch,
+        shortage: Math.max(0, 50 - readyToReview),
+        failures: [],
+        last_success: 'NONE'
+      };
+    }
   } catch (err) {
     healthInfo = {
       ready: readyToReview,
@@ -292,10 +310,24 @@ function apiGetDashboardData() {
   }
 
   // 4. Quotas & limits
-  const mailQuota = MailApp.getRemainingDailyQuota();
-  const dailySentToday = getDailySendCount();
-  const maxDaily = MAX_DAILY_RECIPIENTS;
-  const isSendingActive = !IMPLEMENTATION_SENDING_LOCK && getProp('ENABLE_SENDING') === 'YES';
+  let mailQuota = 100;
+  try {
+    mailQuota = MailApp.getRemainingDailyQuota();
+  } catch (e) {
+    Logger.log('Quota error: ' + e);
+  }
+
+  let dailySentToday = 0;
+  try {
+    dailySentToday = typeof getDailySendCount === 'function' ? getDailySendCount() : 0;
+  } catch (e) {
+    Logger.log('Daily send count error: ' + e);
+  }
+
+  const maxDaily = typeof MAX_DAILY_RECIPIENTS !== 'undefined' ? MAX_DAILY_RECIPIENTS : 50;
+  const sendingLock = typeof IMPLEMENTATION_SENDING_LOCK !== 'undefined' ? IMPLEMENTATION_SENDING_LOCK : false;
+  const enableSendingFlag = typeof getProp === 'function' ? (getProp('ENABLE_SENDING') || 'NO') : 'NO';
+  const isSendingActive = !sendingLock && enableSendingFlag === 'YES';
 
   return {
     userEmail: userEmail,
@@ -320,8 +352,8 @@ function apiGetDashboardData() {
       maxDailyCapacity: 50
     },
     system: {
-      sendingLocked: IMPLEMENTATION_SENDING_LOCK,
-      enableSending: getProp('ENABLE_SENDING') || 'NO',
+      sendingLocked: sendingLock,
+      enableSending: enableSendingFlag,
       isSendingActive: isSendingActive,
       remainingMailQuota: mailQuota,
       dailySentToday: dailySentToday,
@@ -1210,7 +1242,7 @@ function apiSendInternalTestEmail(recipientEmail) {
 
   // Synchronize to Email Activity
   const book = getSpreadsheet();
-  const activitySheet = book.getSheetByName(TAB_EMAIL_ACTIVITY);
+  const activitySheet = book ? book.getSheetByName(TAB_EMAIL_ACTIVITY_NAME) : null;
   if (activitySheet) {
     const actId = 'test_' + Math.floor(Math.random() * 1000000);
     activitySheet.appendRow([
@@ -1283,8 +1315,8 @@ function apiGetCampaignRuns() {
 function apiGetSentAndReplies() {
   assertAuthorizedAdmin();
   const book = getSpreadsheet();
-  const activitySheet = book.getSheetByName(TAB_EMAIL_ACTIVITY);
-  const sentSheet = book.getSheetByName(TAB_HISTORICAL_SENT);
+  const activitySheet = book ? book.getSheetByName(TAB_EMAIL_ACTIVITY_NAME) : null;
+  const sentSheet = book ? book.getSheetByName(TAB_HISTORICAL_SENT_NAME) : null;
 
   const activities = [];
 
@@ -1335,30 +1367,48 @@ function apiGetSentAndReplies() {
  */
 function apiGetSystemHealth() {
   const userEmail = assertAuthorizedAdmin();
-  const mailQuota = MailApp.getRemainingDailyQuota();
-  const dailySentToday = getDailySendCount();
-  const sendingLock = IMPLEMENTATION_SENDING_LOCK;
-  const enableSending = getProp('ENABLE_SENDING') || 'NO';
+  let mailQuota = 100;
+  try {
+    mailQuota = MailApp.getRemainingDailyQuota();
+  } catch (e) {
+    Logger.log('Quota error: ' + e);
+  }
+
+  let dailySentToday = 0;
+  try {
+    dailySentToday = typeof getDailySendCount === 'function' ? getDailySendCount() : 0;
+  } catch (e) {
+    Logger.log('Daily send count error: ' + e);
+  }
+
+  const sendingLock = typeof IMPLEMENTATION_SENDING_LOCK !== 'undefined' ? IMPLEMENTATION_SENDING_LOCK : false;
+  const enableSending = typeof getProp === 'function' ? (getProp('ENABLE_SENDING') || 'NO') : 'NO';
+  const maxDaily = typeof MAX_DAILY_RECIPIENTS !== 'undefined' ? MAX_DAILY_RECIPIENTS : 50;
 
   let snapshot = {};
   try {
-    snapshot = automationSnapshot();
+    snapshot = typeof automationSnapshot === 'function' ? automationSnapshot() : {};
   } catch (err) {
     snapshot = { error: String(err) };
   }
 
-  const triggers = ScriptApp.getProjectTriggers().map(t => ({
-    handler: t.getHandlerFunction(),
-    type: t.getEventType().toString()
-  }));
+  let triggers = [];
+  try {
+    triggers = ScriptApp.getProjectTriggers().map(t => ({
+      handler: t.getHandlerFunction(),
+      type: t.getEventType().toString()
+    }));
+  } catch (e) {
+    Logger.log('Triggers error: ' + e);
+  }
 
   return {
     userEmail: userEmail,
-    authorizedAdmins: getAuthorizedAdmins(),
+    authorizedAdmins: typeof getAuthorizedAdmins === 'function' ? getAuthorizedAdmins() : [],
     quotas: {
       mailAppRemainingQuota: mailQuota,
       dailySendsToday: dailySentToday,
-      maxDailyRecipients: MAX_DAILY_RECIPIENTS,
+      maxDailyRecipients: maxDaily,
       groqTier: 'Groq Free Tier (llama-3.3-70b-versatile / 30 requests per batch)',
       runnerMinutesLimit: '1,500 mins/mo free tier (Soft limit 1,200 mins)'
     },
