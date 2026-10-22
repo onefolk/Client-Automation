@@ -1,0 +1,12 @@
+{
+  "discovery": "open-public-data",
+  "research": "lightweight",
+  "verification": "python-dns",
+  "external_promotion": {
+    "approved": false,
+    "scheduled_benchmark_run": "",
+    "reason": "Await measured Ubuntu results; no automatic production promotion"
+  },
+  "maps_extraction_enabled": false,
+  "permitted_directory_urls": []
+}

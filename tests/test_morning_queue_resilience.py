@@ -24,6 +24,9 @@ def rig(monkeypatch):
     manager.sheets.spreadsheet.worksheet.return_value.row_values.return_value=['lead_id','status']
     monkeypatch.setattr(mq,'ReserveStore',lambda _:store)
     monkeypatch.setattr(mq,'validate_credentials',lambda **_:None)
+    verifier=MagicMock()
+    verifier.verify.return_value={'valid':True,'provider':'fixture'}
+    monkeypatch.setattr(mq,'verification_provider',lambda:verifier)
     monkeypatch.setattr(mq.OpenDiscovery,'harvest',lambda _: ([],[]))
     monkeypatch.setenv('SCHEDULE_SLOT','test_slot')
     monkeypatch.setenv('GITHUB_EVENT_NAME','schedule')

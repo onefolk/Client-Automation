@@ -1,0 +1,74 @@
+name: Provider evidence benchmark
+on:
+  schedule:
+    # Weekly Thursday 14:07 IST. Native schedule evidence, separate from outreach.
+    - cron: '37 8 * * 4'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: onefolk-provider-benchmark
+  cancel-in-progress: false
+jobs:
+  benchmark:
+    if: github.repository == 'Giridharan-E/Client-Automation' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: scraper
+    timeout-minutes: 20
+    env:
+      ENABLE_SENDING: 'false'
+      PYTHONUNBUFFERED: '1'
+      DISABLE_TELEMETRY: '1'
+      PYTHON_DOTENV_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - name: Install measurement bootstrap
+        run: python -m pip install psutil==7.2.2
+      - name: Measure Python and Crawl4AI installation
+        run: python -m benchmarks.measure install-python python -m pip install -r requirements.txt -r benchmarks/requirements.txt
+      - name: Measure Chromium installation
+        run: python -m benchmarks.measure install-chromium python -m playwright install --with-deps chromium
+      - name: Measure Truemail installation
+        run: python -m benchmarks.measure install-truemail gem install truemail --version 4.0.0 --no-document
+      - name: Install publisher-checksummed Maps binary (no extraction)
+        run: |
+          curl --fail --location --max-time 90 -o /tmp/google-maps-scraper https://github.com/gosom/google-maps-scraper/releases/download/v1.18.1/google_maps_scraper-1.18.1-linux-amd64
+          echo 'af573eeab19b174e8a70a5c804b80f191681b2c9d01c96706691af6567926062  /tmp/google-maps-scraper' | sha256sum --check
+          chmod +x /tmp/google-maps-scraper
+          python -m benchmarks.measure maps-help /tmp/google-maps-scraper -h
+      - name: Record resolved dependencies and platform
+        run: |
+          python -m pip freeze > benchmark-results/python-resolved.txt
+          gem list --local > benchmark-results/ruby-resolved.txt
+          uname -a > benchmark-results/platform.txt
+      - name: Collect bounded robots-checked sample once
+        run: python -m benchmarks.measure collect-process python -m benchmarks.compare collect
+      - name: Existing lightweight research on frozen pages
+        run: python -m benchmarks.measure research-lightweight python -m benchmarks.compare research lightweight
+      - name: Crawl4AI research on identical pages
+        run: python -m benchmarks.measure research-crawl4ai python -m benchmarks.compare research crawl4ai
+      - name: Existing Python syntax and MX verification
+        run: python -m benchmarks.measure verification-python python -m benchmarks.compare verify python
+      - name: Truemail syntax and MX verification (SMTP disabled)
+        run: python -m benchmarks.measure verification-truemail python -m benchmarks.compare verify truemail
+      - name: Bounded Groq drafts for evidence-qualified candidates
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          MAX_AI_CALLS: '4'
+        run: python -m benchmarks.measure drafting python -m benchmarks.compare drafts
+      - name: Publish truthful evidence, including incomplete runs
+        if: always()
+        run: python -m benchmarks.compare report
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: provider-evidence-${{ github.run_id }}
+          path: benchmark-results/
+          retention-days: 3
+          compression-level: 6
