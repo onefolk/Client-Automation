@@ -853,17 +853,18 @@
     }
 
     .email-preview-body-content {
-      padding: 20px;
-      font-size: 14px;
-      line-height: 1.7;
+      padding: 22px 24px;
+      font-size: 14.5px;
+      line-height: 1.65;
       color: #2D2B26;
-      white-space: pre-wrap;
-      min-height: 180px;
-      font-family: var(--font-sans);
+      white-space: normal;
+      min-height: 200px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
     .email-preview-body-content p {
-      margin-bottom: 16px;
+      margin: 0 0 16px 0;
+      line-height: 1.65;
     }
     .email-preview-body-content p:last-child {
       margin-bottom: 0;
@@ -2040,23 +2041,33 @@
       // Update Live Email Preview matching Gmail app layout
       document.getElementById('previewSubject').textContent = subject || '(No subject entered)';
       const previewBodyEl = document.getElementById('previewBody');
-      const paragraphs = body ? body.split(/\n\s*\n/).filter(p => p.trim().length > 0) : [];
+      const rawParas = body ? body.split(/\n\s*\n/).map(p => p.trim()).filter(p => p.length > 0) : [];
 
       const businessName = (state.queue.selectedLead && (state.queue.selectedLead.business || state.queue.selectedLead.name)) || 'Prospect';
-      const salutationHtml = `<p style="margin-bottom: 16px; font-weight: 500;">Dear ${escapeHtml(businessName)} Team,</p>`;
+      const hasSalutation = rawParas.length > 0 && /^dear\b/i.test(rawParas[0]);
+
+      const salutationText = hasSalutation ? rawParas[0] : `Dear ${businessName} Team,`;
+      const contentParas = (hasSalutation ? rawParas.slice(1) : rawParas).filter(p =>
+        !/^work:\s*https?:\/\//i.test(p) &&
+        !/^regards,/i.test(p) &&
+        !/^team onefolk/i.test(p) &&
+        !/^https?:\/\/onefolk\.in\/?$/i.test(p)
+      );
+
+      const salutationHtml = `<p style="margin: 0 0 16px 0; font-weight: 500;">${escapeHtml(salutationText)}</p>`;
 
       let bodyHtml = '';
-      if (paragraphs.length > 0) {
-        bodyHtml = paragraphs.map(p => `<p style="margin-bottom: 16px;">${escapeHtml(p)}</p>`).join('');
+      if (contentParas.length > 0) {
+        bodyHtml = contentParas.map(p => `<p style="margin: 0 0 16px 0; line-height: 1.65;">${escapeHtml(p)}</p>`).join('');
       } else {
-        bodyHtml = '<p style="color:var(--text-tertiary);font-style:italic;">(Email body is empty)</p>';
+        bodyHtml = '<p style="color:var(--text-tertiary);font-style:italic;margin: 0 0 16px 0;">(Email body is empty)</p>';
       }
 
       const footerHtml = `
-        <p style="margin-top: 20px; margin-bottom: 14px; color: var(--text-secondary);">
+        <p style="margin: 20px 0 14px 0; color: inherit;">
           Work: <a href="https://onefolk.in/work" target="_blank" style="color: inherit; text-decoration: underline;">https://onefolk.in/work</a>
         </p>
-        <p style="margin-top: 14px; line-height: 1.5; color: var(--text-main);">
+        <p style="margin: 14px 0 0 0; line-height: 1.5; color: inherit;">
           Regards,<br>
           <strong>Team OneFolk</strong><br>
           <a href="https://onefolk.in/" target="_blank" style="color: inherit; text-decoration: underline;">https://onefolk.in/</a>
@@ -2064,6 +2075,8 @@
       `;
 
       previewBodyEl.innerHTML = salutationHtml + bodyHtml + footerHtml;
+
+      const paragraphs = contentParas;
 
       const words = body ? body.split(/\s+/).length : 0;
       const proofLine = (state.queue.selectedLead && state.queue.selectedLead.proof_line)

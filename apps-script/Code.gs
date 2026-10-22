@@ -130,6 +130,57 @@ function buildSuppressionSet() {
 }
 
 /**
+ * Formats outreach emails with strict paragraph spacing, greeting, and signature.
+ * Generates both clean plainText and HTML representation for high-fidelity rendering.
+ */
+function formatOneFolkEmail(rawBody, businessName) {
+  const raw = String(rawBody || '').trim();
+  const paras = raw
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(p => p.length > 0);
+
+  const biz = businessName || 'Prospect';
+  const hasSalutation = paras.length > 0 && /^dear\b/i.test(paras[0]);
+  
+  const salutation = hasSalutation ? paras[0] : `Dear ${biz} Team,`;
+  let contentParas = hasSalutation ? paras.slice(1) : paras;
+
+  // Filter out any duplicate footer lines if previously embedded
+  contentParas = contentParas.filter(p => 
+    !/^work:\s*https?:\/\//i.test(p) && 
+    !/^regards,/i.test(p) && 
+    !/^team onefolk/i.test(p) && 
+    !/^https?:\/\/onefolk\.in\/?$/i.test(p)
+  );
+
+  const plainText = [
+    salutation,
+    '',
+    contentParas.join('\n\n'),
+    '',
+    'Work: https://onefolk.in/work',
+    '',
+    'Regards,',
+    'Team OneFolk',
+    'https://onefolk.in/'
+  ].join('\n');
+
+  const escapeHtml = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const htmlBody = [
+    '<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; font-size: 14.5px; line-height: 1.65; color: #1C1B18; max-width: 600px;">',
+    `  <p style="margin: 0 0 16px 0; font-weight: 500;">${escapeHtml(salutation)}</p>`,
+    contentParas.map(p => `  <p style="margin: 0 0 16px 0; line-height: 1.65;">${escapeHtml(p)}</p>`).join('\n'),
+    '  <p style="margin: 20px 0 14px 0; color: #4A4843;">Work: <a href="https://onefolk.in/work" style="color: #1C1B18; text-decoration: underline;">https://onefolk.in/work</a></p>',
+    '  <p style="margin: 14px 0 0 0; line-height: 1.5; color: #1C1B18;">Regards,<br><strong>Team OneFolk</strong><br><a href="https://onefolk.in/" style="color: #1C1B18; text-decoration: underline;">https://onefolk.in/</a></p>',
+    '</div>'
+  ].join('\n');
+
+  return { plainText, htmlBody };
+}
+
+/**
  * Validates strict formatting and human approval requirements.
  */
 function isValidApprovedDraft(v, headerMap) {
@@ -251,15 +302,16 @@ function approvedSender() {
       SpreadsheetApp.flush();
 
       try {
-        const fullBody = String(v[headerMap.email_body]).trim();
+        const formatted = formatOneFolkEmail(v[headerMap.email_body], v[headerMap.business]);
         const subject = String(v[headerMap.subject]).trim();
 
-        // Dispatch via Gmail
-        const message = GmailApp.createDraft(email, subject, fullBody, {name: 'Team OneFolk'}).send();
+        // Dispatch via Gmail with proper paragraph spacing, HTML structure, and plaintext fallback
+        const message = GmailApp.createDraft(email, subject, formatted.plainText, {
+          name: 'Team OneFolk',
+          htmlBody: formatted.htmlBody
+        }).send();
 
         // Record successful dispatch
-
-
         blocked.add(email);
         consecutiveErrors = 0;
 
