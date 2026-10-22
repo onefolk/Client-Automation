@@ -135,8 +135,8 @@ def research(kind):
         'crawl4ai_successful_pages':getattr(provider.fetcher,'rendered',0),
         'crawl4ai_fallback_pages':getattr(provider.fetcher,'fallbacks',0),
         'crawl4ai_failures':getattr(provider.fetcher,'failures',[]),'synthetic_capability_check':smoke})
-    if kind=='crawl4ai' and not smoke['actual_tool_successes']:
-        raise RuntimeError('Crawl4AI failed its actual invocation; fallbacks are not integration proof')
+    if kind=='crawl4ai' and (not smoke['actual_tool_successes'] or not smoke['inline_js_rendered']):
+        raise RuntimeError('Crawl4AI browser capability failed; raw HTML pass-through is not rendering proof')
 
 def verify(kind):
     provider=PythonVerificationProvider() if kind=='python' else TruemailVerificationProvider()

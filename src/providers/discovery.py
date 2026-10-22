@@ -1,8 +1,6 @@
 """Adapters do not change source permissions or imply that listings are verified."""
-import csv
 import os
 import subprocess
-from pathlib import Path
 from src.discovery import DiscoveryEngine, read_csv_file
 from src.open_discovery import OpenDiscovery, company_id
 from src.network import extract_domain, canonical_url
@@ -21,7 +19,12 @@ class DirectoryDiscoveryProvider:
     def discover(self):
         rows=[r for r in read_csv_file('directories.csv') if r['directory_url'] in self.permitted]
         candidates,report=self.engine.harvest_candidates(self.fetcher, directory_rows=rows)
-        return candidates, [] if rows else ['No directory permission entries; curated seed candidates only']
+        unique={}
+        for candidate in candidates:
+            website=canonical_url(candidate['website'])
+            cid=company_id(website)
+            unique.setdefault(cid,{**candidate,'website':website,'company_id':cid,'state':'DISCOVERED'})
+        return list(unique.values()), [] if rows else ['No directory permission entries; curated seed candidates only']
 
 class MapsScraperDiscoveryProvider:
     """Optional installed executable; extraction stays disabled pending source permission.
