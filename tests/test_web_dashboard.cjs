@@ -28,9 +28,12 @@ function createMockSheet(name, headers, initialRows = []) {
   const rows = headers && headers.length ? [headers, ...initialRows] : [...initialRows];
   return {
     getName: () => name,
-    getSheetId: () => 123456,
     getDataRange: () => ({
-      getValues: () => rows.map(r => [...r])
+      getValues: () => rows.map(r => [...r]),
+      setValues: (newVals) => {
+        rows.length = 0;
+        newVals.forEach(r => rows.push([...r]));
+      }
     }),
     getRange: (rowIdx, colIdx) => ({
       setValue: (val) => {

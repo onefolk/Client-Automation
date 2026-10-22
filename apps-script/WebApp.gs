@@ -881,19 +881,20 @@ function apiBatchApproveLeads(leadIds) {
       };
       setProp('APPROVAL_META_' + rowLeadId, JSON.stringify(meta));
 
-      const targetRow = i + 1;
-      if (statusCol !== -1) sheet.getRange(targetRow, statusCol + 1).setValue('APPROVED');
-      if (approvalCol !== -1) sheet.getRange(targetRow, approvalCol + 1).setValue('APPROVED');
-      if (notesCol !== -1) {
-        sheet.getRange(targetRow, notesCol + 1).setValue('Batch approved via OneFolk Dashboard by ' + userEmail);
-      }
-      if (updatedCol !== -1) {
-        sheet.getRange(targetRow, updatedCol + 1).setValue(nowIso);
-      }
+      // Update in-memory row array (single batch write after loop)
+      if (statusCol !== -1) rows[i][statusCol] = 'APPROVED';
+      if (approvalCol !== -1) rows[i][approvalCol] = 'APPROVED';
+      if (notesCol !== -1) rows[i][notesCol] = sanitizeCellValue('Batch approved via OneFolk Dashboard by ' + userEmail);
+      if (updatedCol !== -1) rows[i][updatedCol] = nowIso;
 
       recordAuditEntry(rowLeadId, userEmail, 'APPROVED', fingerprint);
       results.approvedCount++;
       results.approvedIds.push(rowLeadId);
+    }
+
+    // Single atomic batch write to Google Sheets for all approved leads
+    if (results.approvedCount > 0) {
+      sheet.getDataRange().setValues(rows);
     }
 
     return {
@@ -990,14 +991,18 @@ function apiBatchRejectLeads(leadIds, reason) {
 
       setProp('APPROVAL_' + rowLeadId, '');
 
-      const targetRow = i + 1;
-      if (statusCol !== -1) sheet.getRange(targetRow, statusCol + 1).setValue('REJECTED');
-      if (approvalCol !== -1) sheet.getRange(targetRow, approvalCol + 1).setValue('REJECTED');
-      if (notesCol !== -1) sheet.getRange(targetRow, notesCol + 1).setValue(rejReason + ' by ' + userEmail);
-      if (updatedCol !== -1) sheet.getRange(targetRow, updatedCol + 1).setValue(new Date().toISOString());
+      // In-memory update
+      if (statusCol !== -1) rows[i][statusCol] = 'REJECTED';
+      if (approvalCol !== -1) rows[i][approvalCol] = 'REJECTED';
+      if (notesCol !== -1) rows[i][notesCol] = sanitizeCellValue(rejReason + ' by ' + userEmail);
+      if (updatedCol !== -1) rows[i][updatedCol] = new Date().toISOString();
 
       recordAuditEntry(rowLeadId, userEmail, 'REJECTED', '');
       rejectedCount++;
+    }
+
+    if (rejectedCount > 0) {
+      sheet.getDataRange().setValues(rows);
     }
 
     return {
