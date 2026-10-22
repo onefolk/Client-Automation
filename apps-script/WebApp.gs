@@ -11,6 +11,16 @@ const TAB_SETTINGS = 'Settings';
 const TAB_AUTOMATION_STATE = 'Automation State';
 
 /**
+ * Resolves the primary queue worksheet, supporting both 'Approval Queue' and legacy 'Lead Queue'.
+ */
+function getQueueSheet(book) {
+  if (!book) return null;
+  const primary = typeof TAB_APPROVAL_QUEUE !== 'undefined' ? TAB_APPROVAL_QUEUE : 'Approval Queue';
+  const legacy = typeof TAB_LEGACY_QUEUE !== 'undefined' ? TAB_LEGACY_QUEUE : 'Lead Queue';
+  return book.getSheetByName(primary) || book.getSheetByName(legacy);
+}
+
+/**
  * Entry point for Google Apps Script HTMLService Web App.
  */
 function doGet(e) {
@@ -204,7 +214,7 @@ function apiGetDashboardData() {
   const book = getSpreadsheet();
   
   // 1. Live count from Approval Queue
-  const queueSheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+  const queueSheet = getQueueSheet(book);
   let readyToReview = 0;
   let awaitingApproval = 0;
   let needsResearch = 0;
@@ -335,14 +345,14 @@ function apiGetApprovalQueue(params) {
   const pageSize = Math.min(100, Math.max(5, Number(params.pageSize || 25)));
 
   const book = getSpreadsheet();
-  const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+  const sheet = getQueueSheet(book);
   if (!sheet) {
-    return { leads: [], total: 0, page: 1, pageSize: pageSize, statuses: {} };
+    return { leads: [], total: 0, page: 1, pageSize: pageSize, totalPages: 1, statuses: {} };
   }
 
   const rows = sheet.getDataRange().getValues();
   if (rows.length <= 1) {
-    return { leads: [], total: 0, page: 1, pageSize: pageSize, statuses: {} };
+    return { leads: [], total: 0, page: 1, pageSize: pageSize, totalPages: 1, statuses: {} };
   }
 
   const headers = rows[0].map(h => normalizeKey(h));
@@ -353,7 +363,13 @@ function apiGetApprovalQueue(params) {
     const row = rows[i];
     const item = {};
     headers.forEach((h, colIdx) => {
-      item[h] = row[colIdx];
+      let val = row[colIdx];
+      if (val instanceof Date) {
+        val = val.toISOString();
+      } else if (val === null || val === undefined) {
+        val = '';
+      }
+      item[h] = val;
     });
 
     const st = normalizeKey(item.status);
@@ -458,7 +474,7 @@ function apiGetLeadDetails(leadId) {
   if (!leadId) throw new Error('lead_id is required');
 
   const book = getSpreadsheet();
-  const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+  const sheet = getQueueSheet(book);
   if (!sheet) throw new Error('Approval Queue sheet missing');
 
   const rows = sheet.getDataRange().getValues();
@@ -469,7 +485,10 @@ function apiGetLeadDetails(leadId) {
     if (String(rows[i][leadIdCol]).trim() === String(leadId).trim()) {
       const record = {};
       headers.forEach((h, col) => {
-        record[h] = rows[i][col];
+        let val = rows[i][col];
+        if (val instanceof Date) val = val.toISOString();
+        else if (val === null || val === undefined) val = '';
+        record[h] = val;
       });
       
       // Calculate validation errors using single authoritative validator
@@ -535,7 +554,7 @@ function apiSaveDraft(leadId, subject, emailBody) {
   lock.waitLock(15000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -603,7 +622,7 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
   lock.waitLock(15000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -739,7 +758,7 @@ function apiRejectLead(leadId, reason) {
   lock.waitLock(15000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -795,7 +814,7 @@ function apiBatchApproveLeads(leadIds) {
   lock.waitLock(30000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -913,7 +932,7 @@ function apiBatchApproveLeads(leadIds) {
 function apiApproveAllCompliantLeads() {
   const userEmail = assertAuthorizedAdmin();
   const book = getSpreadsheet();
-  const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+  const sheet = getQueueSheet(book);
   if (!sheet) throw new Error('Approval Queue sheet missing');
 
   const rows = sheet.getDataRange().getValues();
@@ -970,7 +989,7 @@ function apiBatchRejectLeads(leadIds, reason) {
   lock.waitLock(30000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -1026,7 +1045,7 @@ function apiMarkNeedsResearch(leadId, note) {
   lock.waitLock(15000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -1078,7 +1097,7 @@ function apiCancelApproval(leadId) {
   lock.waitLock(15000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -1244,7 +1263,10 @@ function apiGetCampaignRuns() {
   for (let i = rows.length - 1; i >= 1; i--) {
     const item = {};
     headers.forEach((h, col) => {
-      item[h] = rows[i][col];
+      let val = rows[i][col];
+      if (val instanceof Date) val = val.toISOString();
+      else if (val === null || val === undefined) val = '';
+      item[h] = val;
     });
     // Parse JSON fields if present
     if (item.shortage_reasons && typeof item.shortage_reasons === 'string') {
@@ -1273,7 +1295,12 @@ function apiGetSentAndReplies() {
       const headers = rows[0].map(h => normalizeKey(h));
       for (let i = rows.length - 1; i >= 1; i--) {
         const item = {};
-        headers.forEach((h, col) => { item[h] = rows[i][col]; });
+        headers.forEach((h, col) => {
+          let val = rows[i][col];
+          if (val instanceof Date) val = val.toISOString();
+          else if (val === null || val === undefined) val = '';
+          item[h] = val;
+        });
         item.source_tab = 'Email Activity';
         activities.push(item);
       }
@@ -1284,16 +1311,15 @@ function apiGetSentAndReplies() {
   if (sentSheet) {
     const rows = sentSheet.getDataRange().getValues();
     if (rows.length > 1) {
-      const headers = rows[0].map(h => normalizeKey(h));
       for (let i = rows.length - 1; i >= 1; i--) {
         const item = {
-          sent_at: rows[i][0],
-          recipient_email: rows[i][1],
-          subject: rows[i][2],
-          campaign: rows[i][3],
-          status: rows[i][4],
-          reply_status: rows[i][5],
-          gmail_thread_id: rows[i][6],
+          sent_at: rows[i][0] instanceof Date ? rows[i][0].toISOString() : String(rows[i][0] || ''),
+          recipient_email: String(rows[i][1] || ''),
+          subject: String(rows[i][2] || ''),
+          campaign: String(rows[i][3] || ''),
+          status: String(rows[i][4] || ''),
+          reply_status: String(rows[i][5] || ''),
+          gmail_thread_id: String(rows[i][6] || ''),
           source_tab: 'Historical Sent'
         };
         activities.push(item);

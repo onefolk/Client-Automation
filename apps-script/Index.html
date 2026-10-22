@@ -1983,6 +1983,11 @@
     async function loadOverviewData() {
       try {
         const data = await api.call('apiGetDashboardData');
+        if (!data) {
+          console.warn('[OneFolk Dashboard] apiGetDashboardData returned empty payload');
+          return;
+        }
+
         if (data.userEmail) {
           document.getElementById('headerUserEmail').textContent = data.userEmail;
         }
@@ -1996,43 +2001,62 @@
         const elBacklog = document.getElementById('kpi-secondaryBacklog');
         if (elBacklog) elBacklog.textContent = secondary;
 
-        document.getElementById('kpi-readyToReview').textContent = m.readyToReview || 0;
-        document.getElementById('kpi-needsResearch').textContent = m.needsResearch || 0;
-        document.getElementById('kpi-approved').textContent = m.approved || 0;
-        document.getElementById('kpi-sentToday').innerHTML = (m.sent || 0) + ' <span style="font-size:14px;color:var(--text-tertiary);font-family:var(--font-sans);">/ 50 cap</span>';
-        document.getElementById('kpi-bounced').textContent = m.bounced || 0;
-        document.getElementById('kpi-positiveReplies').textContent = m.positiveReplies || 0;
-        document.getElementById('kpi-meetingsBooked').textContent = m.meetingsBooked || 0;
-        document.getElementById('kpi-convertedClients').textContent = m.convertedClients || 0;
+        const elReady = document.getElementById('kpi-readyToReview');
+        if (elReady) elReady.textContent = m.readyToReview || 0;
+        const elNeeds = document.getElementById('kpi-needsResearch');
+        if (elNeeds) elNeeds.textContent = m.needsResearch || 0;
+        const elApproved = document.getElementById('kpi-approved');
+        if (elApproved) elApproved.textContent = m.approved || 0;
+        const elSentToday = document.getElementById('kpi-sentToday');
+        if (elSentToday) elSentToday.innerHTML = (m.sent || 0) + ' <span style="font-size:14px;color:var(--text-tertiary);font-family:var(--font-sans);">/ 50 cap</span>';
+        const elBounced = document.getElementById('kpi-bounced');
+        if (elBounced) elBounced.textContent = m.bounced || 0;
+        const elReplies = document.getElementById('kpi-positiveReplies');
+        if (elReplies) elReplies.textContent = m.positiveReplies || 0;
+        const elCalls = document.getElementById('kpi-meetingsBooked');
+        if (elCalls) elCalls.textContent = m.meetingsBooked || 0;
+        const elConverted = document.getElementById('kpi-convertedClients');
+        if (elConverted) elConverted.textContent = m.convertedClients || 0;
 
         const target = m.targetDailyGoal || 10;
         const pct = Math.min(100, Math.round((top10 / target) * 100));
-        document.getElementById('targetRatio').textContent = top10 + ' / ' + target;
-        document.getElementById('targetProgressBar').style.width = pct + '%';
-        document.getElementById('navQueueBadge').textContent = top10;
+        const elRatio = document.getElementById('targetRatio');
+        if (elRatio) elRatio.textContent = top10 + ' / ' + target;
+        const elBar = document.getElementById('targetProgressBar');
+        if (elBar) elBar.style.width = pct + '%';
+        const elBadge = document.getElementById('navQueueBadge');
+        if (elBadge) elBadge.textContent = top10;
 
         const sys = data.system || {};
-        document.getElementById('overviewLastSuccess').textContent = sys.lastSuccess || 'None';
-        document.getElementById('overviewMailQuota').textContent = (sys.remainingMailQuota || 0) + ' remaining';
+        const elLastSuccess = document.getElementById('overviewLastSuccess');
+        if (elLastSuccess) elLastSuccess.textContent = sys.lastSuccess || 'None';
+        const elMailQuota = document.getElementById('overviewMailQuota');
+        if (elMailQuota) elMailQuota.textContent = (sys.remainingMailQuota || 0) + ' remaining';
 
         const shortageCount = top10 < 10 ? (10 - top10) : 0;
-        if (shortageCount > 0) {
-          document.getElementById('overviewShortage').innerHTML = `<span style="color:var(--color-warning);">${shortageCount} leads needed for morning target</span>`;
-        } else {
-          document.getElementById('overviewShortage').innerHTML = `<span style="color:var(--color-success);">Target met (≥10 qualified)</span>`;
+        const elShortage = document.getElementById('overviewShortage');
+        if (elShortage) {
+          if (shortageCount > 0) {
+            elShortage.innerHTML = `<span style="color:var(--color-warning);">${shortageCount} leads needed for morning target</span>`;
+          } else {
+            elShortage.innerHTML = `<span style="color:var(--color-success);">Target met (≥10 qualified)</span>`;
+          }
         }
 
+        const elSendStatus = document.getElementById('headerSendingStatus');
+        const elLockDot = document.querySelector('.status-lock-dot');
         if (sys.emergencyStopActive) {
-          document.getElementById('headerSendingStatus').textContent = 'EMERGENCY STOP (HALTED)';
-          document.querySelector('.status-lock-dot').style.background = '#DC2626';
+          if (elSendStatus) elSendStatus.textContent = 'EMERGENCY STOP (HALTED)';
+          if (elLockDot) elLockDot.style.background = '#DC2626';
         } else if (!sys.sendingLocked && sys.enableSending === 'YES') {
-          document.getElementById('headerSendingStatus').textContent = 'SENDING ACTIVE';
-          document.querySelector('.status-lock-dot').style.background = '#15803D';
+          if (elSendStatus) elSendStatus.textContent = 'SENDING ACTIVE';
+          if (elLockDot) elLockDot.style.background = '#15803D';
         } else {
-          document.getElementById('headerSendingStatus').textContent = 'SENDING LOCKED (OFF)';
-          document.querySelector('.status-lock-dot').style.background = '#D97706';
+          if (elSendStatus) elSendStatus.textContent = 'SENDING LOCKED (OFF)';
+          if (elLockDot) elLockDot.style.background = '#D97706';
         }
       } catch (err) {
+        console.error('Error loading overview:', err);
         showToast('Error loading overview: ' + err, 'error');
       }
     }
@@ -2042,7 +2066,9 @@
     // -------------------------------------------------------------------------
     async function loadQueueData() {
       const tbody = document.getElementById('leadsTableBody');
-      tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><div class="spinner"></div><div style="margin-top:10px;">Loading approval queue...</div></td></tr>';
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><div class="spinner"></div><div style="margin-top:10px;">Loading approval queue...</div></td></tr>';
+      }
 
       try {
         const res = await api.call('apiGetApprovalQueue', {
@@ -2052,14 +2078,24 @@
           pageSize: state.queue.pageSize
         });
 
-        state.queue.leads = res.leads || [];
-        state.queue.total = res.total || 0;
+        if (!res) {
+          state.queue.leads = [];
+          state.queue.total = 0;
+          renderQueueTable();
+          renderQueuePagination({ total: 0, page: 1, pageSize: state.queue.pageSize, totalPages: 1 });
+          return;
+        }
+
+        state.queue.leads = Array.isArray(res.leads) ? res.leads : [];
+        state.queue.total = Number(res.total || 0);
         state.queue.selectedLeadIds.clear();
 
         renderQueueTable();
         renderQueuePagination(res);
       } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state" style="color:var(--color-danger);">' + escapeHtml(String(err)) + '</td></tr>';
+        if (tbody) {
+          tbody.innerHTML = '<tr><td colspan="9" class="empty-state" style="color:var(--color-danger);">' + escapeHtml(String(err)) + '</td></tr>';
+        }
         showToast('Error: ' + err, 'error');
       }
     }
@@ -2290,11 +2326,19 @@
     }
 
     function renderQueuePagination(res) {
-      const start = res.total === 0 ? 0 : (res.page - 1) * res.pageSize + 1;
-      const end = Math.min(res.total, res.page * res.pageSize);
-      document.getElementById('queuePaginationInfo').textContent = `Showing ${start}–${end} of ${res.total} records`;
-      document.getElementById('btnPrevPage').disabled = (res.page <= 1);
-      document.getElementById('btnNextPage').disabled = (res.page >= res.totalPages);
+      if (!res) return;
+      const total = Number(res.total || 0);
+      const page = Math.max(1, Number(res.page || 1));
+      const pageSize = Math.max(1, Number(res.pageSize || 25));
+      const totalPages = Math.max(1, Number(res.totalPages || 1));
+      const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+      const end = Math.min(total, page * pageSize);
+      const infoEl = document.getElementById('queuePaginationInfo');
+      if (infoEl) infoEl.textContent = `Showing ${start}–${end} of ${total} records`;
+      const prevBtn = document.getElementById('btnPrevPage');
+      if (prevBtn) prevBtn.disabled = (page <= 1);
+      const nextBtn = document.getElementById('btnNextPage');
+      if (nextBtn) nextBtn.disabled = (page >= totalPages);
     }
 
     function changeQueuePage(delta) {
