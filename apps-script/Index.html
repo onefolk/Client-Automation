@@ -882,6 +882,39 @@
       font-weight: 600;
       color: var(--text-main);
     }
+    .email-mockup-card.dark-theme {
+      background: #1E1F22 !important;
+      border-color: #33363D !important;
+      color: #E3E3E3 !important;
+    }
+    .email-mockup-card.dark-theme .email-mockup-top-chrome {
+      background: #17181A !important;
+      border-bottom-color: #33363D !important;
+    }
+    .email-mockup-card.dark-theme .sender-name {
+      color: #FFFFFF !important;
+    }
+    .email-mockup-card.dark-theme .sender-email-address {
+      color: #9CA3AF !important;
+    }
+    .email-mockup-card.dark-theme .email-preview-subject-line {
+      color: #FFFFFF !important;
+      border-bottom-color: #33363D !important;
+    }
+    .email-mockup-card.dark-theme .email-preview-body-content {
+      color: #E3E3E3 !important;
+    }
+    .email-mockup-card.dark-theme .email-preview-body-content a {
+      color: #93C5FD !important;
+    }
+    .email-mockup-card.dark-theme .email-mockup-signature {
+      background: #17181A !important;
+      border-top-color: #33363D !important;
+      color: #9CA3AF !important;
+    }
+    .email-mockup-card.dark-theme .signature-name {
+      color: #FFFFFF !important;
+    }
 
     /* -------------------------------------------------------------------------
        EDIT DRAFT PANE (When toggled to Edit)
@@ -1542,19 +1575,27 @@
 
         <!-- Right Column: Live Email Preview & Editor -->
         <div class="email-workspace-column">
-          <!-- View Switcher: Live Email Preview vs Edit Draft -->
+          <!-- View Switcher: Live Split View, Full Preview, or Editor Only -->
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div class="view-toggle-bar">
-              <button class="view-toggle-btn active" id="btnTogglePreview" onclick="setModalViewMode('preview')">
-                ✉ Live Email Preview
+              <button class="view-toggle-btn active" id="btnToggleSplit" onclick="setModalViewMode('split')">
+                ◫ Live Split View
+              </button>
+              <button class="view-toggle-btn" id="btnTogglePreview" onclick="setModalViewMode('preview')">
+                ✉ Full Gmail Preview
               </button>
               <button class="view-toggle-btn" id="btnToggleEditor" onclick="setModalViewMode('editor')">
-                ✎ Edit Subject & Body
+                ✎ Editor Only
               </button>
             </div>
-            <span style="font-size: 12px; color: var(--text-secondary);" id="previewModeHint">
-              Exact recipient view
-            </span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button class="view-toggle-btn" id="btnTogglePreviewTheme" onclick="togglePreviewDarkTheme()" title="Switch between Gmail Light & Dark Theme" style="padding: 4px 10px; font-size: 11px;">
+                🌙 Dark Mode
+              </button>
+              <span style="font-size: 12px; color: var(--text-secondary);" id="previewModeHint">
+                Live editor & preview
+              </span>
+            </div>
           </div>
 
           <!-- VIEW A: REALISTIC GMAIL-STYLE LIVE EMAIL PREVIEW -->
@@ -1729,24 +1770,42 @@
 
     function setModalViewMode(mode) {
       state.modalViewMode = mode;
+      const btnSplit = document.getElementById('btnToggleSplit');
       const btnPrev = document.getElementById('btnTogglePreview');
       const btnEdit = document.getElementById('btnToggleEditor');
       const previewCard = document.getElementById('emailPreviewContainer');
       const editorForm = document.getElementById('editorFormContainer');
       const hint = document.getElementById('previewModeHint');
 
+      [btnSplit, btnPrev, btnEdit].forEach(b => { if (b) b.classList.remove('active'); });
+
       if (mode === 'preview') {
-        btnPrev.classList.add('active');
-        btnEdit.classList.remove('active');
+        if (btnPrev) btnPrev.classList.add('active');
         previewCard.style.display = 'flex';
-        editorForm.classList.remove('active');
+        editorForm.style.display = 'none';
         hint.textContent = 'Exact recipient view';
-      } else {
-        btnEdit.classList.add('active');
-        btnPrev.classList.remove('active');
+      } else if (mode === 'editor') {
+        if (btnEdit) btnEdit.classList.add('active');
         previewCard.style.display = 'none';
-        editorForm.classList.add('active');
+        editorForm.style.display = 'flex';
         hint.textContent = 'Editing draft';
+      } else { // 'split' is default!
+        if (btnSplit) btnSplit.classList.add('active');
+        previewCard.style.display = 'flex';
+        editorForm.style.display = 'flex';
+        hint.textContent = 'Live editor & preview';
+      }
+    }
+
+    function togglePreviewDarkTheme() {
+      const card = document.getElementById('emailPreviewContainer');
+      const btn = document.getElementById('btnTogglePreviewTheme');
+      if (!card) return;
+      card.classList.toggle('dark-theme');
+      if (card.classList.contains('dark-theme')) {
+        btn.textContent = '☀️ Light Mode';
+      } else {
+        btn.textContent = '🌙 Dark Mode';
       }
     }
 
@@ -1957,8 +2016,8 @@
         document.getElementById('editorSubject').value = lead.subject || '';
         document.getElementById('editorBody').value = lead.email_body || '';
 
-        // Default to live email preview view
-        setModalViewMode('preview');
+        // Default to live split view (both editor and live preview visible)
+        setModalViewMode('split');
         onDraftChange();
 
         document.getElementById('reviewModal').classList.add('open');
