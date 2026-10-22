@@ -1242,15 +1242,14 @@
     <!-- SECTION 1: OVERVIEW -->
     <div id="tab-overview" class="tab-content active">
       <div class="page-lead">
-        <h1 class="page-title">Outreach Command Center</h1>
-        <p class="page-subtitle">Live pipeline status, prospect qualification reserves, and morning queue target.</p>
+        <h1 class="page-title">Overview</h1>
       </div>
 
       <!-- Target Banner -->
       <div class="target-banner">
         <div class="target-info">
           <h3>Morning Target: 50 Grounded Cold Email Drafts</h3>
-          <p id="targetSubtext">Zero-hallucination target backed by authentic first-party website observations.</p>
+          <p id="targetSubtext">Daily review goal</p>
         </div>
         <div class="target-progress-box">
           <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600;">
@@ -1268,42 +1267,34 @@
         <div class="kpi-card">
           <div class="kpi-title">Ready to Review</div>
           <div class="kpi-value" id="kpi-readyToReview">0</div>
-          <div class="kpi-meta">Awaiting human review</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-title">Needs Research</div>
           <div class="kpi-value" id="kpi-needsResearch">0</div>
-          <div class="kpi-meta">Evidence or contact gap</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-title">Approved</div>
           <div class="kpi-value" id="kpi-approved">0</div>
-          <div class="kpi-meta">Authorized for dispatch</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-title">Sent Today</div>
-          <div class="kpi-value" id="kpi-sentToday">0 <span style="font-size: 14px; color: var(--text-tertiary); font-family: var(--font-sans);">/ 50 cap</span></div>
-          <div class="kpi-meta">IST Daily Cap: 50</div>
+          <div class="kpi-value" id="kpi-sentToday">0 <span style="font-size: 14px; color: var(--text-tertiary); font-family: var(--font-sans);">/ 50</span></div>
         </div>
         <div class="kpi-card">
           <div class="kpi-title">Bounced</div>
           <div class="kpi-value" id="kpi-bounced">0</div>
-          <div class="kpi-meta">Delivery status notices</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-title">Positive Replies</div>
           <div class="kpi-value" id="kpi-positiveReplies">0</div>
-          <div class="kpi-meta">Inquiries & meetings</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-title">Meetings Booked</div>
           <div class="kpi-value" id="kpi-meetingsBooked">0</div>
-          <div class="kpi-meta">Commercial pipeline</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-title">Clients Converted</div>
           <div class="kpi-value" id="kpi-convertedClients">0</div>
-          <div class="kpi-meta">Signed engagements</div>
         </div>
       </div>
 
@@ -1312,15 +1303,15 @@
         <h4 style="font-family: var(--font-serif); font-size: 18px; margin-bottom: 14px;">Automation Heartbeat</h4>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
           <div>
-            <div style="color: var(--text-tertiary); font-size: 11px; font-weight: 600; text-transform: uppercase;">Last Successful Cloud Run</div>
+            <div style="color: var(--text-tertiary); font-size: 11px; font-weight: 600; text-transform: uppercase;">Last Run</div>
             <div id="overviewLastSuccess" style="font-size: 14px; font-weight: 600; margin-top: 4px;">Loading...</div>
           </div>
           <div>
-            <div style="color: var(--text-tertiary); font-size: 11px; font-weight: 600; text-transform: uppercase;">GmailApp Remaining Quota</div>
+            <div style="color: var(--text-tertiary); font-size: 11px; font-weight: 600; text-transform: uppercase;">GmailApp Quota</div>
             <div id="overviewMailQuota" style="font-size: 14px; font-weight: 600; margin-top: 4px;">Loading...</div>
           </div>
           <div>
-            <div style="color: var(--text-tertiary); font-size: 11px; font-weight: 600; text-transform: uppercase;">Queue Shortfall</div>
+            <div style="color: var(--text-tertiary); font-size: 11px; font-weight: 600; text-transform: uppercase;">Queue Gap</div>
             <div id="overviewShortage" style="font-size: 14px; font-weight: 600; margin-top: 4px;">Loading...</div>
           </div>
         </div>
@@ -1331,7 +1322,6 @@
     <div id="tab-queue" class="tab-content">
       <div class="page-lead">
         <h1 class="page-title">Approval Queue</h1>
-        <p class="page-subtitle">Review grounded cold drafts, inspect first-party evidence, and authorize emails.</p>
       </div>
 
       <div class="filter-bar">
@@ -1387,7 +1377,6 @@
     <div id="tab-campaigns" class="tab-content">
       <div class="page-lead">
         <h1 class="page-title">Campaign Runs</h1>
-        <p class="page-subtitle">Verifiable log of scheduled overnight GitHub Actions executions.</p>
       </div>
 
       <div class="leads-table-container">
@@ -1414,8 +1403,7 @@
     <!-- SECTION 4: SENT & REPLIES -->
     <div id="tab-replies" class="tab-content">
       <div class="page-lead">
-        <h1 class="page-title">Sent Outreach & Inbox Feedback</h1>
-        <p class="page-subtitle">Track sent messages, delivery confirmations, opt-outs, and interested replies.</p>
+        <h1 class="page-title">Sent Outreach</h1>
       </div>
 
       <div class="leads-table-container">
@@ -1440,8 +1428,7 @@
     <!-- SECTION 5: SETTINGS & HEALTH -->
     <div id="tab-health" class="tab-content">
       <div class="page-lead">
-        <h1 class="page-title">Settings & System Health</h1>
-        <p class="page-subtitle">Safety locks, sending quotas, API allowances, and authorized access credentials.</p>
+        <h1 class="page-title">Settings & Health</h1>
       </div>
 
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
@@ -1517,34 +1504,34 @@
       <div class="modal-body">
         <!-- Left Column: Grounded Evidence & Dossier -->
         <div class="dossier-column">
-          <div class="dossier-title">01 · Grounded Technical Dossier</div>
+          <div class="dossier-title">Prospect Dossier</div>
 
           <div class="dossier-field">
-            <span class="dossier-label">Official Website</span>
+            <span class="dossier-label">Website</span>
             <div>
               <a href="#" target="_blank" id="modalWebsiteLink" class="lead-link">https://example.com</a>
             </div>
           </div>
 
           <div class="dossier-field">
-            <span class="dossier-label">Verified Contact Email</span>
+            <span class="dossier-label">Contact Email</span>
             <div id="modalEmailProvenance" style="font-size: 13px; font-weight: 500;">email@example.com</div>
           </div>
 
           <div class="dossier-field">
-            <span class="dossier-label">Verified Website Observation</span>
+            <span class="dossier-label">Observation</span>
             <div class="observation-quote-box" id="modalObservation">Observation text</div>
           </div>
 
           <div class="dossier-field">
-            <span class="dossier-label">Evidence Source URL</span>
+            <span class="dossier-label">Source URL</span>
             <div>
               <a href="#" target="_blank" id="modalObservationSourceUrl" class="lead-link" style="font-size: 12px;">View source page ↗</a>
             </div>
           </div>
 
           <div class="dossier-field">
-            <span class="dossier-label">02 · OneFolk Truthful Proof Reference</span>
+            <span class="dossier-label">Portfolio Proof</span>
             <div class="proof-reference-card">
               <strong style="font-size: 13px; color: var(--text-main);">"Our team designed and built the OneFolk website."</strong>
               <div style="margin-top: 4px;">
@@ -1555,7 +1542,7 @@
 
           <!-- Alternative Openings Palette on Left Column -->
           <div class="dossier-field">
-            <span class="dossier-label">03 · Alternative Grounded Openings</span>
+            <span class="dossier-label">Alternative Openings</span>
             <div class="alt-opening-entry">
               <span id="modalAltOpening1" style="font-family: var(--font-serif); font-size: 13px; color: var(--text-main);">Opening 1</span>
               <button class="btn-apply-opening" onclick="applyAltOpening(1)">Apply ↗</button>
@@ -1567,7 +1554,7 @@
           </div>
 
           <div class="dossier-field">
-            <span class="dossier-label">Verification & Freshness</span>
+            <span class="dossier-label">Verification</span>
             <div id="modalVerificationMeta" style="font-size: 12px; color: var(--text-tertiary);">
               Verified 2026-10-21
             </div>
@@ -1580,22 +1567,19 @@
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div class="view-toggle-bar">
               <button class="view-toggle-btn active" id="btnToggleSplit" onclick="setModalViewMode('split')">
-                ◫ Live Split View
+                ◫ Split View
               </button>
               <button class="view-toggle-btn" id="btnTogglePreview" onclick="setModalViewMode('preview')">
-                ✉ Full Gmail Preview
+                ✉ Gmail Preview
               </button>
               <button class="view-toggle-btn" id="btnToggleEditor" onclick="setModalViewMode('editor')">
-                ✎ Editor Only
+                ✎ Editor
               </button>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
               <button class="view-toggle-btn" id="btnTogglePreviewTheme" onclick="togglePreviewDarkTheme()" title="Switch between Gmail Light & Dark Theme" style="padding: 4px 10px; font-size: 11px;">
                 🌙 Dark Mode
               </button>
-              <span style="font-size: 12px; color: var(--text-secondary);" id="previewModeHint">
-                Live editor & preview
-              </span>
             </div>
           </div>
 
@@ -1644,7 +1628,7 @@
 
             <div class="form-group">
               <div class="form-label-row">
-                <label for="editorBody" class="form-label">Body Text (Exactly 3 Paragraphs &lt; 70 Words)</label>
+                <label for="editorBody" class="form-label">Body Text</label>
               </div>
               <textarea id="editorBody" class="editor-input" oninput="onDraftChange()"></textarea>
             </div>
@@ -1678,7 +1662,7 @@
       <div class="modal-footer">
         <div class="modal-footer-left">
           <button class="btn-paper" onclick="markNeedsResearchAction()" id="btnModalNeedsResearch">
-            Mark Needs Research
+            Needs Research
           </button>
           <button class="btn-modal-reject" onclick="rejectDraftAction()" id="btnModalReject">
             Reject Draft
@@ -1687,10 +1671,10 @@
 
         <div class="modal-footer-right">
           <button class="btn-modal-save" onclick="saveDraftAction()" id="btnModalSave">
-            Save Changes
+            Save Draft
           </button>
           <button class="btn-modal-approve" onclick="approveDraftAction()" id="btnModalApprove">
-            Approve & Authorize ↗
+            Approve ↗
           </button>
         </div>
       </div>
@@ -1776,7 +1760,6 @@
       const btnEdit = document.getElementById('btnToggleEditor');
       const previewCard = document.getElementById('emailPreviewContainer');
       const editorForm = document.getElementById('editorFormContainer');
-      const hint = document.getElementById('previewModeHint');
 
       [btnSplit, btnPrev, btnEdit].forEach(b => { if (b) b.classList.remove('active'); });
 
@@ -1784,17 +1767,14 @@
         if (btnPrev) btnPrev.classList.add('active');
         previewCard.style.display = 'flex';
         editorForm.style.display = 'none';
-        hint.textContent = 'Exact recipient view';
       } else if (mode === 'editor') {
         if (btnEdit) btnEdit.classList.add('active');
         previewCard.style.display = 'none';
         editorForm.style.display = 'flex';
-        hint.textContent = 'Editing draft';
       } else { // 'split' is default!
         if (btnSplit) btnSplit.classList.add('active');
         previewCard.style.display = 'flex';
         editorForm.style.display = 'flex';
-        hint.textContent = 'Live editor & preview';
       }
     }
 
