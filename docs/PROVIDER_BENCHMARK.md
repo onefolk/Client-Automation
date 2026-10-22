@@ -33,7 +33,7 @@ gate is a deployment setting, not a replacement for individual human approvals.
   renders already-authorized HTML with browser networking disabled. This can
   execute inline JS but cannot fetch external scripts or API data. Its actual
   incremental quality and cost must be measured before promotion.
-* **Truemail 4.0.0**, MIT. Ruby >=2.5, simpleidn and Ruby3.1+ net-smtp dependencies; tested with Ruby3.3.
+* **Truemail 4.0.0**, MIT. Ruby >=2.5, simpleidn dependency; tested with Ruby3.3.
   DNS/MX mode only, with bounded timeouts and no SMTP mailbox probes. Python's
   official-domain and source-provenance rules remain mandatory. Neither provider
   proves mailbox existence or inbox delivery. Promotion awaits measured benefit.
@@ -48,7 +48,7 @@ binary smoke test does not establish a successful source build.
 ## Reproducible cloud experiment
 
 `provider_benchmark.yml` runs only on the production fork's main branch, weekly
-Thursday at 08:23 UTC (13:53 IST). Manual dispatch is diagnostic only. Reports
+Thursday at 08:37 UTC (14:07 IST). Manual dispatch is diagnostic only. Reports
 record the actual GitHub event, run ID, commit and timestamps. A schedule can be
 delayed or skipped by GitHub; the presence of cron is not proof of execution.
 
