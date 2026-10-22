@@ -230,6 +230,29 @@ function isValidApprovedDraft(v, headerMap) {
 }
 
 /**
+ * 1-Click Helper to enable sending directly from Apps Script Editor.
+ * In the toolbar dropdown, select 'enableProductionSendingNow' and click Run.
+ */
+function enableProductionSendingNow() {
+  setProp('ENABLE_SENDING', 'YES');
+  setProp('EMERGENCY_STOP_ACTIVE', 'NO');
+  if (!getProp('ACTIVATION_TIMESTAMP')) {
+    setProp('ACTIVATION_TIMESTAMP', new Date().toISOString());
+  }
+  Logger.log('SUCCESS: ENABLE_SENDING is now set to YES.');
+  Logger.log('Activation Timestamp: ' + getProp('ACTIVATION_TIMESTAMP'));
+  Logger.log('You can now run "approvedSender" to dispatch newly approved emails.');
+}
+
+/**
+ * 1-Click Helper to disable sending directly from Apps Script Editor.
+ */
+function disableProductionSendingNow() {
+  setProp('ENABLE_SENDING', 'NO');
+  Logger.log('Sending is now DISABLED (ENABLE_SENDING = NO).');
+}
+
+/**
  * Core Approved Sender: Dispatches up to daily budget through authorized Gmail.
  */
 function approvedSender() {
