@@ -928,7 +928,7 @@ function apiApproveAllCompliantLeads() {
 
   for (let i = 1; i < rows.length; i++) {
     const st = normalizeKey(rows[i][statusCol]);
-    if (st !== 'awaiting_review' && st !== 'drafted' && st !== 'needs_review') continue;
+    if (st !== 'awaiting_review' && st !== 'drafted' && st !== 'needs_research' && st !== 'needs_review') continue;
 
     const email = normalizeKey(rows[i][emailCol]);
     if (!email || blocked.has(email)) continue;
