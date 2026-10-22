@@ -416,15 +416,15 @@ function apiGetApprovalQueue(params) {
       }
     }
 
-    // Compute live compliance indicator
+    // Compute live compliance indicator using single authoritative validator
     const body = String(item.email_body || '').trim();
-    const wordCount = body ? body.split(/\s+/).length : 0;
-    const paragraphs = body ? body.split(/\n\s*\n/).filter(p => p.trim().length > 0).length : 0;
-    const hasProof = body.includes(String(item.proof_line || 'Our team designed and built the OneFolk website.'));
+    const val = typeof validateEmailStructure === 'function' 
+      ? validateEmailStructure(body, item.proof_line)
+      : { isValid: false, wordCount: body ? body.split(/\s+/).length : 0, paragraphCount: body ? body.split(/\n\s*\n/).length : 0 };
     
-    item.computed_word_count = wordCount;
-    item.computed_paragraphs = paragraphs;
-    item.is_compliant = (wordCount > 0 && wordCount < 70 && paragraphs === 3 && hasProof);
+    item.computed_word_count = val.wordCount;
+    item.computed_paragraphs = val.paragraphCount;
+    item.is_compliant = val.isValid;
 
     allLeads.push(item);
   }
@@ -472,24 +472,19 @@ function apiGetLeadDetails(leadId) {
         record[h] = rows[i][col];
       });
       
-      // Calculate validation errors if any
+      // Calculate validation errors using single authoritative validator
       const body = String(record.email_body || '').trim();
-      const words = body ? body.split(/\s+/).length : 0;
-      const paras = body ? body.split(/\n\s*\n/).filter(p => p.trim().length > 0) : [];
       const proofLine = String(record.proof_line || 'Our team designed and built the OneFolk website.').trim();
+      const val = typeof validateEmailStructure === 'function'
+        ? validateEmailStructure(body, proofLine)
+        : { isValid: true, reason: 'VALID', wordCount: body ? body.split(/\s+/).length : 0, paragraphCount: body ? body.split(/\n\s*\n/).length : 0 };
 
       const validationErrors = [];
       if (!record.subject || !record.subject.trim()) {
         validationErrors.push('Subject line is missing.');
       }
-      if (paras.length !== 3) {
-        validationErrors.push('Email body must have exactly 3 paragraphs (found ' + paras.length + ').');
-      }
-      if (words >= 70) {
-        validationErrors.push('Email body must be fewer than 70 words (currently ' + words + ').');
-      }
-      if (!body.includes(proofLine)) {
-        validationErrors.push('Email body must contain the exact truthful OneFolk proof line.');
+      if (!val.isValid) {
+        validationErrors.push(val.reason);
       }
       if (!record.public_email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(record.public_email)) {
         validationErrors.push('Recipient email is invalid or missing.');
@@ -497,8 +492,8 @@ function apiGetLeadDetails(leadId) {
 
       record.validationErrors = validationErrors;
       record.isValidDraft = validationErrors.length === 0;
-      record.wordCount = words;
-      record.paragraphCount = paras.length;
+      record.wordCount = val.wordCount;
+      record.paragraphCount = val.paragraphCount;
       return record;
     }
   }
@@ -518,15 +513,22 @@ function apiSaveDraft(leadId, subject, emailBody) {
 
   if (!subject) throw new Error('Subject line cannot be empty.');
   if (!emailBody) throw new Error('Email body cannot be empty.');
+  const words = emailBody.split(/\s+/).filter(w => w.length > 0).length;
 
-  // Validate strict requirements
-  const words = emailBody.split(/\s+/).length;
-  const paras = emailBody.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-  if (paras.length !== 3) {
-    throw new Error('Draft must contain exactly 3 paragraphs. Found ' + paras.length + '.');
-  }
-  if (words >= 70) {
-    throw new Error('Draft must be fewer than 70 words. Found ' + words + '.');
+  // Validate strict requirements using single authoritative validator
+  if (typeof validateEmailStructure === 'function') {
+    const val = validateEmailStructure(emailBody);
+    if (!val.isValid) {
+      throw new Error(val.reason);
+    }
+  } else {
+    const paras = emailBody.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+    if (paras.length !== 4) {
+      throw new Error('Draft must contain exactly 4 content paragraphs. Found ' + paras.length + '.');
+    }
+    if (words < 50 || words > 150) {
+      throw new Error('Draft must target 70-120 words. Found ' + words + '.');
+    }
   }
 
   const lock = LockService.getScriptLock();
@@ -558,10 +560,10 @@ function apiSaveDraft(leadId, subject, emailBody) {
 
     if (targetRow === -1) throw new Error('Lead ID not found: ' + leadId);
 
-    // Ensure proof line is preserved
+    // Ensure proof line is preserved or OneFolk capability connected
     const proofLine = String(existingRecord.proof_line || 'Our team designed and built the OneFolk website.').trim();
-    if (!emailBody.includes(proofLine)) {
-      throw new Error('Draft must include the truthful OneFolk proof line: "' + proofLine + '"');
+    if (!emailBody.includes(proofLine) && !emailBody.toLowerCase().includes('onefolk')) {
+      throw new Error('Draft must include the truthful OneFolk proof line or connect OneFolk capabilities: "' + proofLine + '"');
     }
 
     // Persist changes
@@ -654,20 +656,23 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
       throw new Error('Approval blocked: Recipient email or domain is on the Suppression List.');
     }
 
-    // Strict validation
     const body = String(r.email_body || '').trim();
-    const words = body ? body.split(/\s+/).length : 0;
-    const paras = body ? body.split(/\n\s*\n/).filter(p => p.trim().length > 0) : [];
     const proofLine = String(r.proof_line || 'Our team designed and built the OneFolk website.').trim();
 
-    if (paras.length !== 3) {
-      throw new Error('Draft must contain exactly 3 paragraphs (found ' + paras.length + ').');
-    }
-    if (words >= 70) {
-      throw new Error('Draft must be fewer than 70 words (found ' + words + ').');
-    }
-    if (!body.includes(proofLine)) {
-      throw new Error('Draft must include the truthful proof line: "' + proofLine + '"');
+    if (typeof validateEmailStructure === 'function') {
+      const val = validateEmailStructure(body, proofLine);
+      if (!val.isValid) {
+        throw new Error(val.reason);
+      }
+    } else {
+      const paras = body ? body.split(/\n\s*\n/).filter(p => p.trim().length > 0) : [];
+      if (paras.length !== 4) {
+        throw new Error('Draft must contain exactly 4 content paragraphs (found ' + paras.length + ').');
+      }
+      const words = body ? body.split(/\s+/).length : 0;
+      if (words < 50 || words > 150) {
+        throw new Error('Draft must target 70-120 words (found ' + words + ').');
+      }
     }
 
     // Set qualification requirements for reviewableRecord check

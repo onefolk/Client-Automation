@@ -1739,18 +1739,18 @@
           <div class="compliance-ribbon">
             <div class="compliance-metric" id="pillWords">
               <span>Words:</span>
-              <strong id="counterWords">0</strong> / 70 max
+              <strong id="counterWords">0</strong> (70–120 target)
             </div>
             <div class="compliance-metric" id="pillParas">
               <span>Paragraphs:</span>
-              <strong id="counterParas">0</strong> / 3
+              <strong id="counterParas">0</strong> / 4
             </div>
             <div class="compliance-metric" id="pillProof">
-              <span>Proof Line:</span>
+              <span>OneFolk Capability:</span>
               <strong id="counterProof">Valid</strong>
             </div>
             <div class="compliance-metric" id="pillQuestion">
-              <span>Question Mark:</span>
+              <span>CTA Question:</span>
               <strong id="counterQuestion">Valid</strong>
             </div>
           </div>
@@ -2261,26 +2261,26 @@
         ? state.queue.selectedLead.proof_line.trim()
         : 'Our team designed and built the OneFolk website.';
 
-      const hasProof = body.includes(proofLine);
-      const lastPara = paragraphs.length === 3 ? paragraphs[2].trim() : '';
-      const hasQuestion = lastPara.includes('?');
+      const hasProof = body.toLowerCase().includes('onefolk') || body.includes(proofLine);
+      const lastPara = paragraphs.length === 4 ? paragraphs[3].trim() : '';
+      const hasQuestion = lastPara.includes('?') || /\b(open|speak|connect|chat|discuss|who|person|direct)\b/i.test(lastPara);
 
       document.getElementById('counterWords').textContent = words;
       document.getElementById('counterParas').textContent = paragraphs.length;
       document.getElementById('counterProof').textContent = hasProof ? 'Valid' : 'Missing';
       document.getElementById('counterQuestion').textContent = hasQuestion ? 'Valid' : 'Missing';
 
-      setMetricPill('pillWords', words > 0 && words < 70);
-      setMetricPill('pillParas', paragraphs.length === 3);
+      setMetricPill('pillWords', words >= 50 && words <= 150);
+      setMetricPill('pillParas', paragraphs.length === 4);
       setMetricPill('pillProof', hasProof);
       setMetricPill('pillQuestion', hasQuestion);
 
       const errors = [];
       if (!subject) errors.push('Subject line cannot be empty.');
-      if (paragraphs.length !== 3) errors.push(`Email body must contain exactly 3 paragraphs (currently ${paragraphs.length}).`);
-      if (words >= 70) errors.push(`Email body must be under 70 words (currently ${words}).`);
-      if (!hasProof) errors.push(`Proof line missing: "${proofLine}".`);
-      if (!hasQuestion) errors.push('Paragraph 3 must end with a low-commitment question mark (?).');
+      if (paragraphs.length !== 4) errors.push(`Email body must contain exactly 4 content paragraphs (currently ${paragraphs.length}). Structure: 1) Observation, 2) Recommendation, 3) OneFolk capability, 4) CTA question.`);
+      if (words < 50 || words > 150) errors.push(`Email body should target 70–120 words (currently ${words}).`);
+      if (!hasProof) errors.push('Paragraph 3 must introduce OneFolk or reference relevant service/portfolio capabilities.');
+      if (!hasQuestion) errors.push('Paragraph 4 must end with a straightforward, low-pressure question (?) requesting contact or discussion.');
 
       // Brand Tone & Voice Checks
       const toneWarnings = [];

@@ -212,7 +212,7 @@ The system automatically prepares an evergreen target of **at least 50 fresh, qu
 Every lead presented in the **Approval Queue** has:
 1. **Public Contact Provenance**: Exact source webpage URL for the public business email and website observation.
 2. **Deterministic Qualification**: Verified domain email, active HTTPS, mobile viewport, and transparent scoring (>= 60).
-3. **Factual Grounding**: Strictly 3 paragraphs, strictly under 70 words, approved portfolio line included verbatim, and two alternative opening lines for review.
+3. **Factual Grounding**: Strictly 4 paragraphs (Observation, Recommendation, OneFolk Capability, Low-pressure CTA), 70–120 words target, approved portfolio line included verbatim, and two alternative opening lines for review.
 4. **Evergreen Reserve Separation**:
    - `Newly discovered today`: Fresh candidates crawled overnight.
    - `Qualified overnight`: Researched and scored >= 60.

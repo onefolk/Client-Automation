@@ -13,7 +13,13 @@ def valid_record(index=1):
         proof_project='OneFolk website', proof_line='Our team designed and built the OneFolk website.',
         proof_url='https://onefolk.in/work',proof_verified='YES',qualification_status='QUALIFIED',
         mail_domain_status='MX_VALID_MAILBOX_UNCONFIRMED',last_verified_at=datetime.now(timezone.utc).isoformat(),
-        subject='Application workflow',email_body='Your site offers a downloadable application form.\n\nOur team designed and built the OneFolk website.\n\nWould an online submission workflow help?',
+        subject='Application workflow',
+        email_body=(
+            'We noticed that your admissions portal currently provides a downloadable application form without an interactive online submission workflow.\n\n'
+            'Implementing a direct digital application and document upload system could make the admissions process significantly faster and easier for prospective students.\n\n'
+            'Our team designed and built the OneFolk website, delivering modern web applications and streamlined digital experiences for our partners.\n\n'
+            'Could you connect us with the person responsible for your digital portal updates?'
+        ),
         alt_opening_1='I saw your downloadable application form.',alt_opening_2='Your admissions page provides a form to download.',
         status='AWAITING_REVIEW',approval='PENDING')
 
@@ -26,7 +32,7 @@ def test_stale_unknown_future_and_70_words_rejected():
     r=valid_record(); assert validate_queued_draft(r)[0]
     for timestamp in ('bad','',datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),(datetime.now(timezone.utc)-timedelta(days=8)).isoformat()):
         assert not validate_queued_draft({**r,'last_verified_at':timestamp})[0]
-    assert not validate_queued_draft({**r,'email_body':' '.join(['word']*70)})[0]
+    assert not validate_queued_draft({**r,'email_body':' '.join(['word']*200)})[0]
 
 def test_rejection_suppression_and_company_uniqueness():
     r=valid_record(); suppression=SuppressionManager()

@@ -4,6 +4,7 @@ import re
 from src.config import load_portfolio
 from src.network import extract_domain
 from src.verifier import is_valid_syntax
+from src.email_validator import validate_email_body
 
 FRESH_DAYS = 7
 
@@ -39,10 +40,9 @@ def validate_queued_draft(row, now=None):
     if row.get('proof_verified') != 'YES':
         return False, 'Portfolio evidence not verified'
     body = row['email_body'].strip()
-    if len(body.split()) >= 70 or len(re.split(r'\n\s*\n', body)) != 3:
-        return False, 'Require three paragraphs and fewer than 70 words'
-    if row['proof_line'] not in body:
-        return False, 'Missing approved proof in body'
+    valid_body, body_err, _ = validate_email_body(body, row.get('proof_line'))
+    if not valid_body:
+        return False, body_err
     if row['alt_opening_1'] == row['alt_opening_2']:
         return False, 'Alternative openings must differ'
     return True, 'READY'

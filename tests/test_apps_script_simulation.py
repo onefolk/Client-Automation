@@ -20,10 +20,10 @@ def simulate_valid_approved_draft(row: dict) -> bool:
     if not subject or not body or not proof:
         return False
     words = body.split()
-    if len(words) > 70:
+    if len(words) < 50 or len(words) > 150:
         return False
     paragraphs = [p for p in body.split("\n\n") if p.strip()]
-    if len(paragraphs) != 3:
+    if len(paragraphs) != 4:
         return False
     return True
 
@@ -67,13 +67,19 @@ def classify_inbox_reply(subject: str, body: str) -> str:
 
 
 def test_dual_approval_required():
+    test_body = (
+        "We noticed that your admissions portal currently provides a downloadable application form without an interactive online submission workflow.\n\n"
+        "Implementing a direct digital application and document upload system could make the admissions process significantly faster and easier for prospective students.\n\n"
+        "Our team designed and built the OneFolk website, delivering modern web applications and streamlined digital experiences for our partners.\n\n"
+        "Could you connect us with the person responsible for your digital portal updates?"
+    )
     approved_row = {
         "lead_id": "lead_1",
         "public_email": "info@pes.edu",
         "status": "APPROVED",
         "approval": "APPROVED",
         "subject": "Web portal observation",
-        "email_body": "Paragraph 1\n\nOur team designed and built the OneFolk website.\n\nOpen to discussing?",
+        "email_body": test_body,
         "proof_line": "Our team designed and built the OneFolk website.",
     }
     assert simulate_valid_approved_draft(approved_row) is True
@@ -88,6 +94,12 @@ def test_dual_approval_required():
 
 
 def test_daily_send_cap():
+    test_body = (
+        "We noticed that your admissions portal currently provides a downloadable application form without an interactive online submission workflow.\n\n"
+        "Implementing a direct digital application and document upload system could make the admissions process significantly faster and easier for prospective students.\n\n"
+        "Our team designed and built the OneFolk website, delivering modern web applications and streamlined digital experiences for our partners.\n\n"
+        "Could you connect us with the person responsible for your digital portal updates?"
+    )
     rows = [
         {
             "lead_id": f"lead_{i}",
@@ -95,7 +107,7 @@ def test_daily_send_cap():
             "status": "APPROVED",
             "approval": "APPROVED",
             "subject": "Subject",
-            "email_body": "P1\n\nOur team designed and built the OneFolk website.\n\nP3?",
+            "email_body": test_body,
             "proof_line": "Our team designed and built the OneFolk website.",
         }
         for i in range(10)
@@ -109,6 +121,12 @@ def test_daily_send_cap():
 
 
 def test_ambiguous_send_state():
+    test_body = (
+        "We noticed that your admissions portal currently provides a downloadable application form without an interactive online submission workflow.\n\n"
+        "Implementing a direct digital application and document upload system could make the admissions process significantly faster and easier for prospective students.\n\n"
+        "Our team designed and built the OneFolk website, delivering modern web applications and streamlined digital experiences for our partners.\n\n"
+        "Could you connect us with the person responsible for your digital portal updates?"
+    )
     rows = [
         {
             "lead_id": "lead_err",
@@ -116,7 +134,7 @@ def test_ambiguous_send_state():
             "status": "APPROVED",
             "approval": "APPROVED",
             "subject": "Subject",
-            "email_body": "P1\n\nOur team designed and built the OneFolk website.\n\nP3?",
+            "email_body": test_body,
             "proof_line": "Our team designed and built the OneFolk website.",
             "simulate_error": True,
         }

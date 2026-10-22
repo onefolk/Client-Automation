@@ -71,7 +71,7 @@ flowchart TD
 [Score >= 60 & Valid Contact] ──► QUALIFIED
        │
        ▼
-[Groq AI Drafting Engine] ──► Generated 3 Paragraphs (<70 words) + 2 Alt Openings
+[Groq AI Drafting Engine] ──► Generated 4 Paragraphs (70–120 words target) + 2 Alt Openings
        │
        ▼
 [Approval Queue Tab] ──► AWAITING_REVIEW
@@ -86,7 +86,7 @@ The system adheres to an uncompromising **dual-key human authorization protocol*
 5. Right before dispatch, Apps Script verifies:
    - Recipient email syntax.
    - Immediate cross-check against `Suppression List` and historical `Sent Emails`.
-   - Body contains exactly 3 paragraphs and <= 70 words.
+   - Body contains exactly 4 paragraphs and 50–150 words (70–120 words target).
    - Daily IST recipient count is < 50.
 6. The row transitions to `SENDING` (atomic reservation state to prevent duplicate sends upon provider timeout).
 7. Upon confirmed dispatch, the row transitions to `SENT`, a log is written to `Email Activity`, and the IST send counter increments.

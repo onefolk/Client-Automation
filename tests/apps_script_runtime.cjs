@@ -11,7 +11,7 @@ vm.runInContext('approvedSender()',context); assert.equal(sent,0,'Implementation
 const r={lead_id:'test',company_id:'test-co',business:'Fixture',industry:'education',website:'https://fixture.edu/',public_email:'info@fixture.edu',
   email_source_url:'https://fixture.edu/contact',observation:'Download application form',observation_url:'https://fixture.edu/admission',opportunity:'Online form',
   proof_project:'OneFolk website',proof_line:'Our team designed and built the OneFolk website.',proof_url:'https://onefolk.in/work',
-  last_verified_at:new Date().toISOString(),subject:'Application process',email_body:'Your application form is downloadable.\n\nOur team designed and built the OneFolk website.\n\nWould online submission help?',
+  last_verified_at:new Date().toISOString(),subject:'Application process',email_body:'We noticed that your admissions page currently directs prospective applicants to download a static application form rather than submitting online.\n\nA dedicated interactive application portal could streamline student submissions and simplify verification for your administrative staff.\n\nAt OneFolk, our team designed and built the OneFolk website and modern digital portals for institutions.\n\nCould you direct us to the person responsible for your website updates and digital workflows?',
   alt_opening_1:'Your site provides an application form.',alt_opening_2:'I saw your downloadable form.',qualification_status:'QUALIFIED',
   mail_domain_status:'MX_VALID_MAILBOX_UNCONFIRMED',proof_verified:'YES',status:'APPROVED',approval:'APPROVED'};
 context.record=r;

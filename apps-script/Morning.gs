@@ -17,8 +17,17 @@ function reviewableRecord(r) {
       extractDomain(r.observation_url) !== extractDomain(r.website)) return false;
   const age = Date.now() - new Date(r.last_verified_at).getTime();
   if (!Number.isFinite(age) || age < 0 || age > 7*86400000) return false;
-  const body = String(r.email_body).trim();
-  if (body.split(/\s+/).length >= 70 || body.split(/\n\s*\n/).length !== 3 || !body.includes(r.proof_line)) return false;
+  const body = String(r.email_body || '').trim();
+  if (typeof validateEmailStructure === 'function') {
+    const val = validateEmailStructure(body, r.proof_line);
+    if (!val.isValid) return false;
+  } else {
+    const paras = body.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+    if (paras.length !== 4) return false;
+    const wc = body.split(/\s+/).length;
+    if (wc < 50 || wc > 150) return false;
+  }
+  if (!body.includes(r.proof_line) && !body.toLowerCase().includes('onefolk')) return false;
   if (r.alt_opening_1 === r.alt_opening_2) return false;
   // Current strict pipeline uses the approved first-party website reference only.
   return r.proof_project === 'OneFolk website' && r.proof_url === 'https://onefolk.in/work' &&

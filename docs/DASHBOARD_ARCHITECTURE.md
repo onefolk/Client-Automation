@@ -11,8 +11,8 @@ The **OneFolk Outreach OS** is a fully automated, cloud-orchestrated B2B sales d
    - Domain MX record verification.
 2. **Groq-Powered AI Drafting (`src/groq_client.py`)**:
    - Grounded cold email drafting with strict rule enforcement:
-     - Exactly 3 body paragraphs.
-     - Fewer than 70 words in body.
+     - Exactly 4 body paragraphs (Observation, Recommendation, OneFolk Capability, Low-pressure CTA).
+     - Target 70–120 words in body (50–150 valid range).
      - Truthful proof line (*"Our team designed and built the OneFolk website."*).
      - Low-commitment call-to-action without fabricated client metrics.
      - Two distinct alternative opening lines.
@@ -138,7 +138,7 @@ The UI embodies modern, premium agency aesthetics matching `https://onefolk.in/`
      - Left pane: Complete company metadata, verified website observation snippet, observation source URL link, contact source URL link, OneFolk proof reference (`https://onefolk.in/work`), verification confidence badge, and research age.
      - Right pane: Interactive cold email editor with live validation:
        - Subject line input with character counter.
-       - Body textarea with live word count (< 70 words required) and paragraph counter (exactly 3 required).
+       - Body textarea with live word count (70–120 words target, 50–150 valid range) and paragraph counter (exactly 4 required).
        - Proof line lock badge: Highlights *"Our team designed and built the OneFolk website."* and confirms its presence.
        - Quick-swap buttons for `Alternative Opening 1` and `Alternative Opening 2`.
        - Action buttons: `Save Changes`, `Approve Draft` (green), `Reject Draft` (red), `Mark Needs Research` (amber).

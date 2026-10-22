@@ -6,20 +6,21 @@ import pytest
 from src.groq_client import GroqClient
 
 
-def test_validation_three_paragraphs_and_word_limit():
+def test_validation_four_paragraphs_and_word_limit():
     client = GroqClient(api_key="gsk_mock_test_key")
     proof = "Our portfolio includes an invoicing, tax computation and financial operations web application."
 
-    # Valid response: exactly 3 paragraphs, under 70 words, contains proof
+    # Valid response: exactly 4 paragraphs, 70-120 words target (50-150 valid), contains proof
     valid_result = {
         "subject": "Web portal review for Studio Alpha",
         "email_body": (
-            "I noticed your studio portfolio is currently served over static pages without an interactive inquiry form.\n\n"
-            f"{proof}\n\n"
-            "Would you be open to a 5-minute conversation on streamlining client onboarding?"
+            "We noticed that your studio portfolio is currently served over static pages without an interactive inquiry form.\n\n"
+            "Introducing an interactive consultation booking workflow could help prospective clients schedule consultations much more seamlessly.\n\n"
+            f"At OneFolk, {proof.lower()}\n\n"
+            "Could you connect us with the person responsible for your website updates?"
         ),
-        "alt_opening_1": "I was exploring Studio Alpha's architectural portfolio recently.",
-        "alt_opening_2": "Your studio's online design projects caught my attention.",
+        "alt_opening_1": "We were exploring Studio Alpha's architectural portfolio recently.",
+        "alt_opening_2": "Your studio's online design projects caught our attention.",
         "observation_url": "https://studioalpha.com/contact",
     }
 
@@ -30,20 +31,19 @@ def test_validation_three_paragraphs_and_word_limit():
 
     sanitized = client._validate_and_sanitize(valid_result, proof, "https://studioalpha.com/contact", research_data)
     assert sanitized is not None
-    assert sanitized["word_count"] <= 70
-    assert sanitized["word_count"] > 20
+    assert 50 <= sanitized["word_count"] <= 150
     assert sanitized["alt_opening_1"] != ""
     assert sanitized["alt_opening_2"] != ""
-    assert proof in sanitized["email_body"]
+    assert proof.lower() in sanitized["email_body"].lower()
 
 
 def test_validation_rejects_exceeding_word_limit():
     client = GroqClient(api_key="gsk_mock_test_key")
     proof = "Our portfolio includes an invoicing, tax computation and financial operations web application."
 
-    # Long body exceeding 70 words
-    long_body = "word " * 75
-    paragraphs = f"{long_body}\n\n{proof}\n\nAre you available?"
+    # Long body exceeding 150 words
+    long_body = "word " * 160
+    paragraphs = f"{long_body}\n\nRecommendation paragraph.\n\nAt OneFolk, {proof}\n\nCould we discuss this?"
 
     invalid_result = {
         "subject": "Test Subject",
@@ -56,22 +56,29 @@ def test_validation_rejects_exceeding_word_limit():
     assert sanitized is None
 
 
-def test_validation_rejects_non_three_paragraphs():
+def test_validation_rejects_non_four_paragraphs():
     client = GroqClient(api_key="gsk_mock_test_key")
     proof = "Our portfolio includes an invoicing, tax computation and financial operations web application."
 
     # Only 2 paragraphs
     two_paragraphs = f"Paragraph 1 observation.\n\n{proof}"
-
-    invalid_result = {
+    invalid_result_2 = {
         "subject": "Test Subject",
         "email_body": two_paragraphs,
         "alt_opening_1": "Alt 1",
         "alt_opening_2": "Alt 2",
     }
+    assert client._validate_and_sanitize(invalid_result_2, proof, "https://example.com", {"page_contexts": []}) is None
 
-    sanitized = client._validate_and_sanitize(invalid_result, proof, "https://example.com", {"page_contexts": []})
-    assert sanitized is None
+    # Only 3 paragraphs
+    three_paragraphs = f"Observation paragraph.\n\nRecommendation paragraph.\n\n{proof}"
+    invalid_result_3 = {
+        "subject": "Test Subject",
+        "email_body": three_paragraphs,
+        "alt_opening_1": "Alt 1",
+        "alt_opening_2": "Alt 2",
+    }
+    assert client._validate_and_sanitize(invalid_result_3, proof, "https://example.com", {"page_contexts": []}) is None
 
 
 def test_groq_quota_exhaustion_stops_gracefully():
@@ -101,7 +108,12 @@ def test_groq_rate_limit_backoff():
             "message": {
                 "content": json.dumps({
                     "subject": "Quick web review",
-                    "email_body": f"Observation on your portal.\n\n{proof}\n\nAre you open to a brief chat?",
+                    "email_body": (
+                        "We noticed that your web portal currently provides general information without an interactive consultation booking workflow.\n\n"
+                        "Introducing a dedicated digital scheduling and client intake flow could make booking inquiries significantly faster for your visitors.\n\n"
+                        f"{proof} We help organizations create high-performance web applications and streamlined digital tools.\n\n"
+                        "Could you connect us with the team member responsible for your digital portal updates?"
+                    ),
                     "alt_opening_1": "Alt 1",
                     "alt_opening_2": "Alt 2",
                 })

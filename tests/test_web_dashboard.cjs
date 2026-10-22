@@ -67,7 +67,7 @@ sheetStore.set('Approval Queue', createMockSheet('Approval Queue', [
   [
     'lead_test_01', 'Stella Maris College', 'education', 'https://stellamariscollege.edu.in/',
     'principal@stellamariscollege.edu.in', 'Simplify your application process',
-    'Your site states: "Where do I submit completed forms".\n\nOur team designed and built the OneFolk website.\n\nWould online submission help your team?',
+    'We noticed that your admissions page directs applicants to submit forms physically at the campus office.\n\nAn online application portal could streamline student submissions and simplify review for your administrative staff.\n\nAt OneFolk, we design and build modern digital portals and web applications for institutions.\n\nCould you direct us to the person who manages your website and digital workflows?',
     'I noticed your admissions page answers physical submission.', 'Your prospectus details hardcopy form collection.',
     'Site states: "Where do I submit completed forms"', 'https://stellamariscollege.edu.in/',
     'OneFolk website', 'Our team designed and built the OneFolk website.', 100,
@@ -75,7 +75,7 @@ sheetStore.set('Approval Queue', createMockSheet('Approval Queue', [
     'Chennai', 'https://stellamariscollege.edu.in/', 'https://stellamariscollege.edu.in/',
     'QUALIFIED', 'form_inquiry', 'Online form submission workflow', new Date().toISOString(),
     'company_smc_01', new Date().toISOString(), 'MX_VALID_MAILBOX_UNCONFIRMED',
-    'Public website + syntax + MX', true, 'https://onefolk.in/work', 'YES', 32, '2026-10-22', 'directory'
+    'Public website + syntax + MX', true, 'https://onefolk.in/work', 'YES', 62, '2026-10-22', 'directory'
   ]
 ]));
 
@@ -295,7 +295,7 @@ assert.equal(queueResult.leads.length, 1);
 const lead = queueResult.leads[0];
 assert.equal(lead.lead_id, 'lead_test_01');
 assert.equal(lead.business, 'Stella Maris College');
-assert.equal(lead.is_compliant, true, 'Lead with valid 3-para <70 words should be marked compliant');
+assert.equal(lead.is_compliant, true, 'Lead with valid 4-para 70-120 words should be marked compliant');
 
 // Filter by AWAITING_REVIEW
 const awaitingFilter = vm.runInContext("apiGetApprovalQueue({ status: 'AWAITING_REVIEW', page: 1, pageSize: 25 })", mockContext);
@@ -320,28 +320,28 @@ console.log('Test 5: Lead Details & Strict Email Validation');
 const leadDetails = vm.runInContext("apiGetLeadDetails('lead_test_01')", mockContext);
 assert.equal(leadDetails.business, 'Stella Maris College');
 assert.equal(leadDetails.isValidDraft, true);
-assert.equal(leadDetails.paragraphCount, 3);
-assert.ok(leadDetails.wordCount < 70);
+assert.equal(leadDetails.paragraphCount, 4);
+assert.ok(leadDetails.wordCount >= 50 && leadDetails.wordCount <= 150);
 assert.equal(leadDetails.validationErrors.length, 0);
 
 // Test saving invalid body (only 2 paragraphs)
 assert.throws(() => {
   vm.runInContext("apiSaveDraft('lead_test_01', 'Subject', 'Paragraph 1\\n\\nOur team designed and built the OneFolk website.')", mockContext);
-}, /Draft must contain exactly 3 paragraphs/, 'Must reject email with 2 paragraphs');
+}, /Draft must contain exactly 4 content paragraphs/, 'Must reject email with 2 paragraphs');
 
-// Test saving invalid body (missing proof line)
+// Test saving invalid body (only 3 paragraphs)
 assert.throws(() => {
-  vm.runInContext("apiSaveDraft('lead_test_01', 'Subject', 'Para 1\\n\\nWe built something else entirely.\\n\\nQuestion?')", mockContext);
-}, /Draft must include the truthful OneFolk proof line/, 'Must reject email without exact proof line');
+  vm.runInContext("apiSaveDraft('lead_test_01', 'Subject', 'Para 1 observation.\\n\\nPara 2 recommendation.\\n\\nPara 3 OneFolk capabilities.')", mockContext);
+}, /Draft must contain exactly 4 content paragraphs/, 'Must reject email with 3 paragraphs');
 
-// Test saving invalid body (>= 70 words)
-const longBody = new Array(75).fill('word').join(' ') + '\n\nOur team designed and built the OneFolk website.\n\nQuestion?';
+// Test saving invalid body (exceeding 150 words)
+const longBody = 'Para 1 observation.\n\n' + new Array(140).fill('word').join(' ') + '\n\nAt OneFolk we build modern web applications.\n\nCould you direct us to the right person?';
 mockContext.longBody = longBody;
 assert.throws(() => {
   vm.runInContext("apiSaveDraft('lead_test_01', 'Subject', longBody)", mockContext);
-}, /Draft must be fewer than 70 words/, 'Must reject email with >= 70 words');
+}, /Draft word count .* out of range/, 'Must reject email exceeding word limits');
 
-console.log('✓ Strict 3-paragraph, <70 words, and proof line validation passed.\n');
+console.log('✓ Strict 4-paragraph, 70-120 words, and proof line validation passed.\n');
 
 // -----------------------------------------------------------------------------
 // TEST 6: Atomic Approval, SHA-256 Fingerprint & Audit Trail
@@ -378,7 +378,7 @@ console.log('✓ Dual-key approval and audit logging passed.\n');
 // TEST 7: Post-Approval Edit Invalidates Approval
 // -----------------------------------------------------------------------------
 console.log('Test 7: Post-Approval Edit Invalidation');
-const newValidBody = 'Your site states: "Where do I submit completed forms".\n\nOur team designed and built the OneFolk website.\n\nCould online submission save staff time?';
+const newValidBody = 'We noticed that your admissions page directs applicants to submit forms physically at the campus office.\n\nAn online application portal could streamline student submissions and simplify review for your administrative staff.\n\nAt OneFolk, we design and build modern digital portals and web applications for institutions.\n\nCould online submission save your staff time and improve the applicant experience?';
 mockContext.newValidBody = newValidBody;
 vm.runInContext("apiSaveDraft('lead_test_01', 'Updated Subject', newValidBody)", mockContext);
 

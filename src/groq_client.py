@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from src.config import GROQ_API_KEY, GROQ_FALLBACK_MODEL, GROQ_MODEL, MAX_AI_CALLS
+from src.email_validator import validate_email_body, parse_email_paragraphs
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ class GroqClient:
         research_data: Dict[str, Any],
         max_retries: int = 5,
     ) -> Optional[Dict[str, Any]]:
-        """Drafts a grounded, 3-paragraph cold email (<70 words) with 2 alternative openings."""
+        """Drafts a grounded, 4-paragraph cold email (70-120 words target) with 2 alternative openings."""
         if not self.is_available():
             logger.info("Groq API unavailable or budget reached (%d/%d calls used)", self.calls_used, self.max_calls)
             return None
@@ -77,12 +78,12 @@ class GroqClient:
             "Never invent, assume, or fabricate any facts, client results, conversion losses, or website issues. "
             "Always write from the company perspective ('we', 'our', 'Team OneFolk'). Never use first-person singular ('I', 'I noticed', 'I came across', 'I found'). "
             "Avoid awkward phrasing (e.g., 'move easily from treatment pages', 'treatments across spine', 'with a way to request appointments') and technical UX jargon (e.g., 'enquiry friction', 'an opportunity worth exploring'). "
-            "Use natural, grammatically correct, patient/client-friendly language. Keep personalization strictly factual to the prospect. "
+            "Use natural, grammatically correct, client-friendly language. Keep personalization strictly factual to the prospect. "
             "You must return valid JSON strictly complying with the schema."
         )
 
         user_prompt = {
-            "task": "Draft a personalized, truthful 3-paragraph cold email and two alternative opening lines.",
+            "task": "Draft a personalized, truthful 4-paragraph cold email and two alternative opening lines following the approved OneFolk structure.",
             "prospect": {
                 "name": lead.get("business") or lead.get("name"),
                 "industry": lead.get("industry"),
@@ -96,23 +97,28 @@ class GroqClient:
             "scraped_pages": contexts_summary,
             "strict_rules": [
                 "Return JSON with keys: subject, email_body, alt_opening_1, alt_opening_2, skip",
-                "email_body MUST consist of EXACTLY THREE short paragraphs separated by two newlines (\\n\\n).",
-                "Paragraph 1: Grounded observation on their website (no mention of sender or OneFolk). Open directly on a specific problem/observation. Never use first-person singular ('I', 'I noticed').",
-                "Paragraph 2: MUST include the approved portfolio proof verbatim: '" + proof_line + "'.",
-                "Paragraph 3: An easy, low-commitment closing question (under 12 words). Direct and low pressure.",
-                "Total word count of email_body must be STRICTLY under 70 words.",
-                "Tone: Plain language, no flattery, no hype, no invented facts. Avoid UX jargon like 'enquiry friction' or vague 'opportunity worth exploring'.",
+                "email_body MUST consist of EXACTLY FOUR paragraphs separated by two newlines (\\n\\n):",
+                "Paragraph 1: One specific, verified observation about the prospect's website, business information, or digital experience. Open directly without preamble. Never use first-person singular ('I', 'I noticed').",
+                "Paragraph 2: A practical improvement recommendation explaining how this could benefit their customers, visitors, students, or business operations.",
+                "Paragraph 3: Briefly introduce OneFolk and connect the relevant service or approved portfolio experience (e.g. 'At OneFolk, we help institutions improve website structure, usability, and content management.').",
+                "Paragraph 4: One straightforward, low-pressure question requesting the appropriate contact or a brief discussion (e.g. 'Could you direct us to the person responsible for website updates?').",
+                "Target word count: approximately 70–120 words before signature, without padding.",
+                "Do NOT include salutation ('Dear ...') or signature ('Regards ...') in email_body — they are applied automatically by the platform.",
+                "Tone: Professional, respectful, specific and natural. No flattery, hype, urgency tricks or generic marketing language.",
+                "Recommendations must be relevant to the observation and presented as opportunities, not unverified facts.",
+                "Match the pitch to OneFolk's actual capabilities and portfolio. Do not make unsupported claims that OneFolk previously built websites for specific institutions.",
                 "alt_opening_1 and alt_opening_2: Two alternative single-sentence opening lines for internal human review following the same strict tone guidelines.",
                 "If no genuine, verifiable opportunity is supported by the scraped pages, return {\"skip\": true}.",
-                "NO fluff, NO flattery, NO attachments, NO claims of lost revenue or broken sales.",
+                "NO fluff, NO attachments, NO PDFs, NO claims of lost revenue or broken sales.",
             ],
         }
 
         if research_data.get('strict_grounding'):
             user_prompt['strict_rules'] += [
                 'Paragraph 1 MUST equal verified_observation verbatim. Do not add or change claims.',
-                'Paragraph 2 MUST equal approved_portfolio_proof verbatim.',
-                'Paragraph 3 MUST be: Would online submission help your team?',
+                'Paragraph 2 MUST be the practical recommendation.',
+                'Paragraph 3 MUST include the approved portfolio proof verbatim.',
+                'Paragraph 4 MUST be: Would online submission help your team?',
                 'Alternative openings must introduce the same observed manual form workflow without new facts.'
             ]
 
@@ -229,35 +235,39 @@ class GroqClient:
         if not subject or not body:
             return None
 
-        # Check paragraph structure (strictly 3 paragraphs separated by double newline)
-        paragraphs = [p.strip() for p in body.split("\n\n") if p.strip()]
-        if len(paragraphs) != 3:
+        # Check paragraph structure (strictly 4 content paragraphs separated by double newline)
+        salutation, paragraphs = parse_email_paragraphs(body)
+        if len(paragraphs) != 4:
             # Try single newlines if double wasn't used
-            alt_paragraphs = [p.strip() for p in body.split("\n") if p.strip()]
-            if len(alt_paragraphs) == 3:
-                paragraphs = alt_paragraphs
+            alt_paras = [p.strip() for p in body.split("\n") if p.strip()]
+            _, parsed_alt = parse_email_paragraphs("\n\n".join(alt_paras))
+            if len(parsed_alt) == 4:
+                paragraphs = parsed_alt
                 body = "\n\n".join(paragraphs)
             else:
                 return None
 
-        # Check total word count (< 70 words)
-        if research_data.get('strict_grounding') and (
-            paragraphs[0] != research_data.get('observation') or paragraphs[1] != approved_proof
-            or paragraphs[2] != 'Would online submission help your team?'
-        ):
-            return None
-        words = body.split()
-        if len(words) >= 70:
-            return None
-
-        # Check verbatim inclusion of approved proof line
-        if approved_proof not in body:
-            # Inject proof into paragraph 2 if missing
-            paragraphs[1] = approved_proof
-            body = "\n\n".join(paragraphs)
-            words = body.split()
-            if len(words) >= 70:
+        # Validate structure, word count (70-120 target), and content rules
+        valid, err, details = validate_email_body(body, approved_proof)
+        if not valid:
+            # If proof line was missing, attempt injection into paragraph 3
+            if approved_proof not in body and len(paragraphs) == 4:
+                paragraphs[2] = approved_proof
+                body = "\n\n".join(paragraphs)
+                valid, err, details = validate_email_body(body, approved_proof)
+            if not valid:
+                logger.info("Draft validation failed: %s", err)
                 return None
+
+        if research_data.get('strict_grounding'):
+            if paragraphs[0] != research_data.get('observation'):
+                return None
+            if approved_proof not in body:
+                return None
+            if 'Would online submission help your team?' not in paragraphs[3]:
+                return None
+
+        words = body.split()
 
         # Verify observation URL matches fetched pages
         valid_urls = [u for _, u in research_data.get("page_contexts", [])]

@@ -41,7 +41,7 @@ This report establishes the true operational state of the OneFolk autonomous mor
   - Valid syntax and verified MX mail exchanger.
   - Exact website observation URL and factual improvement opportunity.
   - First-party OneFolk proof reference (`OneFolk website` / `https://onefolk.in/work` / `Our team designed and built the OneFolk website.`).
-  - 3-paragraph cold email body strictly under 70 words, with 2 distinct alternative opening lines.
+  - 4-paragraph cold email body (70–120 words target, 50–150 valid range), with 2 distinct alternative opening lines.
   - Verification timestamp < 7 days old.
 - **Live Audit Findings:**
   - Audited 50 rows in `Approval Queue`.

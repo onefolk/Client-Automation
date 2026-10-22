@@ -68,9 +68,9 @@ tests/test_verifier.py::test_select_best_contact_email PASSED            [100%]
 | **Duplicate Detection** | `tests/test_sheets.py::test_idempotent_upsert_leads`<br>`tests/test_suppression.py` | **PASSED** | Confirms deduplication on domain and email across historical campaigns. |
 | **Suppression Handling** | `tests/test_suppression.py::test_pre_seeded_suppression` | **PASSED** | Validates immediate blocking of all 8 known bounces and explicit rejections. |
 | **Qualification Rules** | `tests/test_research.py::test_extract_website_signals`<br>`test_match_portfolio_project` | **PASSED** | Validates HTTPS, viewport, inquiry form signals, and portfolio project matching. |
-| **Factual Grounding** | `tests/test_groq_client.py::test_validation_three_paragraphs_and_word_limit` | **PASSED** | Confirms observation citations match scraped page URLs and authentic portfolio proof. |
-| **Three-Paragraph Validation** | `tests/test_groq_client.py::test_validation_rejects_non_three_paragraphs` | **PASSED** | Rejects drafts that deviate from exactly 3 paragraphs. |
-| **70-Word Limit** | `tests/test_groq_client.py::test_validation_rejects_exceeding_word_limit` | **PASSED** | Rejects drafts exceeding 70 words total. |
+| **Factual Grounding** | `tests/test_groq_client.py::test_validation_four_paragraphs_and_word_limit` | **PASSED** | Confirms observation citations match scraped page URLs and authentic portfolio proof. |
+| **Four-Paragraph Validation** | `tests/test_groq_client.py::test_validation_rejects_non_four_paragraphs` | **PASSED** | Rejects drafts that deviate from exactly 4 paragraphs. |
+| **Word Count Limit** | `tests/test_groq_client.py::test_validation_rejects_exceeding_word_limit` | **PASSED** | Rejects drafts outside acceptable word bounds (50–150 words). |
 | **Approval Requirements** | `tests/test_apps_script_simulation.py::test_dual_approval_required` | **PASSED** | Enforces that both `status == 'APPROVED'` and `approval == 'APPROVED'` are mandatory. |
 | **Daily Gmail Cap** | `tests/test_apps_script_simulation.py::test_daily_send_cap` | **PASSED** | Enforces maximum 50 recipients per IST day, respecting remaining daily quota. |
 | **Ambiguous Send Outcomes** | `tests/test_apps_script_simulation.py::test_ambiguous_send_state` | **PASSED** | Transitions failed/ambiguous sends to `SEND_REVIEW` without automatic resending. |

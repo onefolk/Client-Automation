@@ -111,7 +111,7 @@ To prevent duplicate sends during transient network latency or Google API timeou
 ### 5.1 Deterministic Grounding Checks
 The Groq AI LLM is strictly decoupled from qualification and factual verification. The system never relies on the model to self-certify its claims:
 1. **Verbatim Portfolio Proof**: Every drafted message must include the exact approved proof line from `config/portfolio.json`. If missing, it is injected deterministically.
-2. **Word Count Ceiling**: The message body must be strictly under 70 words total.
-3. **Three-Paragraph Constraint**: The message body must consist of exactly three short paragraphs.
+2. **Word Count Target**: The message body targets 70–120 words total (50–150 valid range).
+3. **Four-Paragraph Constraint**: The message body must consist of exactly four paragraphs: (1) verified observation, (2) practical recommendation/opportunity, (3) OneFolk capability/portfolio connection, and (4) low-pressure inquiry CTA.
 4. **Verified Evidence Citation**: The cited `observation_url` must match an actual page fetched during research.
 5. **No Negative Fabrications**: Observations are strictly technical (e.g. missing mobile viewport, static mailto instead of online form); the system never infers or claims that the business is losing revenue, failing, or suffering customer attrition.

@@ -181,6 +181,66 @@ function formatOneFolkEmail(rawBody, businessName) {
 }
 
 /**
+ * Single Authoritative Email Structure Validator for OneFolk Apps Script layer.
+ * Validates the approved 4-paragraph structure (target 70-120 words).
+ */
+function validateEmailStructure(rawBody, proofLine) {
+  const raw = String(rawBody || '').trim();
+  if (!raw) return { isValid: false, reason: 'Empty email body', wordCount: 0, paragraphCount: 0 };
+
+  const rawParas = raw.split(/\n\s*\n/).map(p => p.trim()).filter(p => p.length > 0);
+  const hasSalutation = rawParas.length > 0 && /^dear\b/i.test(rawParas[0]);
+  const paras = hasSalutation ? rawParas.slice(1) : rawParas;
+
+  // Filter out any trailing signatures if pasted in editor
+  const contentParas = paras.filter(p =>
+    !/^(our\s+)?work:\s*https?:\/\//i.test(p) &&
+    !/^regards,/i.test(p) &&
+    !/^team onefolk/i.test(p) &&
+    !/^https?:\/\/onefolk\.in\/?$/i.test(p)
+  );
+
+  const wordCount = contentParas.join(' ').split(/\s+/).filter(w => w.length > 0).length;
+
+  if (contentParas.length !== 4) {
+    return {
+      isValid: false,
+      reason: 'Draft must contain exactly 4 content paragraphs (found ' + contentParas.length + '). Structure: 1) Observation, 2) Recommendation, 3) OneFolk capability, 4) CTA question.',
+      wordCount: wordCount,
+      paragraphCount: contentParas.length
+    };
+  }
+
+  if (wordCount < 50 || wordCount > 150) {
+    return {
+      isValid: false,
+      reason: 'Draft word count (' + wordCount + ' words) out of range. Target is 70-120 words.',
+      wordCount: wordCount,
+      paragraphCount: contentParas.length
+    };
+  }
+
+  const para4 = contentParas[3].trim();
+  const hasCta = para4.endsWith('?') || /\b(open|speak|connect|chat|discuss|who|person|direct)\b/i.test(para4);
+  if (!hasCta) {
+    return {
+      isValid: false,
+      reason: 'Paragraph 4 must be a straightforward, low-pressure question requesting discussion or contact.',
+      wordCount: wordCount,
+      paragraphCount: contentParas.length
+    };
+  }
+
+  return {
+    isValid: true,
+    reason: 'VALID',
+    wordCount: wordCount,
+    paragraphCount: contentParas.length,
+    contentParas: contentParas
+  };
+}
+
+/**
  * Validates strict formatting and human approval requirements.
  */
 function isValidApprovedDraft(v, headerMap) {
@@ -200,13 +260,9 @@ function isValidApprovedDraft(v, headerMap) {
   // Content requirements
   if (!subject || !body || !proofLine) return false;
 
-  // Maximum 70 words in body
-  const wordCount = body.trim().split(/\s+/).length;
-  if (wordCount >= 70) return false;
-
-  // Exactly 3 paragraphs
-  const paragraphs = body.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-  if (paragraphs.length !== 3) return false;
+  // Validate approved 4-paragraph structure and word count (target 70-120 words)
+  const val = validateEmailStructure(body, proofLine);
+  if (!val.isValid) return false;
 
   const record = Object.fromEntries(Object.keys(headerMap).map(k => [k, v[headerMap[k]]]));
   if (!reviewableRecord(record)) return false;
