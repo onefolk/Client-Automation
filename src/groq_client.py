@@ -75,6 +75,9 @@ class GroqClient:
         system_prompt = (
             "You are a factual B2B sales-operations assistant for OneFolk. "
             "Never invent, assume, or fabricate any facts, client results, conversion losses, or website issues. "
+            "Always write from the company perspective ('we', 'our', 'Team OneFolk'). Never use first-person singular ('I', 'I noticed', 'I came across', 'I found'). "
+            "Avoid awkward phrasing (e.g., 'move easily from treatment pages', 'treatments across spine', 'with a way to request appointments') and technical UX jargon (e.g., 'enquiry friction', 'an opportunity worth exploring'). "
+            "Use natural, grammatically correct, patient/client-friendly language. Keep personalization strictly factual to the prospect. "
             "You must return valid JSON strictly complying with the schema."
         )
 
@@ -94,11 +97,12 @@ class GroqClient:
             "strict_rules": [
                 "Return JSON with keys: subject, email_body, alt_opening_1, alt_opening_2, skip",
                 "email_body MUST consist of EXACTLY THREE short paragraphs separated by two newlines (\\n\\n).",
-                "Paragraph 1: Grounded observation on their website (no mention of sender or OneFolk).",
+                "Paragraph 1: Grounded observation on their website (no mention of sender or OneFolk). Open directly on a specific problem/observation. Never use first-person singular ('I', 'I noticed').",
                 "Paragraph 2: MUST include the approved portfolio proof verbatim: '" + proof_line + "'.",
-                "Paragraph 3: An easy, low-commitment closing question (under 12 words).",
+                "Paragraph 3: An easy, low-commitment closing question (under 12 words). Direct and low pressure.",
                 "Total word count of email_body must be STRICTLY under 70 words.",
-                "alt_opening_1 and alt_opening_2: Two alternative single-sentence opening lines for internal human review.",
+                "Tone: Plain language, no flattery, no hype, no invented facts. Avoid UX jargon like 'enquiry friction' or vague 'opportunity worth exploring'.",
+                "alt_opening_1 and alt_opening_2: Two alternative single-sentence opening lines for internal human review following the same strict tone guidelines.",
                 "If no genuine, verifiable opportunity is supported by the scraped pages, return {\"skip\": true}.",
                 "NO fluff, NO flattery, NO attachments, NO claims of lost revenue or broken sales.",
             ],

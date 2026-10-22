@@ -1562,17 +1562,22 @@
             <div class="email-mockup-top-chrome">
               <div class="email-meta-row">
                 <div class="email-sender-profile">
-                  <div class="sender-avatar">OF</div>
+                  <div class="sender-avatar" style="background: #1C1B18; color: #FFFFFF; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="12" y1="2" x2="12" y2="22"></line>
+                      <line x1="2" y1="12" x2="22" y2="22"></line>
+                      <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                      <line x1="19.07" y1="4.93" x2="4.93" y2="19.07"></line>
+                    </svg>
+                  </div>
                   <div class="sender-details">
-                    <span class="sender-name">Team OneFolk</span>
-                    <span class="sender-email-address">&lt;contact.onefolk@gmail.com&gt;</span>
+                    <span class="sender-name">TeamOnefolk</span>
+                    <span class="sender-email-address" style="display: flex; align-items: center; gap: 4px;">
+                      to <span id="previewRecipientEmail" style="color: var(--text-main); font-weight: 500;">info</span> ▾
+                    </span>
                   </div>
                 </div>
                 <div style="font-size: 11px; color: var(--text-tertiary);">Today, 9:00 AM (IST)</div>
-              </div>
-              <div class="email-meta-recipient">
-                <span>to</span>
-                <strong id="previewRecipientEmail" style="color: var(--text-main);">recipient@domain.com</strong>
               </div>
             </div>
 
@@ -1582,13 +1587,6 @@
 
             <div class="email-preview-body-content" id="previewBody">
               Email body paragraphs will render here.
-            </div>
-
-            <div class="email-mockup-signature">
-              <div class="signature-name">Team OneFolk</div>
-              <div style="color: var(--text-tertiary); font-size: 11px; margin-top: 2px;">
-                Creative-Tech & Growth Agency · Chennai, India · <a href="https://onefolk.in" target="_blank" style="color: var(--text-main); text-decoration: underline;">onefolk.in</a>
-              </div>
             </div>
           </div>
 
@@ -1980,15 +1978,33 @@
 
       document.getElementById('subjectCharCount').textContent = subject.length + ' chars';
 
-      // Update Live Email Preview
+      // Update Live Email Preview matching Gmail app layout
       document.getElementById('previewSubject').textContent = subject || '(No subject entered)';
       const previewBodyEl = document.getElementById('previewBody');
       const paragraphs = body ? body.split(/\n\s*\n/).filter(p => p.trim().length > 0) : [];
+
+      const businessName = (state.queue.selectedLead && (state.queue.selectedLead.business || state.queue.selectedLead.name)) || 'Prospect';
+      const salutationHtml = `<p style="margin-bottom: 16px; font-weight: 500;">Dear ${escapeHtml(businessName)} Team,</p>`;
+
+      let bodyHtml = '';
       if (paragraphs.length > 0) {
-        previewBodyEl.innerHTML = paragraphs.map(p => `<p>${escapeHtml(p)}</p>`).join('');
+        bodyHtml = paragraphs.map(p => `<p style="margin-bottom: 16px;">${escapeHtml(p)}</p>`).join('');
       } else {
-        previewBodyEl.innerHTML = '<p style="color:var(--text-tertiary);font-style:italic;">(Email body is empty)</p>';
+        bodyHtml = '<p style="color:var(--text-tertiary);font-style:italic;">(Email body is empty)</p>';
       }
+
+      const footerHtml = `
+        <p style="margin-top: 20px; margin-bottom: 14px; color: var(--text-secondary);">
+          Work: <a href="https://onefolk.in/work" target="_blank" style="color: inherit; text-decoration: underline;">https://onefolk.in/work</a>
+        </p>
+        <p style="margin-top: 14px; line-height: 1.5; color: var(--text-main);">
+          Regards,<br>
+          <strong>Team OneFolk</strong><br>
+          <a href="https://onefolk.in/" target="_blank" style="color: inherit; text-decoration: underline;">https://onefolk.in/</a>
+        </p>
+      `;
+
+      previewBodyEl.innerHTML = salutationHtml + bodyHtml + footerHtml;
 
       const words = body ? body.split(/\s+/).length : 0;
       const proofLine = (state.queue.selectedLead && state.queue.selectedLead.proof_line)
@@ -2016,16 +2032,36 @@
       if (!hasProof) errors.push(`Proof line missing: "${proofLine}".`);
       if (!hasQuestion) errors.push('Paragraph 3 must end with a low-commitment question mark (?).');
 
+      // Brand Tone & Voice Checks
+      const toneWarnings = [];
+      if (/\b(I|I'm|I've|my|I noticed|I came across|I found)\b/i.test(body)) {
+        toneWarnings.push("Contains first-person singular ('I'). Company voice requires writing from team perspective ('we', 'our', 'Team OneFolk').");
+      }
+      if (/enquiry friction|opportunity worth exploring|move easily from treatment pages|treatments across spine|with a way to request appointments/i.test(body)) {
+        toneWarnings.push("Contains UX jargon or awkward phrasing. Use patient-friendly, natural plain language.");
+      }
+
       const errBox = document.getElementById('editorValidationError');
       const approveBtn = document.getElementById('btnModalApprove');
 
+      let bannerHtml = '';
       if (errors.length > 0) {
-        errBox.innerHTML = '<strong>Validation Requirements:</strong><br>• ' + errors.join('<br>• ');
-        errBox.classList.add('visible');
+        bannerHtml += '<strong>Validation Requirements:</strong><br>• ' + errors.join('<br>• ');
         approveBtn.disabled = true;
       } else {
-        errBox.classList.remove('visible');
         approveBtn.disabled = false;
+      }
+
+      if (toneWarnings.length > 0) {
+        if (bannerHtml) bannerHtml += '<br><br>';
+        bannerHtml += '<strong>⚠️ Voice & Tone Warning:</strong><br>• ' + toneWarnings.join('<br>• ');
+      }
+
+      if (bannerHtml) {
+        errBox.innerHTML = bannerHtml;
+        errBox.classList.add('visible');
+      } else {
+        errBox.classList.remove('visible');
       }
     }
 
