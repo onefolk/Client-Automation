@@ -46,6 +46,10 @@ class StrictResearcher(ProspectResearcher):
                       if w.lower() not in ('the','and','private','limited','pvt','ltd')]
         page_text = ' '.join(t for t,_ in result['page_contexts']).lower()
         identity = bool(name_words and any(w in page_text for w in name_words))
-        result['qualification_status'] = ('QUALIFIED' if identity and result['opportunity']
-                                           and result['proof_verified']=='YES' else 'NEEDS_RESEARCH')
+        is_evidenced = bool(identity and result['opportunity'] and result['proof_verified']=='YES')
+        result['qualification_status'] = 'QUALIFIED' if is_evidenced else 'NEEDS_RESEARCH'
+        score = int(result.get('priority_score', result.get('qualification_score', 80)) or 0)
+        result['priority_score'] = score
+        result['priority_tier'] = ('TOP_10_PRIORITY' if (is_evidenced and score >= 80)
+                                   else ('SECONDARY_BACKLOG' if is_evidenced else 'NEEDS_RESEARCH'))
         return result

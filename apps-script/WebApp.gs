@@ -202,6 +202,8 @@ function apiGetDashboardData() {
   let bouncedCount = 0;
   let positiveReplyCount = 0;
   let totalQueueRows = 0;
+  let top10Priority = 0;
+  let secondaryBacklog = 0;
   
   if (queueSheet) {
     const rows = queueSheet.getDataRange().getValues();
@@ -209,15 +211,19 @@ function apiGetDashboardData() {
       const headers = rows[0].map(h => normalizeKey(h));
       const statusCol = headers.indexOf('status');
       const approvalCol = headers.indexOf('approval');
-      
+      const scoreCol = headers.indexOf('priority_score') !== -1 ? headers.indexOf('priority_score') : headers.indexOf('qualification_score');
+
       totalQueueRows = rows.length - 1;
       for (let i = 1; i < rows.length; i++) {
         const st = statusCol !== -1 ? normalizeKey(rows[i][statusCol]) : '';
         const app = approvalCol !== -1 ? normalizeKey(rows[i][approvalCol]) : '';
+        const sc = scoreCol !== -1 ? Number(rows[i][scoreCol] || 0) : 80;
         
         if (st === 'awaiting_review' && app === 'pending') {
           readyToReview++;
           awaitingApproval++;
+          if (sc >= 80) top10Priority++;
+          else secondaryBacklog++;
         } else if (st === 'needs_research') {
           needsResearch++;
         } else if (st === 'approved' || app === 'approved') {
@@ -274,6 +280,8 @@ function apiGetDashboardData() {
     timestamp: new Date().toISOString(),
     metrics: {
       readyToReview: readyToReview,
+      top10Priority: top10Priority,
+      secondaryBacklog: secondaryBacklog,
       awaitingApproval: awaitingApproval,
       needsResearch: needsResearch,
       approved: approvedCount,
@@ -285,7 +293,9 @@ function apiGetDashboardData() {
       proposalsRequested: Number(sheetKpis['Proposals requested'] || 0),
       convertedClients: Number(sheetKpis['Clients converted'] || 0),
       newLeadsDiscovered: healthInfo.newly_discovered || Number(sheetKpis['Prospects discovered'] || totalQueueRows),
-      targetDailyGoal: 50
+      targetDailyGoal: 10,
+      targetPriorityGoal: 10,
+      maxDailyCapacity: 50
     },
     system: {
       sendingLocked: IMPLEMENTATION_SENDING_LOCK,
@@ -324,7 +334,7 @@ function apiGetApprovalQueue(params) {
   }
 
   const headers = rows[0].map(h => normalizeKey(h));
-  const statusCounts = { ALL: 0, AWAITING_REVIEW: 0, NEEDS_RESEARCH: 0, APPROVED: 0, REJECTED: 0, SENT: 0, OTHER: 0 };
+  const statusCounts = { ALL: 0, TOP_10: 0, BACKLOG: 0, AWAITING_REVIEW: 0, NEEDS_RESEARCH: 0, APPROVED: 0, REJECTED: 0, SENT: 0, OTHER: 0 };
 
   const allLeads = [];
   for (let i = 1; i < rows.length; i++) {
@@ -336,11 +346,14 @@ function apiGetApprovalQueue(params) {
 
     const st = normalizeKey(item.status);
     const app = normalizeKey(item.approval);
+    const score = Number(item.priority_score || item.qualification_score || 0);
     
     // Normalize status bucket for counter
     statusCounts.ALL++;
     if (st === 'awaiting_review' || (st === 'qualified' && app === 'pending')) {
       statusCounts.AWAITING_REVIEW++;
+      if (score >= 80) statusCounts.TOP_10++;
+      else statusCounts.BACKLOG++;
     } else if (st === 'needs_research') {
       statusCounts.NEEDS_RESEARCH++;
     } else if (st === 'approved' || app === 'approved') {
@@ -355,6 +368,8 @@ function apiGetApprovalQueue(params) {
 
     // Filter by status
     if (statusFilter !== 'all') {
+      if (statusFilter === 'top_10' && (st !== 'awaiting_review' || score < 80)) continue;
+      if (statusFilter === 'backlog' && (st !== 'awaiting_review' || score >= 80)) continue;
       if (statusFilter === 'awaiting_review' && st !== 'awaiting_review') continue;
       if (statusFilter === 'needs_research' && st !== 'needs_research') continue;
       if (statusFilter === 'approved' && st !== 'approved' && app !== 'approved') continue;

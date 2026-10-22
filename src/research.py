@@ -202,14 +202,15 @@ class ProspectResearcher:
         industry = candidate.get("industry", "other")
         portfolio_match = match_portfolio_project(industry, combined_signals)
 
-        # 7. Compute transparent qualification score
-        score, explanation, is_qualified = self._compute_qualification_score(
+        # 7. Compute transparent qualification score (100-point model)
+        score, explanation, is_qualified, breakdown = self._compute_qualification_score(
             combined_signals, public_email, observation, candidate
         )
 
         from hashlib import sha256
         lead_id = f"lead_{sha256((target_domain + '|' + public_email).encode()).hexdigest()[:16]}"
         timestamp = datetime.now(timezone.utc).isoformat()
+        priority_tier = "TOP_10_PRIORITY" if score >= 80 else ("SECONDARY_BACKLOG" if is_qualified else "NEEDS_RESEARCH")
 
         return {
             "lead_id": lead_id,
@@ -222,6 +223,10 @@ class ProspectResearcher:
             "email_source_url": email_source,
             "qualification_score": score,
             "qualification_status": "QUALIFIED" if is_qualified else "NEEDS_RESEARCH",
+            "priority_score": score,
+            "priority_tier": priority_tier,
+            "priority_breakdown": breakdown,
+            "scoring_reasons": explanation,
             "observation": observation,
             "observation_url": observation_url,
             "observation_type": observation_type,
@@ -271,31 +276,97 @@ class ProspectResearcher:
 
     def _compute_qualification_score(
         self, signals: Dict[str, Any], email: str, observation: str, candidate: Dict[str, Any]
-    ) -> Tuple[int, str, bool]:
-        """Calculates a transparent score (0-100) based on verified evidence."""
-        score = 0
+    ) -> Tuple[int, str, bool, Dict[str, int]]:
+        """Calculates a transparent priority qualification score (0-100) based on 5 strict criteria:
+        1. Verified website opportunity: max 30 pts
+        2. OneFolk service fit: max 25 pts
+        3. Publicly sourced appropriate contact: max 20 pts
+        4. Observable improvement or buying signal: max 15 pts
+        5. Commercial fit: max 10 pts
+        Minimum threshold for Top 10 Priority Queue: 80 / 100.
+        Secondary qualified backlog threshold: 60 - 79.
+        """
+        score_opportunity = 0
+        score_service_fit = 0
+        score_contact = 0
+        score_buying_signal = 0
+        score_commercial_fit = 0
         reasons = []
 
+        # 1. Verified website opportunity (max 30 pts)
+        obs_lower = (observation or "").lower()
+        if any(k in obs_lower for k in ("defect", "insecure http", "viewport", "manual", "download", "construction", "broken", "unencrypted")):
+            score_opportunity = 30
+            reasons.append("Verified concrete technical or manual workflow defect identified (30/30)")
+        elif any(k in obs_lower for k in ("mailto", "form", "inquiry", "contact")):
+            score_opportunity = 25
+            reasons.append("Verified missing interactive form or intake workflow (25/30)")
+        elif observation:
+            score_opportunity = 20
+            reasons.append("Verifiable static portal modernization opportunity (20/30)")
+        else:
+            reasons.append("No verifiable website opportunity identified (0/30)")
+
+        # 2. OneFolk service fit (max 25 pts)
+        industry = candidate.get("industry", "other")
+        portfolio = match_portfolio_project(industry, signals)
+        if portfolio.get("project") != "OneFolk website":
+            score_service_fit = 25
+            reasons.append(f"Direct software product match: {portfolio.get('project')} (25/25)")
+        elif signals.get("has_inquiry_form") is False or signals.get("has_mobile_viewport") is False:
+            score_service_fit = 20
+            reasons.append("Direct web redesign & responsive engineering fit (20/25)")
+        else:
+            score_service_fit = 15
+            reasons.append("General web engineering & modernization fit (15/25)")
+
+        # 3. Publicly sourced appropriate contact (max 20 pts)
         if email and "@" in email:
-            score += 35
-            reasons.append("Verified public domain contact email present (+35)")
+            prefix = email.split("@")[0].lower()
+            if any(p in prefix for p in ("info", "contact", "office", "enquiry", "inquiry", "admissions", "admin", "principal", "reach")):
+                score_contact = 20
+                reasons.append(f"Verified priority role inbox with valid MX: {email} (20/20)")
+            else:
+                score_contact = 15
+                reasons.append(f"Verified official domain contact with valid MX: {email} (15/20)")
+        else:
+            reasons.append("No verified public domain contact email (0/20)")
 
-        if signals.get("has_https"):
-            score += 15
-            reasons.append("Secure HTTPS active (+15)")
+        # 4. Observable improvement or buying signal (max 15 pts)
+        if signals.get("has_booking_link") or signals.get("has_portal_login") or signals.get("has_event_opportunity") or signals.get("has_ordering_opportunity"):
+            score_buying_signal = 15
+            reasons.append("Active interactive business signals & transaction keywords detected (15/15)")
+        elif signals.get("copyright_year") and signals.get("copyright_year") >= 2023:
+            score_buying_signal = 12
+            reasons.append(f"Actively maintained domain with recent copyright {signals['copyright_year']} (12/15)")
+        elif signals.get("has_https"):
+            score_buying_signal = 10
+            reasons.append("Active domain with standard HTTPS security (10/15)")
+        else:
+            score_buying_signal = 5
+            reasons.append("Baseline active web presence (5/15)")
 
-        if observation:
-            score += 25
-            reasons.append("Verifiable website opportunity identified (+25)")
+        # 5. Commercial fit (max 10 pts)
+        if candidate.get("city") and industry in ("education", "training", "professional-services", "creative", "architecture", "hospitality", "events"):
+            score_commercial_fit = 10
+            reasons.append(f"Metropolitan {candidate.get('city')} commercial market fit in {industry} (10/10)")
+        elif candidate.get("city"):
+            score_commercial_fit = 7
+            reasons.append(f"Target metropolitan {candidate.get('city')} location fit (7/10)")
+        else:
+            score_commercial_fit = 5
+            reasons.append("Standard commercial business entity (5/10)")
 
-        if candidate.get("city"):
-            score += 15
-            reasons.append("Target metropolitan geographic alignment (+15)")
+        total_score = score_opportunity + score_service_fit + score_contact + score_buying_signal + score_commercial_fit
+        breakdown = {
+            "opportunity": score_opportunity,
+            "service_fit": score_service_fit,
+            "contact": score_contact,
+            "buying_signal": score_buying_signal,
+            "commercial_fit": score_commercial_fit,
+            "total": total_score,
+        }
+        explanation = f"Total {total_score}/100: " + "; ".join(reasons)
+        is_qualified = total_score >= 60
 
-        if signals.get("has_mobile_viewport"):
-            score += 10
-            reasons.append("Modern mobile layout baseline detected (+10)")
-
-        is_qualified = score >= 60
-        explanation = "; ".join(reasons)
-        return score, explanation, is_qualified
+        return total_score, explanation, is_qualified, breakdown

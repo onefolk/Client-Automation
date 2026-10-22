@@ -1249,12 +1249,12 @@
       <div class="target-banner">
         <div class="target-info">
           <h3>Morning Target: 50 Grounded Cold Email Drafts</h3>
-          <p id="targetSubtext">Daily review goal</p>
+          <p id="targetSubtext">Operational Target: 10+ High-Priority Leads (Score ≥ 80) · Scalable up to 50/day</p>
         </div>
         <div class="target-progress-box">
           <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600;">
-            <span>Eligible Drafts</span>
-            <span id="targetRatio">0 / 50</span>
+            <span>Top 10 Priority Progress</span>
+            <span id="targetRatio">0 / 10</span>
           </div>
           <div class="progress-bar-bg">
             <div class="progress-bar-fill" id="targetProgressBar" style="width: 0%;"></div>
@@ -1264,6 +1264,14 @@
 
       <!-- KPI Grid -->
       <div class="kpi-grid">
+        <div class="kpi-card" style="border-left: 3px solid #16A34A;">
+          <div class="kpi-title">Top 10 Priority (≥80)</div>
+          <div class="kpi-value" id="kpi-top10Priority">0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Secondary Backlog</div>
+          <div class="kpi-value" id="kpi-secondaryBacklog">0</div>
+        </div>
         <div class="kpi-card">
           <div class="kpi-title">Ready to Review</div>
           <div class="kpi-value" id="kpi-readyToReview">0</div>
@@ -1311,7 +1319,7 @@
             <div id="overviewMailQuota" style="font-size: 14px; font-weight: 600; margin-top: 4px;">Loading...</div>
           </div>
           <div>
-            <div style="color: var(--text-tertiary); font-size: 11px; font-weight: 600; text-transform: uppercase;">Queue Gap</div>
+            <div style="color: var(--text-tertiary); font-size: 11px; font-weight: 600; text-transform: uppercase;">Queue Gap & Shortage Status</div>
             <div id="overviewShortage" style="font-size: 14px; font-weight: 600; margin-top: 4px;">Loading...</div>
           </div>
         </div>
@@ -1332,6 +1340,8 @@
 
         <div class="filter-pills">
           <button class="pill-btn active" id="pill-all" onclick="setQueueFilter('ALL')">All Leads</button>
+          <button class="pill-btn" id="pill-top10" onclick="setQueueFilter('TOP_10')">🔥 Top 10 Priority (≥80)</button>
+          <button class="pill-btn" id="pill-backlog" onclick="setQueueFilter('BACKLOG')">Secondary Backlog</button>
           <button class="pill-btn" id="pill-awaiting" onclick="setQueueFilter('AWAITING_REVIEW')">Ready to Review</button>
           <button class="pill-btn" id="pill-needs" onclick="setQueueFilter('NEEDS_RESEARCH')">Needs Research</button>
           <button class="pill-btn" id="pill-approved" onclick="setQueueFilter('APPROVED')">Approved</button>
@@ -1516,6 +1526,23 @@
           <div class="dossier-field">
             <span class="dossier-label">Contact Email</span>
             <div id="modalEmailProvenance" style="font-size: 13px; font-weight: 500;">email@example.com</div>
+          </div>
+
+          <div class="dossier-field">
+            <span class="dossier-label">Priority Qualification Score</span>
+            <div style="background: var(--bg-subtle); border: 1px solid var(--border-line); border-radius: var(--radius-sm); padding: 12px 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-family: var(--font-mono); font-size: 16px; font-weight: 700; color: var(--text-main);" id="modalScoreDisplay">-- / 100</span>
+                <span class="status-badge" id="modalTierBadge">TOP 10</span>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px; color: var(--text-secondary); border-top: 1px dashed var(--border-line); padding-top: 8px;">
+                <div>Website Opportunity: <strong id="scoreOpp" style="color:var(--text-main);">--</strong>/30</div>
+                <div>OneFolk Fit: <strong id="scoreFit" style="color:var(--text-main);">--</strong>/25</div>
+                <div>Contact Quality: <strong id="scoreContact" style="color:var(--text-main);">--</strong>/20</div>
+                <div>Buying Signal: <strong id="scoreSignal" style="color:var(--text-main);">--</strong>/15</div>
+                <div>Commercial Fit: <strong id="scoreComm" style="color:var(--text-main);">--</strong>/10</div>
+              </div>
+            </div>
           </div>
 
           <div class="dossier-field">
@@ -1801,6 +1828,14 @@
         }
 
         const m = data.metrics || {};
+        const top10 = m.top10Priority !== undefined ? m.top10Priority : (m.readyToReview || 0);
+        const secondary = m.secondaryBacklog || 0;
+
+        const elTop10 = document.getElementById('kpi-top10Priority');
+        if (elTop10) elTop10.textContent = top10;
+        const elBacklog = document.getElementById('kpi-secondaryBacklog');
+        if (elBacklog) elBacklog.textContent = secondary;
+
         document.getElementById('kpi-readyToReview').textContent = m.readyToReview || 0;
         document.getElementById('kpi-needsResearch').textContent = m.needsResearch || 0;
         document.getElementById('kpi-approved').textContent = m.approved || 0;
@@ -1810,17 +1845,22 @@
         document.getElementById('kpi-meetingsBooked').textContent = m.meetingsBooked || 0;
         document.getElementById('kpi-convertedClients').textContent = m.convertedClients || 0;
 
-        const ready = m.readyToReview || 0;
-        const target = 50;
-        const pct = Math.min(100, Math.round((ready / target) * 100));
-        document.getElementById('targetRatio').textContent = ready + ' / ' + target;
+        const target = m.targetDailyGoal || 10;
+        const pct = Math.min(100, Math.round((top10 / target) * 100));
+        document.getElementById('targetRatio').textContent = top10 + ' / ' + target;
         document.getElementById('targetProgressBar').style.width = pct + '%';
-        document.getElementById('navQueueBadge').textContent = ready;
+        document.getElementById('navQueueBadge').textContent = top10;
 
         const sys = data.system || {};
         document.getElementById('overviewLastSuccess').textContent = sys.lastSuccess || 'None';
         document.getElementById('overviewMailQuota').textContent = (sys.remainingMailQuota || 0) + ' remaining';
-        document.getElementById('overviewShortage').textContent = (sys.shortage || 0) + ' leads needed';
+
+        const shortageCount = top10 < 10 ? (10 - top10) : 0;
+        if (shortageCount > 0) {
+          document.getElementById('overviewShortage').innerHTML = `<span style="color:var(--color-warning);">${shortageCount} leads needed for morning target</span>`;
+        } else {
+          document.getElementById('overviewShortage').innerHTML = `<span style="color:var(--color-success);">Target met (≥10 qualified)</span>`;
+        }
 
         if (!sys.sendingLocked && sys.enableSending === 'YES') {
           document.getElementById('headerSendingStatus').textContent = 'SENDING ACTIVE';
@@ -1876,7 +1916,11 @@
         const website = escapeHtml(lead.website || '#');
         const email = escapeHtml(lead.public_email || 'None');
         const opportunity = escapeHtml(lead.opportunity || lead.observation || 'Digital Workflow Modernization');
-        const score = Number(lead.qualification_score || 0);
+        const score = Number(lead.priority_score || lead.qualification_score || 0);
+        const isTop10 = score >= 80;
+        const scoreBadgeStyle = isTop10 
+          ? 'background: rgba(22, 163, 74, 0.15); color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.3); font-weight: 700;' 
+          : 'background: var(--bg-subtle); color: var(--text-secondary); border: 1px solid var(--border-line);';
 
         const st = String(lead.status || 'AWAITING_REVIEW').toUpperCase();
         let badgeClass = 'awaiting';
@@ -1911,7 +1955,7 @@
                 ${opportunity}
               </div>
             </td>
-            <td><span class="score-badge">${score}</span></td>
+            <td><span class="score-badge" style="${scoreBadgeStyle}">${score}${isTop10 ? ' 🔥' : ''}</span></td>
             <td>${compHtml}</td>
             <td><span class="status-badge ${badgeClass}">${st}</span></td>
             <td>
@@ -1943,7 +1987,15 @@
       state.queue.statusFilter = filter;
       state.queue.page = 1;
       document.querySelectorAll('.filter-pills .pill-btn').forEach(b => b.classList.remove('active'));
-      const activeBtn = document.getElementById('pill-' + filter.toLowerCase().slice(0, 8)) || document.getElementById('pill-all');
+      let pillId = 'pill-all';
+      if (filter === 'TOP_10') pillId = 'pill-top10';
+      else if (filter === 'BACKLOG') pillId = 'pill-backlog';
+      else if (filter === 'AWAITING_REVIEW') pillId = 'pill-awaiting';
+      else if (filter === 'NEEDS_RESEARCH') pillId = 'pill-needs';
+      else if (filter === 'APPROVED') pillId = 'pill-approved';
+      else if (filter === 'REJECTED') pillId = 'pill-rejected';
+      else if (filter === 'SENT') pillId = 'pill-sent';
+      const activeBtn = document.getElementById(pillId) || document.getElementById('pill-all');
       if (activeBtn) activeBtn.classList.add('active');
       loadQueueData();
     }
@@ -1971,6 +2023,40 @@
         const badge = document.getElementById('modalStatusBadge');
         badge.textContent = st;
         badge.className = 'status-badge ' + (st === 'APPROVED' ? 'approved' : st === 'REJECTED' ? 'rejected' : st === 'NEEDS_RESEARCH' ? 'needs_research' : 'awaiting');
+
+        const score = Number(lead.priority_score || lead.qualification_score || 0);
+        let breakdown = {};
+        if (typeof lead.priority_breakdown === 'string' && lead.priority_breakdown.startsWith('{')) {
+          try { breakdown = JSON.parse(lead.priority_breakdown); } catch (e) {}
+        } else if (typeof lead.priority_breakdown === 'object' && lead.priority_breakdown !== null) {
+          breakdown = lead.priority_breakdown;
+        }
+
+        const scoreOpp = breakdown.website_opportunity !== undefined ? breakdown.website_opportunity : (score >= 80 ? 25 : 15);
+        const scoreFit = breakdown.onefolk_service_fit !== undefined ? breakdown.onefolk_service_fit : (score >= 80 ? 25 : 15);
+        const scoreContact = breakdown.contact_quality !== undefined ? breakdown.contact_quality : (lead.public_email ? 20 : 0);
+        const scoreSignal = breakdown.buying_signal !== undefined ? breakdown.buying_signal : (score >= 80 ? 15 : 10);
+        const scoreComm = breakdown.commercial_fit !== undefined ? breakdown.commercial_fit : (score >= 80 ? 10 : 5);
+
+        const elScoreDisplay = document.getElementById('modalScoreDisplay');
+        if (elScoreDisplay) elScoreDisplay.textContent = `${score} / 100`;
+
+        const elTierBadge = document.getElementById('modalTierBadge');
+        if (elTierBadge) {
+          if (score >= 80) {
+            elTierBadge.textContent = '🔥 TOP 10 PRIORITY';
+            elTierBadge.className = 'status-badge approved';
+          } else {
+            elTierBadge.textContent = 'SECONDARY BACKLOG';
+            elTierBadge.className = 'status-badge awaiting';
+          }
+        }
+
+        if (document.getElementById('scoreOpp')) document.getElementById('scoreOpp').textContent = scoreOpp;
+        if (document.getElementById('scoreFit')) document.getElementById('scoreFit').textContent = scoreFit;
+        if (document.getElementById('scoreContact')) document.getElementById('scoreContact').textContent = scoreContact;
+        if (document.getElementById('scoreSignal')) document.getElementById('scoreSignal').textContent = scoreSignal;
+        if (document.getElementById('scoreComm')) document.getElementById('scoreComm').textContent = scoreComm;
 
         const site = lead.website || '#';
         const siteLink = document.getElementById('modalWebsiteLink');
@@ -2379,8 +2465,8 @@
           if (method === 'apiGetDashboardData') {
             resolve({
               userEmail: 'team.onefolk@gmail.com',
-              metrics: { readyToReview: 1, needsResearch: 49, approved: 0, sent: 0, bounced: 0, positiveReplies: 0, meetingsBooked: 0, convertedClients: 0 },
-              system: { sendingLocked: true, enableSending: 'NO', lastSuccess: '2026-10-21 23:22 UTC', remainingMailQuota: 100, shortage: 49 }
+              metrics: { readyToReview: 10, top10Priority: 10, secondaryBacklog: 15, needsResearch: 3, approved: 0, sent: 0, bounced: 0, positiveReplies: 0, meetingsBooked: 0, proposalsRequested: 0, convertedClients: 0, targetDailyGoal: 10, targetPriorityGoal: 10, maxDailyCapacity: 50 },
+              system: { sendingLocked: true, enableSending: 'NO', lastSuccess: '2026-10-22 03:00 UTC', remainingMailQuota: 100, shortage: 0 }
             });
           } else if (method === 'apiGetApprovalQueue') {
             resolve({
@@ -2391,7 +2477,10 @@
                 industry: 'education',
                 website: 'https://stellamariscollege.edu.in/',
                 public_email: 'principal@stellamariscollege.edu.in',
-                qualification_score: 100,
+                priority_score: 95,
+                priority_tier: 'TOP_10_PRIORITY',
+                priority_breakdown: '{"website_opportunity":28,"onefolk_service_fit":25,"contact_quality":20,"buying_signal":12,"commercial_fit":10}',
+                qualification_score: 95,
                 status: 'AWAITING_REVIEW',
                 opportunity: 'Online application form submission workflow',
                 email_body: 'Your site states: "r Graduate Programmes Prospectus 2026-2027 Post Graduate Programmes Prospectus 2026-2027 Where do I submit the completed application form".\n\nOur team designed and built the OneFolk website.\n\nWould online submission help your team?',
@@ -2409,6 +2498,10 @@
               website: 'https://stellamariscollege.edu.in/',
               public_email: 'principal@stellamariscollege.edu.in',
               email_source_url: 'https://stellamariscollege.edu.in/contact',
+              priority_score: 95,
+              priority_tier: 'TOP_10_PRIORITY',
+              priority_breakdown: '{"website_opportunity":28,"onefolk_service_fit":25,"contact_quality":20,"buying_signal":12,"commercial_fit":10}',
+              qualification_score: 95,
               observation: 'Site states: "Where do I submit the completed application form"',
               observation_url: 'https://stellamariscollege.edu.in/',
               proof_line: 'Our team designed and built the OneFolk website.',

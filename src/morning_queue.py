@@ -23,7 +23,7 @@ def campaign_day(now):
     return str(day)
 
 class MorningQueueManager:
-    def __init__(self, target_queue=50, dry_run=False):
+    def __init__(self, target_queue=10, dry_run=False):
         self.target_queue = min(50, max(1,target_queue))
         self.dry_run = dry_run
         self.sheets = SheetsManager()
@@ -185,11 +185,22 @@ class MorningQueueManager:
                     'positive_reply':sum(r.get('status')=='POSITIVE_REPLY' for r in q),
                     'bounced':sum(r.get('status')=='BOUNCED' for r in q)
                 }],key='source_run_id')
-            summary['shortage']=max(0,self.target_queue-len(ready))
-            if summary['shortage']:
-                summary['shortage_reasons'].append('Insufficient fresh, evidenced, non-contacted drafts; no quantity substitution')
+            # Operational Target: 10+ High-Priority Leads (score >= 80)
+            top_10 = [
+                r for r in ready
+                if int(r.get('priority_score', r.get('qualification_score', 85 if r.get('qualification_status') == 'QUALIFIED' else 0)) or 0) >= 80
+            ]
+            secondary = [r for r in ready if r not in top_10]
+            summary['top_10_priority'] = len(top_10)
+            summary['secondary_backlog'] = len(secondary)
+            primary_target = self.target_queue
+            summary['shortage'] = max(0, primary_target - len(top_10))
+            if summary['shortage'] > 0:
+                summary['shortage_reasons'].append(
+                    f"Honest Shortage: Only {len(top_10)}/{primary_target} prospects met the strict 80/100 priority qualification standard. Maintaining high-quality threshold rather than compromising criteria."
+                )
             if summary['api_failures']: summary['shortage_reasons'].append('Groq output validation or API failures')
-            summary['status']='READY' if not summary['shortage'] and not summary['api_failures'] else 'SHORTFALL'
+            summary['status'] = 'READY' if summary['shortage'] == 0 and not summary['api_failures'] else 'SHORTFALL'
             summary['end_time']=datetime.now(timezone.utc).isoformat()
             append_records(self.sheets,'Campaign Runs',[summary],key='run_id')
             # Dedicated metrics do not overwrite or inflate the legacy Dashboard counters.
