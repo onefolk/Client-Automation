@@ -1,4 +1,9 @@
 {
+  "endpoints": [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter"
+  ],
   "endpoint": "https://overpass-api.de/api/interpreter",
   "license": "https://www.openstreetmap.org/copyright",
   "policy": "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html",

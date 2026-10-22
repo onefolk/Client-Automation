@@ -23,8 +23,11 @@ def campaign_day(now):
     return str(day)
 
 class MorningQueueManager:
-    def __init__(self, target_queue=10, dry_run=False):
-        self.target_queue = min(50, max(1,target_queue))
+    def __init__(self, target_queue=None, dry_run=False):
+        if target_queue is None:
+            env_target = os.getenv('TARGET_QUEUE') or os.getenv('MORNING_TARGET')
+            target_queue = int(env_target) if env_target else 10
+        self.target_queue = min(50, max(1, target_queue))
         self.dry_run = dry_run
         self.sheets = SheetsManager()
         self.campaign_cfg = get_active_campaign()

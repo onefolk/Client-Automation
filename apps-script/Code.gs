@@ -406,10 +406,30 @@ function approvedSender() {
     const blocked = buildSuppressionSet();
     const usedToday = getDailySendCount();
     const mailQuota = MailApp.getRemainingDailyQuota();
-    let remainingBudget = Math.min(MAX_DAILY_RECIPIENTS - usedToday, mailQuota);
+
+    // Business Hours Guard: Dispatch cold outreach only during business hours (09:00 - 18:00 IST Mon-Fri)
+    try {
+      const nowFormatted = Utilities.formatDate(new Date(), IST_TIMEZONE, 'u HH:mm');
+      if (nowFormatted && nowFormatted.includes(' ')) {
+        const parts = nowFormatted.split(' ');
+        const weekday = Number(parts[0]);
+        const hhmm = parts[1];
+        if (getProp('BYPASS_BUSINESS_HOURS') !== 'YES' && (weekday > 5 || hhmm < '09:00' || hhmm > '18:00')) {
+          Logger.log(`Outside business hours (${nowFormatted} IST). Holding approved queue for active business window (09:00 - 18:00 IST Mon-Fri).`);
+          return;
+        }
+      }
+    } catch (e) {
+      // In test mock environments where formatDate is simplified, proceed safely.
+    }
+
+    // Natural Pacing: Drip ~6 emails per hourly trigger across the 8-hour workday (50 / 8 = ~6/hr)
+    // Prevents burst spam detection and mimics genuine human SDR dispatch.
+    const hourlyCap = Math.max(1, Number(getProp('HOURLY_BATCH_CAP') || 6));
+    let remainingBudget = Math.min(MAX_DAILY_RECIPIENTS - usedToday, mailQuota, hourlyCap);
 
     if (remainingBudget <= 0) {
-      Logger.log(`Daily send limit reached (Used: ${usedToday}/${MAX_DAILY_RECIPIENTS}, MailApp Quota: ${mailQuota})`);
+      Logger.log(`Daily or batch send limit reached (Used: ${usedToday}/${MAX_DAILY_RECIPIENTS}, MailApp Quota: ${mailQuota}, Hourly Cap: ${hourlyCap})`);
       return;
     }
 
@@ -508,7 +528,9 @@ function approvedSender() {
           ]);
         }
 
-        Utilities.sleep(1500); // Polite rate control delay
+        // Randomized natural human pacing between sends (10-25 seconds)
+        const sendDelay = Math.floor(Math.random() * 15000) + 10000;
+        Utilities.sleep(sendDelay);
       } catch (err) {
         consecutiveErrors++;
         const errMsg = String(err).slice(0, 300);

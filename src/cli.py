@@ -258,6 +258,55 @@ def preflight_check(require_groq: bool = True) -> bool:
     return True
 
 
+def seed_candidates_from_csv(csv_path: str) -> int:
+    """Imports candidate institutions from a CSV file into the durable reserve store."""
+    import csv
+    from pathlib import Path
+    from src.open_discovery import company_id
+    from src.reserve import ReserveStore
+    from src.sheets import SheetsManager
+    from src.network import canonical_url
+
+    sheets = SheetsManager()
+    if not sheets.connect():
+        logger.error("Could not connect to Google Sheets to access reserve store.")
+        return 0
+    store = ReserveStore(sheets)
+    seeded = 0
+    with open(csv_path, encoding="utf-8", errors="ignore") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            website = row.get("website") or row.get("Website") or row.get("Website URL") or ""
+            name = (
+                row.get("institution_name")
+                or row.get("name")
+                or row.get("business")
+                or row.get("Institution Name")
+                or ""
+            )
+            if not website or not website.startswith(("http://", "https://")):
+                continue
+            cid = company_id(website)
+            if store.get("prospect:" + cid):
+                continue
+            candidate = {
+                "company_id": cid,
+                "name": name or website,
+                "business": name or website,
+                "website": canonical_url(website),
+                "industry": row.get("industry") or "education",
+                "city": row.get("city") or row.get("City") or "",
+                "source_url": website,
+                "source": f"CSV Seed ({Path(csv_path).name})",
+                "state": "DISCOVERED",
+                "discovered_at": time.time(),
+            }
+            store.put("prospect:" + cid, candidate)
+            seeded += 1
+    logger.info("Successfully seeded %d candidate prospects into discovery store.", seeded)
+    return seeded
+
+
 def main():
     """CLI parser and router."""
     parser = argparse.ArgumentParser(description="OneFolk Outreach Engine CLI")
@@ -271,8 +320,11 @@ def main():
     dry_parser.add_argument("--target", type=int, default=10, help="Target lead count for dry run")
 
     morning = subparsers.add_parser("morning-queue", help="Durable scheduled discovery and drafting")
-    morning.add_argument("--target", type=int, default=50)
+    morning.add_argument("--target", type=int, default=10, help="Target high-priority leads count (default: 10)")
     morning.add_argument("--publish-only", action="store_true")
+
+    seed_parser = subparsers.add_parser("seed-csv", help="Seed candidate institutions from a CSV file into discovery store")
+    seed_parser.add_argument("csv_path", help="Path to CSV file with institution websites")
 
     reconcile_parser = subparsers.add_parser("reconcile", help="Reconcile statuses, approvals and suppressions")
 
@@ -295,6 +347,9 @@ def main():
     elif args.command == "morning-queue":
         from src.morning_queue import MorningQueueManager
         print(json.dumps(MorningQueueManager(args.target).run(publish_only=args.publish_only), indent=2))
+    elif args.command == "seed-csv":
+        seeded = seed_candidates_from_csv(args.csv_path)
+        print(f"Seeded {seeded} candidates from {args.csv_path}")
     elif args.command == "reconcile":
         sheets = SheetsManager()
         if sheets.connect():
