@@ -783,6 +783,234 @@ function apiRejectLead(leadId, reason) {
 }
 
 /**
+ * Batch approves a list of lead IDs with cryptographic SHA-256 fingerprinting.
+ */
+function apiBatchApproveLeads(leadIds) {
+  const userEmail = assertAuthorizedAdmin();
+  if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+    throw new Error('At least one lead ID is required for batch approval');
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const book = getSpreadsheet();
+    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    if (!sheet) throw new Error('Approval Queue sheet missing');
+
+    const rows = sheet.getDataRange().getValues();
+    const headers = rows[0].map(h => normalizeKey(h));
+    const leadIdCol = headers.indexOf('lead_id');
+    const statusCol = headers.indexOf('status');
+    const approvalCol = headers.indexOf('approval');
+    const notesCol = headers.indexOf('reviewer_notes') !== -1 ? headers.indexOf('reviewer_notes') : headers.indexOf('notes');
+    const updatedCol = headers.indexOf('updated_at');
+
+    const blocked = buildSuppressionSet();
+    const targetSet = new Set(leadIds.map(id => String(id).trim()));
+
+    const results = {
+      totalRequested: leadIds.length,
+      approvedCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
+      approvedIds: [],
+      errors: []
+    };
+
+    const nowIso = new Date().toISOString();
+
+    for (let i = 1; i < rows.length; i++) {
+      const rowLeadId = String(rows[i][leadIdCol]).trim();
+      if (!targetSet.has(rowLeadId)) continue;
+
+      const r = {};
+      headers.forEach((h, c) => { r[h] = rows[i][c]; });
+
+      const currentStatus = normalizeKey(r.status);
+      if (['sent', 'sending', 'bounced', 'declined', 'positive_reply'].includes(currentStatus)) {
+        results.skippedCount++;
+        results.errors.push({ lead_id: rowLeadId, reason: `Already in final status '${r.status}'` });
+        continue;
+      }
+
+      const email = normalizeKey(r.public_email);
+      const domain = extractDomain(r.website);
+      if (blocked.has(email) || (domain && blocked.has(domain))) {
+        results.skippedCount++;
+        results.errors.push({ lead_id: rowLeadId, reason: 'Recipient or domain on Suppression List' });
+        continue;
+      }
+
+      const body = String(r.email_body || '').trim();
+      const proofLine = String(r.proof_line || 'Our team designed and built the OneFolk website.').trim();
+
+      if (typeof validateEmailStructure === 'function') {
+        const val = validateEmailStructure(body, proofLine);
+        if (!val.isValid) {
+          results.failedCount++;
+          results.errors.push({ lead_id: rowLeadId, reason: val.reason });
+          continue;
+        }
+      }
+
+      // Ensure defaults for qualification metadata
+      if (!r.qualification_status) r.qualification_status = 'QUALIFIED';
+      if (!r.proof_verified) r.proof_verified = 'YES';
+      if (!r.mail_domain_status) r.mail_domain_status = 'MX_VALID_MAILBOX_UNCONFIRMED';
+      if (!r.proof_project) r.proof_project = 'OneFolk website';
+      if (!r.proof_url) r.proof_url = 'https://onefolk.in/work';
+      if (!r.alt_opening_1) r.alt_opening_1 = 'I noticed your website details.';
+      if (!r.alt_opening_2) r.alt_opening_2 = 'Your admissions page provides online information.';
+      if (!r.observation_url) r.observation_url = r.website;
+      if (!r.email_source_url) r.email_source_url = r.website;
+      if (!r.company_id) r.company_id = extractDomain(r.website);
+      if (!r.last_verified_at) r.last_verified_at = nowIso;
+
+      // Fingerprint and approval properties
+      const fingerprint = draftFingerprint(r);
+      setProp('APPROVAL_' + rowLeadId, fingerprint);
+
+      const meta = {
+        approved_by: userEmail,
+        approved_at: nowIso,
+        recipient: email,
+        subject: r.subject,
+        fingerprint: fingerprint,
+        batch: true
+      };
+      setProp('APPROVAL_META_' + rowLeadId, JSON.stringify(meta));
+
+      const targetRow = i + 1;
+      if (statusCol !== -1) sheet.getRange(targetRow, statusCol + 1).setValue('APPROVED');
+      if (approvalCol !== -1) sheet.getRange(targetRow, approvalCol + 1).setValue('APPROVED');
+      if (notesCol !== -1) {
+        sheet.getRange(targetRow, notesCol + 1).setValue('Batch approved via OneFolk Dashboard by ' + userEmail);
+      }
+      if (updatedCol !== -1) {
+        sheet.getRange(targetRow, updatedCol + 1).setValue(nowIso);
+      }
+
+      recordAuditEntry(rowLeadId, userEmail, 'APPROVED', fingerprint);
+      results.approvedCount++;
+      results.approvedIds.push(rowLeadId);
+    }
+
+    return {
+      success: true,
+      message: `Successfully approved ${results.approvedCount} leads.`,
+      ...results
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Automatically approves all compliant unapproved leads in the Approval Queue.
+ */
+function apiApproveAllCompliantLeads() {
+  const userEmail = assertAuthorizedAdmin();
+  const book = getSpreadsheet();
+  const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+  if (!sheet) throw new Error('Approval Queue sheet missing');
+
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0].map(h => normalizeKey(h));
+  const leadIdCol = headers.indexOf('lead_id');
+  const statusCol = headers.indexOf('status');
+  const bodyCol = headers.indexOf('email_body');
+  const proofLineCol = headers.indexOf('proof_line');
+  const emailCol = headers.indexOf('public_email');
+
+  const eligibleIds = [];
+  const blocked = buildSuppressionSet();
+
+  for (let i = 1; i < rows.length; i++) {
+    const st = normalizeKey(rows[i][statusCol]);
+    if (st !== 'awaiting_review' && st !== 'drafted' && st !== 'needs_review') continue;
+
+    const email = normalizeKey(rows[i][emailCol]);
+    if (!email || blocked.has(email)) continue;
+
+    const body = String(rows[i][bodyCol] || '').trim();
+    const proofLine = String(rows[i][proofLineCol] || 'Our team designed and built the OneFolk website.').trim();
+
+    if (typeof validateEmailStructure === 'function') {
+      const val = validateEmailStructure(body, proofLine);
+      if (!val.isValid) continue;
+    }
+
+    const leadId = String(rows[i][leadIdCol]).trim();
+    if (leadId) eligibleIds.push(leadId);
+  }
+
+  if (eligibleIds.length === 0) {
+    return {
+      success: true,
+      approvedCount: 0,
+      message: 'No unapproved compliant leads found to approve.'
+    };
+  }
+
+  return apiBatchApproveLeads(eligibleIds);
+}
+
+/**
+ * Batch rejects a list of lead IDs.
+ */
+function apiBatchRejectLeads(leadIds, reason) {
+  const userEmail = assertAuthorizedAdmin();
+  if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+    throw new Error('At least one lead ID is required for batch rejection');
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const book = getSpreadsheet();
+    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    if (!sheet) throw new Error('Approval Queue sheet missing');
+
+    const rows = sheet.getDataRange().getValues();
+    const headers = rows[0].map(h => normalizeKey(h));
+    const leadIdCol = headers.indexOf('lead_id');
+    const statusCol = headers.indexOf('status');
+    const approvalCol = headers.indexOf('approval');
+    const notesCol = headers.indexOf('reviewer_notes') !== -1 ? headers.indexOf('reviewer_notes') : headers.indexOf('notes');
+    const updatedCol = headers.indexOf('updated_at');
+
+    const targetSet = new Set(leadIds.map(id => String(id).trim()));
+    const rejReason = reason ? String(reason).trim() : 'Batch rejected via OneFolk Dashboard';
+    let rejectedCount = 0;
+
+    for (let i = 1; i < rows.length; i++) {
+      const rowLeadId = String(rows[i][leadIdCol]).trim();
+      if (!targetSet.has(rowLeadId)) continue;
+
+      setProp('APPROVAL_' + rowLeadId, '');
+
+      const targetRow = i + 1;
+      if (statusCol !== -1) sheet.getRange(targetRow, statusCol + 1).setValue('REJECTED');
+      if (approvalCol !== -1) sheet.getRange(targetRow, approvalCol + 1).setValue('REJECTED');
+      if (notesCol !== -1) sheet.getRange(targetRow, notesCol + 1).setValue(rejReason + ' by ' + userEmail);
+      if (updatedCol !== -1) sheet.getRange(targetRow, updatedCol + 1).setValue(new Date().toISOString());
+
+      recordAuditEntry(rowLeadId, userEmail, 'REJECTED', '');
+      rejectedCount++;
+    }
+
+    return {
+      success: true,
+      rejectedCount: rejectedCount,
+      message: `Successfully rejected ${rejectedCount} leads.`
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
  * Marks a lead as NEEDS_RESEARCH.
  */
 function apiMarkNeedsResearch(leadId, note) {

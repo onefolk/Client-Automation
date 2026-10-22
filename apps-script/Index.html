@@ -622,6 +622,62 @@
     }
     .btn-action-view:hover { background: #333333; }
 
+    .batch-action-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      border-radius: var(--radius-sm);
+      padding: 10px 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      animation: fadeIn 0.2s ease-in-out;
+    }
+    .btn-batch-approve {
+      background: #16A34A;
+      color: #FFFFFF;
+      border: 1px solid #15803D;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s ease;
+    }
+    .btn-batch-approve:hover { background: #15803D; }
+    .btn-batch-reject {
+      background: #FFFFFF;
+      color: #DC2626;
+      border: 1px solid #FCA5A5;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .btn-batch-reject:hover { background: #FEF2F2; }
+    .btn-batch-approve-all {
+      background: #047857;
+      color: #FFFFFF;
+      border: 1px solid #065F46;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 7px 16px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    .btn-batch-approve-all:hover { background: #065F46; }
+    .btn-batch-approve-all:active { transform: scale(0.98); }
+
     .pagination-bar {
       padding: 14px 20px;
       display: flex;
@@ -1372,8 +1428,11 @@
 
     <!-- SECTION 2: APPROVAL QUEUE -->
     <div id="tab-queue" class="tab-content">
-      <div class="page-lead">
-        <h1 class="page-title">Approval Queue</h1>
+      <div class="page-lead" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <h1 class="page-title" style="margin: 0;">Approval Queue</h1>
+        <button class="btn-batch-approve-all" id="btnApproveAllCompliant" onclick="approveAllCompliantAction()" title="Approve all compliant unapproved leads in one click">
+          ⚡ Approve All Compliant
+        </button>
       </div>
 
       <div class="filter-bar">
@@ -1393,10 +1452,29 @@
         </div>
       </div>
 
+      <!-- Batch Selection Action Bar -->
+      <div class="batch-action-bar" id="batchActionBar" style="display: none;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-weight: 700; color: #166534; font-size: 13px;" id="batchSelectedCountText">0 leads selected</span>
+          <button class="btn-paper" onclick="clearSelectedLeads()" style="font-size: 11px; padding: 4px 8px; cursor: pointer;">Deselect All</button>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-batch-approve" id="btnBatchApproveSelected" onclick="batchApproveSelectedAction()">
+            ✓ Approve Selected (<span id="batchApproveCountSpan">0</span>)
+          </button>
+          <button class="btn-batch-reject" id="btnBatchRejectSelected" onclick="batchRejectSelectedAction()">
+            ✕ Reject Selected
+          </button>
+        </div>
+      </div>
+
       <div class="leads-table-container">
         <table class="leads-table" id="leadsTable">
           <thead>
             <tr>
+              <th style="width: 38px; text-align: center;">
+                <input type="checkbox" id="queueSelectAllCheckbox" onchange="toggleSelectAll(this)" title="Select all selectable leads on this page" style="cursor: pointer; width: 16px; height: 16px;">
+              </th>
               <th>Prospect / Institution</th>
               <th>Sector & City</th>
               <th>Contact Email</th>
@@ -1409,7 +1487,7 @@
           </thead>
           <tbody id="leadsTableBody">
             <tr>
-              <td colspan="8" class="empty-state">
+              <td colspan="9" class="empty-state">
                 <div class="spinner"></div>
                 <div style="margin-top: 10px;">Loading approval queue...</div>
               </td>
@@ -1800,7 +1878,8 @@
         total: 0,
         statusFilter: 'ALL',
         searchQuery: '',
-        selectedLead: null
+        selectedLead: null,
+        selectedLeadIds: new Set()
       },
       campaigns: [],
       replies: [],
@@ -1975,11 +2054,12 @@
 
         state.queue.leads = res.leads || [];
         state.queue.total = res.total || 0;
+        state.queue.selectedLeadIds.clear();
 
         renderQueueTable();
         renderQueuePagination(res);
       } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state" style="color:var(--color-danger);">' + escapeHtml(String(err)) + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state" style="color:var(--color-danger);">' + escapeHtml(String(err)) + '</td></tr>';
         showToast('Error: ' + err, 'error');
       }
     }
@@ -1987,7 +2067,8 @@
     function renderQueueTable() {
       const tbody = document.getElementById('leadsTableBody');
       if (state.queue.leads.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><h4>No Prospects in Current View</h4><p>No leads match the active filter or search query.</p></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><h4>No Prospects in Current View</h4><p>No leads match the active filter or search query.</p></td></tr>';
+        updateBatchToolbar();
         return;
       }
 
@@ -2017,11 +2098,17 @@
         const paras = lead.computed_paragraphs || 0;
         const isComp = lead.is_compliant;
         const compHtml = isComp
-          ? `<span style="color:var(--color-success);font-weight:600;font-size:12px;">✓ 3p / ${words}w</span>`
+          ? `<span style="color:var(--color-success);font-weight:600;font-size:12px;">✓ 4p / ${words}w</span>`
           : `<span style="color:var(--color-warning);font-size:12px;">${paras}p / ${words}w</span>`;
+
+        const canSelect = (st === 'AWAITING_REVIEW' || st === 'DRAFTED' || st === 'NEEDS_REVIEW');
+        const isChecked = state.queue.selectedLeadIds.has(lead.lead_id);
 
         html += `
           <tr onclick="openLeadReview('${leadId}')">
+            <td onclick="event.stopPropagation();" style="text-align: center;">
+              <input type="checkbox" class="lead-select-checkbox" value="${leadId}" onchange="toggleLeadSelection('${leadId}', this.checked)" ${!canSelect ? 'disabled' : ''} ${isChecked ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
+            </td>
             <td>
               <div class="lead-title">${business}</div>
               <div class="lead-subtext">${leadId}</div>
@@ -2052,6 +2139,154 @@
       });
 
       tbody.innerHTML = html;
+      updateBatchToolbar();
+    }
+
+    function toggleSelectAll(masterCheckbox) {
+      const isChecked = masterCheckbox.checked;
+      const checkboxes = document.querySelectorAll('.lead-select-checkbox:not(:disabled)');
+      checkboxes.forEach(cb => {
+        cb.checked = isChecked;
+        if (isChecked) {
+          state.queue.selectedLeadIds.add(cb.value);
+        } else {
+          state.queue.selectedLeadIds.delete(cb.value);
+        }
+      });
+      updateBatchToolbar();
+    }
+
+    function toggleLeadSelection(leadId, isChecked) {
+      if (isChecked) {
+        state.queue.selectedLeadIds.add(leadId);
+      } else {
+        state.queue.selectedLeadIds.delete(leadId);
+      }
+      updateBatchToolbar();
+    }
+
+    function clearSelectedLeads() {
+      state.queue.selectedLeadIds.clear();
+      const master = document.getElementById('queueSelectAllCheckbox');
+      if (master) master.checked = false;
+      document.querySelectorAll('.lead-select-checkbox').forEach(cb => { cb.checked = false; });
+      updateBatchToolbar();
+    }
+
+    function updateBatchToolbar() {
+      const bar = document.getElementById('batchActionBar');
+      const count = state.queue.selectedLeadIds.size;
+      const countText = document.getElementById('batchSelectedCountText');
+      const approveCountSpan = document.getElementById('batchApproveCountSpan');
+      const masterCheckbox = document.getElementById('queueSelectAllCheckbox');
+
+      if (!bar) return;
+
+      if (count > 0) {
+        bar.style.display = 'flex';
+        if (countText) countText.textContent = `${count} lead${count > 1 ? 's' : ''} selected`;
+        if (approveCountSpan) approveCountSpan.textContent = count;
+      } else {
+        bar.style.display = 'none';
+      }
+
+      // Sync master checkbox state
+      if (masterCheckbox) {
+        const allSelectable = document.querySelectorAll('.lead-select-checkbox:not(:disabled)');
+        if (allSelectable.length > 0 && count >= allSelectable.length) {
+          masterCheckbox.checked = true;
+          masterCheckbox.indeterminate = false;
+        } else if (count > 0) {
+          masterCheckbox.checked = false;
+          masterCheckbox.indeterminate = true;
+        } else {
+          masterCheckbox.checked = false;
+          masterCheckbox.indeterminate = false;
+        }
+      }
+    }
+
+    async function batchApproveSelectedAction() {
+      const ids = Array.from(state.queue.selectedLeadIds);
+      if (ids.length === 0) {
+        showToast('No leads selected', 'warning');
+        return;
+      }
+
+      if (!confirm(`Are you sure you want to approve ${ids.length} selected lead${ids.length > 1 ? 's' : ''}? They will be cryptographically fingerprinted and placed in the authorized Gmail dispatch queue.`)) {
+        return;
+      }
+
+      const btn = document.getElementById('btnBatchApproveSelected');
+      const origHtml = btn.innerHTML;
+      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;"></span> Approving...';
+      btn.disabled = true;
+
+      try {
+        const res = await api.call('apiBatchApproveLeads', ids);
+        showToast(res.message || `Successfully approved ${res.approvedCount || ids.length} leads!`, 'success');
+        clearSelectedLeads();
+        await loadOverviewData();
+        await loadQueueData();
+      } catch (err) {
+        showToast('Batch approval error: ' + err, 'error');
+      } finally {
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+      }
+    }
+
+    async function batchRejectSelectedAction() {
+      const ids = Array.from(state.queue.selectedLeadIds);
+      if (ids.length === 0) {
+        showToast('No leads selected', 'warning');
+        return;
+      }
+
+      const reason = prompt(`Enter rejection reason for ${ids.length} selected lead${ids.length > 1 ? 's' : ''}:`, 'Batch rejected via OneFolk Dashboard');
+      if (reason === null) return; // user cancelled
+
+      const btn = document.getElementById('btnBatchRejectSelected');
+      const origHtml = btn.innerHTML;
+      btn.innerHTML = 'Rejecting...';
+      btn.disabled = true;
+
+      try {
+        const res = await api.call('apiBatchRejectLeads', ids, reason);
+        showToast(res.message || `Rejected ${res.rejectedCount || ids.length} leads.`, 'success');
+        clearSelectedLeads();
+        await loadOverviewData();
+        await loadQueueData();
+      } catch (err) {
+        showToast('Batch rejection error: ' + err, 'error');
+      } finally {
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+      }
+    }
+
+    async function approveAllCompliantAction() {
+      if (!confirm('⚡ APPROVE ALL COMPLIANT LEADS:\n\nAre you sure you want to approve all compliant unapproved leads currently in the queue?\n\nEach draft will be cryptographically fingerprinted and queued for Gmail sending.')) {
+        return;
+      }
+
+      const btn = document.getElementById('btnApproveAllCompliant');
+      const origHtml = btn.innerHTML;
+      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;"></span> Approving All...';
+      btn.disabled = true;
+
+      try {
+        const res = await api.call('apiApproveAllCompliantLeads');
+        showToast(res.message || `Successfully approved ${res.approvedCount || 0} compliant leads!`, 'success');
+        clearSelectedLeads();
+        await loadOverviewData();
+        await loadQueueData();
+      } catch (err) {
+        showToast('Approve all error: ' + err, 'error');
+      } finally {
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+      }
     }
 
     function renderQueuePagination(res) {

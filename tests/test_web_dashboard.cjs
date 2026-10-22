@@ -556,6 +556,51 @@ assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockC
 scriptProps.set('ENABLE_SENDING', 'NO');
 console.log('✓ Historical backlog safeguard passed.\n');
 
+// -----------------------------------------------------------------------------
+// TEST 15: Batch Selection, Multi-Lead Approval & Approve-All
+// -----------------------------------------------------------------------------
+console.log('Test 15: Batch Selection, Multi-Lead Approval & Approve-All');
+
+// Reset lead_test_01 to AWAITING_REVIEW
+const qSheet = sheetStore.get('Approval Queue');
+const qVals = qSheet.getDataRange().getValues();
+const qHeaders = qVals[0].map(h => String(h).trim().toLowerCase());
+const qStatusIdx = qHeaders.indexOf('status');
+const qApprovalIdx = qHeaders.indexOf('approval');
+qSheet.getRange(2, qStatusIdx + 1).setValue('AWAITING_REVIEW');
+qSheet.getRange(2, qApprovalIdx + 1).setValue('PENDING');
+scriptProps.delete('APPROVAL_lead_test_01');
+
+// Test 15a: Batch approve with valid lead array
+const batchApproveRes = vm.runInContext("apiBatchApproveLeads(['lead_test_01'])", mockContext);
+assert.equal(batchApproveRes.success, true);
+assert.equal(batchApproveRes.approvedCount, 1);
+assert.ok(scriptProps.get('APPROVAL_lead_test_01'), 'Fingerprint must be set by batch approval');
+
+const qValsAfterBatch = qSheet.getDataRange().getValues();
+assert.equal(qValsAfterBatch[1][qStatusIdx], 'APPROVED');
+assert.equal(qValsAfterBatch[1][qApprovalIdx], 'APPROVED');
+
+// Test 15b: Batch reject
+const batchRejectRes = vm.runInContext("apiBatchRejectLeads(['lead_test_01'], 'Batch rejected for testing')", mockContext);
+assert.equal(batchRejectRes.success, true);
+assert.equal(batchRejectRes.rejectedCount, 1);
+assert.equal(scriptProps.get('APPROVAL_lead_test_01'), '');
+const qValsAfterReject = qSheet.getDataRange().getValues();
+assert.equal(qValsAfterReject[1][qStatusIdx], 'REJECTED');
+assert.equal(qValsAfterReject[1][qApprovalIdx], 'REJECTED');
+
+// Test 15c: Approve All Compliant Leads
+qSheet.getRange(2, qStatusIdx + 1).setValue('AWAITING_REVIEW');
+qSheet.getRange(2, qApprovalIdx + 1).setValue('PENDING');
+
+const approveAllRes = vm.runInContext("apiApproveAllCompliantLeads()", mockContext);
+assert.equal(approveAllRes.success, true);
+assert.equal(approveAllRes.approvedCount, 1);
+assert.ok(scriptProps.get('APPROVAL_lead_test_01'), 'Approve all must fingerprint compliant leads');
+
+console.log('✓ Batch selection and approve-all actions passed.\n');
+
 console.log('====================================================');
-console.log('ALL 14 WEB DASHBOARD BACKEND ACCEPTANCE TESTS PASSED!');
+console.log('ALL 15 WEB DASHBOARD BACKEND ACCEPTANCE TESTS PASSED!');
 console.log('====================================================');
