@@ -13,7 +13,6 @@ from src.strict_research import StrictResearcher
 from src.open_discovery import OpenDiscovery
 from src.reserve import ReserveStore, append_records
 from src.quality import validate_queued_draft, eligible_queue
-from src.providers.factory import discovery_provider, research_provider, verification_provider
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -92,12 +91,11 @@ class MorningQueueManager:
                     updates.append({'range':rowcol_to_a1(i,headers.index('status')+1),'values':[['NEEDS_RESEARCH']]})
             if updates: ws.batch_update(updates, value_input_option='RAW')
             if not publish_only:
-                discovered, errors = discovery_provider(store,self.campaign_cfg).discover()
+                discovered, errors = OpenDiscovery(store,self.campaign_cfg).harvest()
                 summary['newly_discovered_today'] = len(discovered)
                 summary['shortage_reasons'] += errors
                 fetcher = PermittedFetcher(max_fetches=160)
-                researcher = research_provider(fetcher)
-                verifier = verification_provider()
+                researcher = StrictResearcher(fetcher)
                 # Reserve the whole call allowance BEFORE network work; crashes cannot reset it.
                 budget_key='budget:'+day
                 budget=store.get(budget_key, {'ai_reserved':0,'batches':0})
@@ -138,12 +136,6 @@ class MorningQueueManager:
                         prospect['research']=research
                         if not research or research.get('qualification_status')!='QUALIFIED':
                             prospect['state']='NEEDS_RESEARCH'; store.put('prospect:'+cid,prospect); continue
-                        from src.network import extract_domain
-                        verification=verifier.verify(research['public_email'],extract_domain(research['website']),research['email_source_url'])
-                        if not verification['valid']:
-                            prospect['state']='NEEDS_RESEARCH'; store.put('prospect:'+cid,prospect); continue
-                        research['verification_provider']=verification['provider']
-                        research['research_provider']=researcher.name
                         blocked,_=suppression.is_suppressed(research['public_email'],research['website'])
                         if blocked:
                             prospect['state']='SUPPRESSED'; store.put('prospect:'+cid,prospect); continue

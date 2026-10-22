@@ -76,7 +76,7 @@ class DiscoveryEngine:
 
         return True
 
-    def harvest_candidates(self, fetcher: SafeFetcher, directory_rows=None) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    def harvest_candidates(self, fetcher: SafeFetcher) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Harvests candidates from seeds and directories with an audit summary."""
         candidates_by_domain: Dict[str, Dict[str, Any]] = {}
         seeds_found = 0
@@ -104,7 +104,7 @@ class DiscoveryEngine:
                 seeds_found += 1
 
         # 2. Harvest from public directories
-        dir_rows = read_csv_file("directories.csv") if directory_rows is None else directory_rows
+        dir_rows = read_csv_file("directories.csv")
         links_followed = 0
 
         for row in dir_rows:
