@@ -5,57 +5,65 @@
   <title>OneFolk — Outreach OS</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <!-- OneFolk Typography: Newsreader (Editorial Serif) & Source Sans 3 (Modern Sans) -->
+  <!-- Claude-Style Warm Typography: Plus Jakarta Sans & Lora / Newsreader -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,600&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <style>
     /* =========================================================================
-       ONEFOLK BRAND DESIGN SYSTEM
-       Theme: Editorial Creative-Tech & Paper Minimalism (onefolk.in)
+       CLAUDE-STYLE WARM EDITORIAL DESIGN SYSTEM (onefolk.in)
        ========================================================================= */
     :root {
-      --color-paper: #F5F3EE;
-      --color-paper-card: #FFFFFF;
-      --color-paper-2: #EFECE4;
-      --color-paper-subtle: #F9F8F5;
-      --color-ink: #121212;
-      --color-ink-muted: #57554E;
-      --color-ink-faint: #8C887B;
-      --color-line: #DCD8CD;
-      --color-line-dark: #333230;
-      --color-lavender: #DAD0EE;
-      --color-lavender-ink: #514362;
+      --bg-base: #F7F6F1;
+      --bg-surface: #FFFFFF;
+      --bg-subtle: #F2F0E8;
+      --bg-subtle-hover: #ECEAE0;
+      --text-main: #1C1B18;
+      --text-secondary: #57554E;
+      --text-tertiary: #87847B;
+      --border-line: #E5E3D8;
+      --border-line-hover: #C5C2B6;
+      --color-ink: #1C1B18;
       
-      --color-success: #1E6B37;
-      --color-success-bg: #EDF7F0;
-      --color-warning: #925310;
-      --color-warning-bg: #FEF7ED;
-      --color-danger: #991B1B;
-      --color-danger-bg: #FEF2F2;
-      --color-info: #1E40AF;
-      --color-info-bg: #EFF6FF;
+      --color-success: #15803D;
+      --color-success-bg: #F0FDF4;
+      --color-success-border: #BBF7D0;
+      
+      --color-warning: #B45309;
+      --color-warning-bg: #FFFBEB;
+      --color-warning-border: #FDE68A;
 
-      --font-sans: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      --font-serif: 'Newsreader', Georgia, serif;
+      --color-danger: #B91C1C;
+      --color-danger-bg: #FEF2F2;
+      --color-danger-border: #FECACA;
+
+      --color-info: #1D4ED8;
+      --color-info-bg: #EFF6FF;
+      --color-info-border: #BFDBFE;
+
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-serif: 'Lora', Georgia, serif;
       --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-      --radius-sm: 4px;
-      --radius-md: 8px;
-      --radius-lg: 14px;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
       --radius-full: 9999px;
-      --shadow-sm: 0 1px 3px rgba(18, 18, 18, 0.04);
-      --shadow-md: 0 4px 20px rgba(18, 18, 18, 0.06);
-      --shadow-xl: 0 20px 48px rgba(18, 18, 18, 0.12);
+
+      --shadow-sm: 0 1px 3px rgba(28, 27, 24, 0.04);
+      --shadow-md: 0 4px 16px rgba(28, 27, 24, 0.06);
+      --shadow-lg: 0 12px 32px rgba(28, 27, 24, 0.10);
+      --shadow-modal: 0 24px 64px rgba(28, 27, 24, 0.16);
+
       --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background-color: var(--color-paper);
-      color: var(--color-ink);
+      background-color: var(--bg-base);
+      color: var(--text-main);
       font-family: var(--font-sans);
       font-size: 14px;
       line-height: 1.55;
@@ -67,23 +75,23 @@
     }
 
     ::selection {
-      background: var(--color-ink);
-      color: var(--color-paper);
+      background: #1C1B18;
+      color: #F7F6F1;
     }
 
     /* Scrollbars */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: var(--color-paper); }
-    ::-webkit-scrollbar-thumb { background: var(--color-line); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--color-ink-faint); }
+    ::-webkit-scrollbar-track { background: var(--bg-base); }
+    ::-webkit-scrollbar-thumb { background: var(--border-line); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
 
     /* -------------------------------------------------------------------------
-       TOP NAVIGATION BAR (Matching onefolk.in header)
+       HEADER
        ------------------------------------------------------------------------- */
     header {
-      background: rgba(245, 243, 238, 0.96);
+      background: rgba(247, 246, 241, 0.95);
       backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--color-line);
+      border-bottom: 1px solid var(--border-line);
       position: sticky;
       top: 0;
       z-index: 50;
@@ -97,7 +105,7 @@
     .brand-group {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 14px;
     }
 
     .brand-logo-link {
@@ -105,10 +113,9 @@
       align-items: center;
       gap: 10px;
       text-decoration: none;
-      color: var(--color-ink);
+      color: var(--text-main);
     }
 
-    /* OneFolk Official Vector Glyph */
     .onefolk-glyph {
       height: 22px;
       width: auto;
@@ -117,15 +124,14 @@
 
     .brand-app-title {
       font-family: var(--font-serif);
-      font-size: 19px;
+      font-size: 20px;
       font-weight: 500;
-      font-style: italic;
-      color: var(--color-ink);
+      color: var(--text-main);
       letter-spacing: -0.01em;
     }
 
     .brand-pill-separator {
-      color: var(--color-line);
+      color: var(--border-line);
       font-weight: 300;
     }
 
@@ -133,15 +139,14 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: var(--color-paper-2);
-      border: 1px solid var(--color-line);
-      color: var(--color-ink-muted);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-line);
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 600;
       padding: 4px 10px;
       border-radius: var(--radius-full);
+      box-shadow: var(--shadow-sm);
     }
 
     .status-lock-dot {
@@ -159,23 +164,22 @@
 
     .user-identity-pill {
       font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--color-ink-muted);
-      background: var(--color-paper-2);
-      border: 1px solid var(--color-line);
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-line);
       padding: 5px 12px;
       border-radius: var(--radius-full);
+      box-shadow: var(--shadow-sm);
     }
 
     .btn-paper {
-      background: transparent;
-      border: 1px solid var(--color-line);
-      color: var(--color-ink);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-line);
+      color: var(--text-main);
       font-family: var(--font-sans);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
+      font-size: 12px;
+      font-weight: 600;
       padding: 6px 14px;
       border-radius: var(--radius-full);
       cursor: pointer;
@@ -183,18 +187,19 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      box-shadow: var(--shadow-sm);
     }
     .btn-paper:hover {
-      background: var(--color-paper-2);
-      border-color: var(--color-ink);
+      background: var(--bg-subtle);
+      border-color: var(--text-main);
     }
 
     /* -------------------------------------------------------------------------
-       SUB-NAVIGATION TABS (Editorial Tabs)
+       NAVIGATION TABS
        ------------------------------------------------------------------------- */
     nav.tab-nav {
-      background: var(--color-paper);
-      border-bottom: 1px solid var(--color-line);
+      background: var(--bg-base);
+      border-bottom: 1px solid var(--border-line);
       padding: 0 32px;
       display: flex;
       gap: 28px;
@@ -204,12 +209,10 @@
     .nav-btn {
       background: transparent;
       border: none;
-      color: var(--color-ink-muted);
+      color: var(--text-secondary);
       font-family: var(--font-sans);
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
+      font-size: 13px;
+      font-weight: 600;
       padding: 16px 0;
       cursor: pointer;
       border-bottom: 2px solid transparent;
@@ -220,31 +223,31 @@
       white-space: nowrap;
     }
 
-    .nav-btn:hover { color: var(--color-ink); }
+    .nav-btn:hover { color: var(--text-main); }
 
     .nav-btn.active {
-      color: var(--color-ink);
-      border-bottom-color: var(--color-ink);
+      color: var(--text-main);
+      border-bottom-color: var(--text-main);
     }
 
     .nav-count-badge {
-      background: var(--color-paper-2);
-      color: var(--color-ink-muted);
-      font-size: 10px;
+      background: var(--bg-subtle);
+      color: var(--text-secondary);
+      font-size: 11px;
       font-weight: 600;
       padding: 1px 7px;
       border-radius: var(--radius-full);
-      border: 1px solid var(--color-line);
+      border: 1px solid var(--border-line);
     }
 
     .nav-btn.active .nav-count-badge {
-      background: var(--color-ink);
-      color: var(--color-paper);
-      border-color: var(--color-ink);
+      background: var(--text-main);
+      color: #FFFFFF;
+      border-color: var(--text-main);
     }
 
     /* -------------------------------------------------------------------------
-       MAIN WORKSPACE
+       MAIN CONTENT
        ------------------------------------------------------------------------- */
     main {
       flex: 1;
@@ -257,50 +260,46 @@
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
-    /* Editorial Headline Block */
-    .page-lead {
-      margin-bottom: 28px;
-    }
+    .page-lead { margin-bottom: 24px; }
     .page-title {
       font-family: var(--font-serif);
-      font-size: 32px;
-      font-weight: 400;
-      letter-spacing: -0.02em;
-      color: var(--color-ink);
-      line-height: 1.2;
+      font-size: 28px;
+      font-weight: 500;
+      color: var(--text-main);
+      letter-spacing: -0.01em;
     }
     .page-subtitle {
-      color: var(--color-ink-muted);
+      color: var(--text-secondary);
       font-size: 14px;
-      margin-top: 6px;
+      margin-top: 4px;
     }
 
     /* -------------------------------------------------------------------------
        SECTION 1: OVERVIEW METRICS
        ------------------------------------------------------------------------- */
     .target-banner {
-      background: var(--color-paper-card);
-      border: 1px solid var(--color-line);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-line);
       border-radius: var(--radius-md);
-      padding: 24px 28px;
-      margin-bottom: 28px;
+      padding: 22px 26px;
+      margin-bottom: 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
-      gap: 24px;
+      gap: 20px;
       box-shadow: var(--shadow-sm);
     }
 
     .target-info h3 {
       font-family: var(--font-serif);
-      font-size: 20px;
+      font-size: 19px;
       font-weight: 500;
-      color: var(--color-ink);
+      color: var(--text-main);
       margin-bottom: 4px;
     }
     .target-info p {
-      color: var(--color-ink-muted);
+      color: var(--text-secondary);
       font-size: 13px;
     }
 
@@ -312,78 +311,77 @@
 
     .progress-bar-bg {
       height: 6px;
-      background: var(--color-paper-2);
+      background: var(--bg-subtle);
       border-radius: var(--radius-full);
       overflow: hidden;
-      margin-top: 10px;
-      border: 1px solid var(--color-line);
+      margin-top: 8px;
+      border: 1px solid var(--border-line);
     }
 
     .progress-bar-fill {
       height: 100%;
-      background: var(--color-ink);
+      background: var(--text-main);
       border-radius: var(--radius-full);
       transition: width 0.4s ease;
     }
 
-    /* KPI Grid */
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
       gap: 16px;
-      margin-bottom: 28px;
+      margin-bottom: 24px;
     }
 
     .kpi-card {
-      background: var(--color-paper-card);
-      border: 1px solid var(--color-line);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-line);
       border-radius: var(--radius-md);
       padding: 20px;
       transition: var(--transition);
       box-shadow: var(--shadow-sm);
     }
     .kpi-card:hover {
-      border-color: var(--color-ink-muted);
+      border-color: var(--border-line-hover);
       transform: translateY(-1px);
     }
 
     .kpi-title {
       font-size: 11px;
-      color: var(--color-ink-faint);
+      color: var(--text-tertiary);
       text-transform: uppercase;
       font-weight: 700;
-      letter-spacing: 0.12em;
-      margin-bottom: 10px;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
     }
 
     .kpi-value {
       font-family: var(--font-serif);
-      font-size: 36px;
+      font-size: 34px;
       font-weight: 400;
-      color: var(--color-ink);
+      color: var(--text-main);
       line-height: 1;
     }
 
     .kpi-meta {
-      font-size: 11px;
-      color: var(--color-ink-muted);
+      font-size: 12px;
+      color: var(--text-secondary);
       margin-top: 8px;
     }
 
     /* -------------------------------------------------------------------------
-       SECTION 2: APPROVAL QUEUE (TABLE & FILTERING)
+       SECTION 2: APPROVAL QUEUE (TABLE)
        ------------------------------------------------------------------------- */
     .filter-bar {
-      background: var(--color-paper-card);
-      border: 1px solid var(--color-line);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-line);
       border-radius: var(--radius-md);
-      padding: 14px 18px;
+      padding: 12px 18px;
       margin-bottom: 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
-      gap: 14px;
+      gap: 12px;
       box-shadow: var(--shadow-sm);
     }
 
@@ -396,11 +394,11 @@
 
     .search-input-box input {
       width: 100%;
-      background: var(--color-paper);
-      border: 1px solid var(--color-line);
+      background: var(--bg-base);
+      border: 1px solid var(--border-line);
       border-radius: var(--radius-full);
       padding: 8px 16px 8px 36px;
-      color: var(--color-ink);
+      color: var(--text-main);
       font-family: var(--font-sans);
       font-size: 13px;
       outline: none;
@@ -408,7 +406,7 @@
     }
 
     .search-input-box input:focus {
-      border-color: var(--color-ink);
+      border-color: var(--text-main);
       background: #FFFFFF;
     }
 
@@ -417,9 +415,9 @@
       left: 12px;
       top: 50%;
       transform: translateY(-50%);
-      color: var(--color-ink-faint);
+      color: var(--text-tertiary);
       pointer-events: none;
-      font-size: 14px;
+      font-size: 13px;
     }
 
     .filter-pills {
@@ -430,13 +428,11 @@
 
     .pill-btn {
       background: transparent;
-      border: 1px solid var(--color-line);
-      color: var(--color-ink-muted);
+      border: 1px solid var(--border-line);
+      color: var(--text-secondary);
       font-family: var(--font-sans);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      font-size: 12px;
+      font-weight: 600;
       padding: 6px 14px;
       border-radius: var(--radius-full);
       cursor: pointer;
@@ -444,20 +440,19 @@
     }
 
     .pill-btn:hover {
-      border-color: var(--color-ink);
-      color: var(--color-ink);
+      border-color: var(--text-main);
+      color: var(--text-main);
     }
 
     .pill-btn.active {
-      background: var(--color-ink);
-      color: var(--color-paper);
-      border-color: var(--color-ink);
+      background: var(--text-main);
+      color: #FFFFFF;
+      border-color: var(--text-main);
     }
 
-    /* Leads Table */
     .leads-table-container {
-      background: var(--color-paper-card);
-      border: 1px solid var(--color-line);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-line);
       border-radius: var(--radius-md);
       overflow: hidden;
       box-shadow: var(--shadow-sm);
@@ -470,61 +465,57 @@
     }
 
     table.leads-table th {
-      background: var(--color-paper-subtle);
-      color: var(--color-ink-faint);
+      background: var(--bg-subtle);
+      color: var(--text-secondary);
       font-size: 11px;
       text-transform: uppercase;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.08em;
       font-weight: 700;
       padding: 14px 18px;
-      border-bottom: 1px solid var(--color-line);
+      border-bottom: 1px solid var(--border-line);
     }
 
     table.leads-table td {
       padding: 16px 18px;
-      border-bottom: 1px solid var(--color-line);
+      border-bottom: 1px solid var(--border-line);
       font-size: 13px;
       vertical-align: middle;
-      color: var(--color-ink);
+      color: var(--text-main);
     }
 
     table.leads-table tr:last-child td { border-bottom: none; }
 
     table.leads-table tbody tr:hover td {
-      background: var(--color-paper-subtle);
+      background: var(--bg-subtle);
       cursor: pointer;
     }
 
     .lead-title {
-      font-family: var(--font-serif);
-      font-size: 16px;
-      font-weight: 500;
-      color: var(--color-ink);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
       margin-bottom: 2px;
     }
 
     .lead-subtext {
-      color: var(--color-ink-faint);
-      font-size: 11px;
+      color: var(--text-tertiary);
+      font-size: 12px;
     }
 
     .lead-link {
-      color: var(--color-ink);
+      color: var(--text-main);
       text-decoration: underline;
       text-underline-offset: 3px;
       font-size: 12px;
     }
-    .lead-link:hover { color: var(--color-ink-muted); }
+    .lead-link:hover { color: var(--text-secondary); }
 
-    /* Minimalist Editorial Status Badges */
     .status-badge {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
+      font-size: 11px;
+      font-weight: 600;
       padding: 3px 9px;
       border-radius: var(--radius-full);
       border: 1px solid transparent;
@@ -533,37 +524,35 @@
     .status-badge.awaiting {
       background: var(--color-warning-bg);
       color: var(--color-warning);
-      border-color: #FCD34D;
+      border-color: var(--color-warning-border);
     }
     .status-badge.approved {
       background: var(--color-success-bg);
       color: var(--color-success);
-      border-color: #86EFAC;
+      border-color: var(--color-success-border);
     }
     .status-badge.rejected {
       background: var(--color-danger-bg);
       color: var(--color-danger);
-      border-color: #FCA5A5;
+      border-color: var(--color-danger-border);
     }
     .status-badge.needs_research {
       background: var(--color-info-bg);
       color: var(--color-info);
-      border-color: #93C5FD;
+      border-color: var(--color-info-border);
     }
     .status-badge.sent {
       background: #FAF5FF;
       color: #6B21A8;
-      border-color: #D8B4FE;
+      border-color: #E9D5FF;
     }
 
     .tag-industry {
-      background: var(--color-paper-2);
-      border: 1px solid var(--color-line);
-      color: var(--color-ink-muted);
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-line);
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 500;
       padding: 2px 7px;
       border-radius: var(--radius-sm);
       display: inline-block;
@@ -572,19 +561,16 @@
     .score-badge {
       font-family: var(--font-mono);
       font-weight: 700;
-      color: var(--color-ink);
-      font-size: 12px;
+      color: var(--text-main);
+      font-size: 13px;
     }
 
-    /* Table Actions */
     .btn-action-view {
-      background: var(--color-ink);
-      color: var(--color-paper);
+      background: var(--text-main);
+      color: #FFFFFF;
       border: none;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      font-size: 12px;
+      font-weight: 600;
       padding: 6px 14px;
       border-radius: var(--radius-full);
       cursor: pointer;
@@ -593,81 +579,78 @@
       align-items: center;
       gap: 5px;
     }
-    .btn-action-view:hover {
-      background: #333333;
-    }
+    .btn-action-view:hover { background: #333333; }
 
-    /* Pagination */
     .pagination-bar {
       padding: 14px 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-top: 1px solid var(--color-line);
-      background: var(--color-paper-subtle);
+      border-top: 1px solid var(--border-line);
+      background: var(--bg-subtle);
       font-size: 12px;
-      color: var(--color-ink-muted);
+      color: var(--text-secondary);
     }
 
     /* -------------------------------------------------------------------------
-       MODAL: EDITORIAL REVIEW & DRAFTING LIGHTBOX
+       MODAL: LEAD REVIEW & LIVE EMAIL PREVIEW
        ------------------------------------------------------------------------- */
     .modal-backdrop {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(18, 18, 18, 0.65);
+      background: rgba(28, 27, 24, 0.6);
       backdrop-filter: blur(8px);
       z-index: 100;
       display: none;
       align-items: center;
       justify-content: center;
-      padding: 24px;
+      padding: 20px;
     }
 
     .modal-backdrop.open { display: flex; }
 
     .modal-panel {
-      background: var(--color-paper);
-      border: 1px solid var(--color-line);
+      background: var(--bg-base);
+      border: 1px solid var(--border-line);
       border-radius: var(--radius-lg);
       width: 100%;
-      max-width: 1120px;
-      max-height: 92vh;
+      max-width: 1180px;
+      max-height: 94vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      box-shadow: var(--shadow-xl);
+      box-shadow: var(--shadow-modal);
       animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     @keyframes modalFadeIn {
-      from { transform: translateY(16px) scale(0.99); opacity: 0; }
+      from { transform: translateY(14px) scale(0.99); opacity: 0; }
       to { transform: translateY(0) scale(1); opacity: 1; }
     }
 
     .modal-header {
-      padding: 20px 28px;
-      border-bottom: 1px solid var(--color-line);
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--border-line);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: var(--color-paper-card);
+      background: var(--bg-surface);
     }
 
     .modal-header h2 {
       font-family: var(--font-serif);
       font-size: 24px;
       font-weight: 500;
-      color: var(--color-ink);
+      color: var(--text-main);
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 12px;
     }
 
     .modal-close-btn {
-      background: var(--color-paper);
-      border: 1px solid var(--color-line);
-      color: var(--color-ink);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-line);
+      color: var(--text-main);
       width: 32px;
       height: 32px;
       border-radius: var(--radius-full);
@@ -679,27 +662,27 @@
       transition: var(--transition);
     }
     .modal-close-btn:hover {
-      background: var(--color-ink);
-      color: var(--color-paper);
+      background: var(--text-main);
+      color: #FFFFFF;
     }
 
     .modal-body {
       flex: 1;
       overflow-y: auto;
-      padding: 28px;
+      padding: 24px 28px;
       display: grid;
-      grid-template-columns: 1fr 1.35fr;
-      gap: 28px;
+      grid-template-columns: 1fr 1.3fr;
+      gap: 24px;
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 940px) {
       .modal-body { grid-template-columns: 1fr; }
     }
 
-    /* Left Column: Dossier & Verified Evidence */
+    /* Left Column: Dossier */
     .dossier-column {
-      background: var(--color-paper-card);
-      border: 1px solid var(--color-line);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-line);
       border-radius: var(--radius-md);
       padding: 22px;
       display: flex;
@@ -711,10 +694,10 @@
     .dossier-title {
       font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.12em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--color-ink-faint);
-      border-bottom: 1px solid var(--color-line);
+      color: var(--text-tertiary);
+      border-bottom: 1px solid var(--border-line);
       padding-bottom: 8px;
     }
 
@@ -725,38 +708,190 @@
     }
 
     .dossier-label {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-tertiary);
       text-transform: uppercase;
-      color: var(--color-ink-faint);
+      letter-spacing: 0.05em;
     }
 
     .observation-quote-box {
-      background: var(--color-paper);
-      border-left: 2px solid var(--color-ink);
-      padding: 12px 16px;
+      background: var(--bg-subtle);
+      border-left: 3px solid var(--text-main);
+      padding: 14px 16px;
       font-family: var(--font-serif);
       font-size: 14px;
-      font-style: italic;
-      color: var(--color-ink);
+      color: var(--text-main);
       line-height: 1.6;
       border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
     }
 
     .proof-reference-card {
-      background: var(--color-paper-subtle);
-      border: 1px solid var(--color-line);
+      background: #FAF8F5;
+      border: 1px solid var(--border-line);
       border-radius: var(--radius-sm);
       padding: 12px 14px;
     }
 
-    /* Right Column: Cold Email Editorial */
-    .editor-column {
+    /* Right Column: Email Workspace */
+    .email-workspace-column {
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 16px;
     }
+
+    /* Segmented Tab: [ Live Email Preview ] vs [ Edit Draft ] */
+    .view-toggle-bar {
+      display: flex;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-line);
+      border-radius: var(--radius-full);
+      padding: 3px;
+      width: fit-content;
+      gap: 4px;
+    }
+
+    .view-toggle-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 16px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: var(--transition);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .view-toggle-btn.active {
+      background: var(--bg-surface);
+      color: var(--text-main);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* -------------------------------------------------------------------------
+       REALISTIC GMAIL-STYLE LIVE EMAIL PREVIEW CARD
+       ------------------------------------------------------------------------- */
+    .email-mockup-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border-line);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .email-mockup-top-chrome {
+      background: #FDFDFD;
+      border-bottom: 1px solid var(--border-line);
+      padding: 16px 20px;
+    }
+
+    .email-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .email-sender-profile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .sender-avatar {
+      width: 36px;
+      height: 36px;
+      background: #1C1B18;
+      color: #FFFFFF;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .sender-details {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sender-name {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-main);
+    }
+
+    .sender-email-address {
+      color: var(--text-tertiary);
+      font-size: 12px;
+    }
+
+    .email-meta-recipient {
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .email-preview-subject-line {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      padding: 16px 20px 8px;
+      border-bottom: 1px dashed var(--border-line);
+    }
+
+    .email-preview-body-content {
+      padding: 20px;
+      font-size: 14px;
+      line-height: 1.7;
+      color: #2D2B26;
+      white-space: pre-wrap;
+      min-height: 180px;
+      font-family: var(--font-sans);
+    }
+
+    .email-preview-body-content p {
+      margin-bottom: 16px;
+    }
+    .email-preview-body-content p:last-child {
+      margin-bottom: 0;
+    }
+
+    .email-mockup-signature {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-line);
+      background: #FAFAF7;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+    }
+
+    .signature-name {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    /* -------------------------------------------------------------------------
+       EDIT DRAFT PANE (When toggled to Edit)
+       ------------------------------------------------------------------------- */
+    .editor-pane-view {
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .editor-pane-view.active { display: flex; }
 
     .form-group {
       display: flex;
@@ -773,18 +908,18 @@
     .form-label {
       font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
-      color: var(--color-ink-muted);
+      color: var(--text-secondary);
     }
 
     .editor-input {
       width: 100%;
-      background: var(--color-paper-card);
-      border: 1px solid var(--color-line);
+      background: #FFFFFF;
+      border: 1px solid var(--border-line);
       border-radius: var(--radius-sm);
-      padding: 12px 14px;
-      color: var(--color-ink);
+      padding: 10px 14px;
+      color: var(--text-main);
       font-family: var(--font-sans);
       font-size: 14px;
       outline: none;
@@ -792,33 +927,31 @@
     }
 
     .editor-input:focus {
-      border-color: var(--color-ink);
-      background: #FFFFFF;
-      box-shadow: 0 0 0 1px var(--color-ink);
+      border-color: var(--text-main);
+      box-shadow: 0 0 0 1px var(--text-main);
     }
 
     textarea.editor-input {
-      min-height: 200px;
+      min-height: 180px;
       line-height: 1.65;
-      font-family: var(--font-sans);
-      font-size: 14px;
     }
 
     /* Alt Openings Palette */
     .alt-openings-palette {
-      background: var(--color-paper-card);
-      border: 1px solid var(--color-line);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-line);
       border-radius: var(--radius-md);
       padding: 14px 16px;
+      box-shadow: var(--shadow-sm);
     }
 
     .alt-opening-entry {
-      background: var(--color-paper);
-      border: 1px solid var(--color-line);
-      padding: 10px 14px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-line);
+      padding: 10px 12px;
       border-radius: var(--radius-sm);
-      font-size: 12px;
-      color: var(--color-ink-muted);
+      font-size: 13px;
+      color: var(--text-secondary);
       margin-top: 8px;
       display: flex;
       align-items: center;
@@ -827,13 +960,11 @@
     }
 
     .btn-apply-opening {
-      background: var(--color-paper-card);
-      border: 1px solid var(--color-line);
-      color: var(--color-ink);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      background: #FFFFFF;
+      border: 1px solid var(--border-line);
+      color: var(--text-main);
+      font-size: 11px;
+      font-weight: 600;
       padding: 4px 10px;
       border-radius: var(--radius-full);
       cursor: pointer;
@@ -841,15 +972,14 @@
       transition: var(--transition);
     }
     .btn-apply-opening:hover {
-      background: var(--color-ink);
-      color: var(--color-paper);
-      border-color: var(--color-ink);
+      background: var(--text-main);
+      color: #FFFFFF;
     }
 
-    /* Live Compliance Ribbon */
+    /* Compliance Ribbon */
     .compliance-ribbon {
-      background: var(--color-paper-card);
-      border: 1px solid var(--color-line);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-line);
       border-radius: var(--radius-sm);
       padding: 10px 14px;
       display: flex;
@@ -857,8 +987,8 @@
       justify-content: space-between;
       flex-wrap: wrap;
       gap: 12px;
-      font-size: 11px;
-      color: var(--color-ink-muted);
+      font-size: 12px;
+      box-shadow: var(--shadow-sm);
     }
 
     .compliance-metric {
@@ -866,27 +996,27 @@
       align-items: center;
       gap: 6px;
       font-weight: 500;
+      color: var(--text-secondary);
     }
     .compliance-metric.valid { color: var(--color-success); font-weight: 600; }
     .compliance-metric.invalid { color: var(--color-danger); }
 
     .validation-banner-error {
       background: var(--color-danger-bg);
-      border: 1px solid #FCA5A5;
+      border: 1px solid var(--color-danger-border);
       color: var(--color-danger);
       padding: 12px 16px;
       border-radius: var(--radius-sm);
       font-size: 12px;
-      line-height: 1.5;
       display: none;
     }
     .validation-banner-error.visible { display: block; }
 
-    /* Modal Footer Controls */
+    /* Modal Footer */
     .modal-footer {
-      padding: 18px 28px;
-      border-top: 1px solid var(--color-line);
-      background: var(--color-paper-card);
+      padding: 16px 28px;
+      border-top: 1px solid var(--border-line);
+      background: var(--bg-surface);
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -907,68 +1037,58 @@
     }
 
     .btn-modal-save {
-      background: transparent;
-      border: 1px solid var(--color-line);
-      color: var(--color-ink);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-line);
+      color: var(--text-main);
       font-family: var(--font-sans);
       font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      padding: 9px 20px;
+      font-weight: 600;
+      padding: 8px 18px;
       border-radius: var(--radius-full);
       cursor: pointer;
       transition: var(--transition);
     }
     .btn-modal-save:hover:not(:disabled) {
-      border-color: var(--color-ink);
-      background: var(--color-paper-2);
+      background: var(--bg-subtle-hover);
+      border-color: var(--text-main);
     }
 
     .btn-modal-approve {
-      background: var(--color-ink);
-      border: 1px solid var(--color-ink);
-      color: var(--color-paper);
+      background: var(--text-main);
+      border: 1px solid var(--text-main);
+      color: #FFFFFF;
       font-family: var(--font-sans);
       font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      padding: 9px 24px;
+      font-weight: 600;
+      padding: 8px 22px;
       border-radius: var(--radius-full);
       cursor: pointer;
       transition: var(--transition);
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      box-shadow: var(--shadow-sm);
     }
-    .btn-modal-approve:hover:not(:disabled) {
-      background: #333333;
-    }
-    .btn-modal-approve:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
+    .btn-modal-approve:hover:not(:disabled) { background: #333333; }
+    .btn-modal-approve:disabled { opacity: 0.4; cursor: not-allowed; }
 
     .btn-modal-reject {
       background: transparent;
-      border: 1px solid var(--color-line);
+      border: 1px solid var(--border-line);
       color: var(--color-danger);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
+      font-size: 12px;
+      font-weight: 600;
       padding: 8px 16px;
       border-radius: var(--radius-full);
       cursor: pointer;
       transition: var(--transition);
     }
     .btn-modal-reject:hover {
-      border-color: var(--color-danger);
       background: var(--color-danger-bg);
+      border-color: var(--color-danger-border);
     }
 
-    /* Toast Notification */
+    /* Toast */
     .toast-container {
       position: fixed;
       bottom: 24px;
@@ -980,8 +1100,8 @@
     }
 
     .toast {
-      background: var(--color-ink);
-      color: var(--color-paper);
+      background: var(--text-main);
+      color: #FFFFFF;
       padding: 12px 18px;
       border-radius: var(--radius-sm);
       font-size: 12px;
@@ -989,7 +1109,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      box-shadow: var(--shadow-xl);
+      box-shadow: var(--shadow-lg);
       animation: toastSlide 0.2s ease;
       min-width: 260px;
     }
@@ -1002,7 +1122,7 @@
     .spinner {
       width: 14px;
       height: 14px;
-      border: 2px solid rgba(18, 18, 18, 0.2);
+      border: 2px solid rgba(28, 27, 24, 0.2);
       border-top-color: currentColor;
       border-radius: 50%;
       animation: spin 0.6s linear infinite;
@@ -1013,12 +1133,12 @@
     .empty-state {
       padding: 60px 20px;
       text-align: center;
-      color: var(--color-ink-muted);
+      color: var(--text-secondary);
     }
     .empty-state h4 {
       font-family: var(--font-serif);
       font-size: 20px;
-      color: var(--color-ink);
+      color: var(--text-main);
       margin-bottom: 6px;
     }
   </style>
@@ -1030,7 +1150,7 @@
     <div class="brand-group">
       <a href="#" class="brand-logo-link" onclick="switchTab('overview'); return false;">
         <!-- Official OneFolk SVG Logo -->
-        <svg class="onefolk-glyph" viewBox="56 330 462 190" fill="#121212">
+        <svg class="onefolk-glyph" viewBox="56 330 462 190" fill="#1C1B18">
           <path d="M59.81,433.17c9.58-4.32,18.53-9.28,25.25-16.85,2.18-2.82,1.66-5.79-.73-8.41-6.77-7.02-15.17-11.95-24.47-15.61,2.68-10.36,7.09-19.6,13.27-28.4,9.96,3.99,18.87,9.12,27.34,15.34,4.39,3.68,8.26,7.41,11.49,12.05,4.63,7.03,7.15,14.8,6.77,23.3-2.3,24.75-24.02,37.4-45.54,46.52-6.21-8.46-10.51-17.54-13.38-27.95Z"/>
           <path d="M217.75,432.96c-2.66,10.35-7.02,19.62-13.21,28.08-10.26-4.45-19.88-9.36-28.54-16.21-17.93-14.18-22.73-36.61-8.9-55.49,4.6-6.05,10.33-10.6,16.7-14.82,6.59-4.13,13.3-7.47,20.66-10.62,6.35,8.75,10.97,17.94,13.39,28.38-8.96,3.03-26.77,13.58-26.7,20.36.02,1.57,1.29,3.43,2.47,4.85,6.65,6.85,14.65,11.61,24.13,15.47Z"/>
           <path d="M137.92,392.69c-25.67-1.09-38.71-23.93-48.39-45.32,8.79-6.54,17.97-10.99,28.5-13.77,3.71,9.25,8.59,17.72,15.74,24.39,2.76,2.85,6.35,3.1,9.3.41,7.44-6.7,12.93-15.18,16.64-24.9,10.25,2.65,19.78,7.42,28.37,13.94-4.79,10.65-10.12,20.24-17.24,28.98-8.24,10.1-19.76,16.28-32.91,16.26Z"/>
@@ -1065,20 +1185,20 @@
   <!-- Sub Navigation Tabs -->
   <nav class="tab-nav">
     <button class="nav-btn active" id="tabBtn-overview" onclick="switchTab('overview')">
-      01 · Overview
+      Overview
     </button>
     <button class="nav-btn" id="tabBtn-queue" onclick="switchTab('queue')">
-      02 · Approval Queue
+      Approval Queue
       <span class="nav-count-badge" id="navQueueBadge">0</span>
     </button>
     <button class="nav-btn" id="tabBtn-campaigns" onclick="switchTab('campaigns')">
-      03 · Campaigns
+      Campaigns
     </button>
     <button class="nav-btn" id="tabBtn-replies" onclick="switchTab('replies')">
-      04 · Sent & Replies
+      Sent & Replies
     </button>
     <button class="nav-btn" id="tabBtn-health" onclick="switchTab('health')">
-      05 · Settings & Health
+      Settings & Health
     </button>
   </nav>
 
@@ -1088,18 +1208,18 @@
     <!-- SECTION 1: OVERVIEW -->
     <div id="tab-overview" class="tab-content active">
       <div class="page-lead">
-        <h1 class="page-title">Executive Outreach Overview</h1>
-        <p class="page-subtitle">Real-time pipeline health, lead reserve metrics, and morning queue targets.</p>
+        <h1 class="page-title">Outreach Command Center</h1>
+        <p class="page-subtitle">Live pipeline status, prospect qualification reserves, and morning queue target.</p>
       </div>
 
       <!-- Target Banner -->
       <div class="target-banner">
         <div class="target-info">
           <h3>Morning Target: 50 Grounded Cold Email Drafts</h3>
-          <p id="targetSubtext">Zero-hallucination quota strictly backed by first-party website observations.</p>
+          <p id="targetSubtext">Zero-hallucination target backed by authentic first-party website observations.</p>
         </div>
         <div class="target-progress-box">
-          <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600;">
             <span>Eligible Drafts</span>
             <span id="targetRatio">0 / 50</span>
           </div>
@@ -1114,12 +1234,12 @@
         <div class="kpi-card">
           <div class="kpi-title">Ready to Review</div>
           <div class="kpi-value" id="kpi-readyToReview">0</div>
-          <div class="kpi-meta">Awaiting human authorization</div>
+          <div class="kpi-meta">Awaiting human review</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-title">Needs Research</div>
           <div class="kpi-value" id="kpi-needsResearch">0</div>
-          <div class="kpi-meta">Technical evidence gap</div>
+          <div class="kpi-meta">Evidence or contact gap</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-title">Approved</div>
@@ -1128,7 +1248,7 @@
         </div>
         <div class="kpi-card">
           <div class="kpi-title">Sent Today</div>
-          <div class="kpi-value" id="kpi-sentToday">0 <span style="font-size: 14px; color: var(--color-ink-faint); font-family: var(--font-sans);">/ 50 cap</span></div>
+          <div class="kpi-value" id="kpi-sentToday">0 <span style="font-size: 14px; color: var(--text-tertiary); font-family: var(--font-sans);">/ 50 cap</span></div>
           <div class="kpi-meta">IST Daily Cap: 50</div>
         </div>
         <div class="kpi-card">
@@ -1139,7 +1259,7 @@
         <div class="kpi-card">
           <div class="kpi-title">Positive Replies</div>
           <div class="kpi-value" id="kpi-positiveReplies">0</div>
-          <div class="kpi-meta">Inquiries & interest</div>
+          <div class="kpi-meta">Inquiries & meetings</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-title">Meetings Booked</div>
@@ -1153,20 +1273,20 @@
         </div>
       </div>
 
-      <!-- Overnight Automation Health Card -->
-      <div style="background: var(--color-paper-card); border: 1px solid var(--color-line); border-radius: var(--radius-md); padding: 24px; box-shadow: var(--shadow-sm);">
-        <h4 style="font-family: var(--font-serif); font-size: 18px; margin-bottom: 16px;">Overnight Automation Heartbeat</h4>
+      <!-- Heartbeat Card -->
+      <div style="background: var(--bg-surface); border: 1px solid var(--border-line); border-radius: var(--radius-md); padding: 22px; box-shadow: var(--shadow-sm);">
+        <h4 style="font-family: var(--font-serif); font-size: 18px; margin-bottom: 14px;">Automation Heartbeat</h4>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
           <div>
-            <div style="color: var(--color-ink-faint); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">Last Successful Cloud Run</div>
+            <div style="color: var(--text-tertiary); font-size: 11px; font-weight: 600; text-transform: uppercase;">Last Successful Cloud Run</div>
             <div id="overviewLastSuccess" style="font-size: 14px; font-weight: 600; margin-top: 4px;">Loading...</div>
           </div>
           <div>
-            <div style="color: var(--color-ink-faint); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">GmailApp Remaining Quota</div>
+            <div style="color: var(--text-tertiary); font-size: 11px; font-weight: 600; text-transform: uppercase;">GmailApp Remaining Quota</div>
             <div id="overviewMailQuota" style="font-size: 14px; font-weight: 600; margin-top: 4px;">Loading...</div>
           </div>
           <div>
-            <div style="color: var(--color-ink-faint); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">Queue Shortfall</div>
+            <div style="color: var(--text-tertiary); font-size: 11px; font-weight: 600; text-transform: uppercase;">Queue Shortfall</div>
             <div id="overviewShortage" style="font-size: 14px; font-weight: 600; margin-top: 4px;">Loading...</div>
           </div>
         </div>
@@ -1177,7 +1297,7 @@
     <div id="tab-queue" class="tab-content">
       <div class="page-lead">
         <h1 class="page-title">Approval Queue</h1>
-        <p class="page-subtitle">Inspect grounded cold drafts, verify observations, and authorize daily outreach.</p>
+        <p class="page-subtitle">Review grounded cold drafts, inspect first-party evidence, and authorize emails.</p>
       </div>
 
       <div class="filter-bar">
@@ -1201,7 +1321,7 @@
             <tr>
               <th>Prospect / Institution</th>
               <th>Sector & City</th>
-              <th>Public Contact</th>
+              <th>Contact Email</th>
               <th>Observed Opportunity</th>
               <th>Score</th>
               <th>Compliance</th>
@@ -1213,7 +1333,7 @@
             <tr>
               <td colspan="8" class="empty-state">
                 <div class="spinner"></div>
-                <div style="margin-top: 10px;">Loading live approval queue...</div>
+                <div style="margin-top: 10px;">Loading approval queue...</div>
               </td>
             </tr>
           </tbody>
@@ -1260,7 +1380,7 @@
     <!-- SECTION 4: SENT & REPLIES -->
     <div id="tab-replies" class="tab-content">
       <div class="page-lead">
-        <h1 class="page-title">Sent Outreach & Inbox Monitoring</h1>
+        <h1 class="page-title">Sent Outreach & Inbox Feedback</h1>
         <p class="page-subtitle">Track sent messages, delivery confirmations, opt-outs, and interested replies.</p>
       </div>
 
@@ -1291,53 +1411,53 @@
       </div>
 
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
-        <div style="background: var(--color-paper-card); border: 1px solid var(--color-line); border-radius: var(--radius-md); padding: 24px; box-shadow: var(--shadow-sm);">
-          <h4 style="font-family: var(--font-serif); font-size: 18px; margin-bottom: 16px;">Outbound Safety Interlocks</h4>
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-line); border-radius: var(--radius-md); padding: 22px; box-shadow: var(--shadow-sm);">
+          <h4 style="font-family: var(--font-serif); font-size: 18px; margin-bottom: 14px;">Sending Safety Interlocks</h4>
           <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-line); padding-bottom: 8px;">
-              <span style="color: var(--color-ink-muted);">Implementation Sending Lock:</span>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-line); padding-bottom: 8px;">
+              <span style="color: var(--text-secondary);">Implementation Sending Lock:</span>
               <span id="healthImplLock" style="font-weight: 700; color: #D97706;">ACTIVE (TRUE)</span>
             </div>
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-line); padding-bottom: 8px;">
-              <span style="color: var(--color-ink-muted);">ENABLE_SENDING Flag:</span>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-line); padding-bottom: 8px;">
+              <span style="color: var(--text-secondary);">ENABLE_SENDING Flag:</span>
               <span id="healthEnableSending" style="font-weight: 700; color: var(--color-danger);">NO</span>
             </div>
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-line); padding-bottom: 8px;">
-              <span style="color: var(--color-ink-muted);">Live Dispatch Engine:</span>
-              <span id="healthDispatchState" style="font-weight: 700; color: var(--color-ink-faint);">DISARMED</span>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-line); padding-bottom: 8px;">
+              <span style="color: var(--text-secondary);">Live Dispatch Engine:</span>
+              <span id="healthDispatchState" style="font-weight: 700; color: var(--text-tertiary);">DISARMED</span>
             </div>
             <div style="display: flex; justify-content: space-between;">
-              <span style="color: var(--color-ink-muted);">Daily Sending Limit:</span>
+              <span style="color: var(--text-secondary);">Daily Sending Limit:</span>
               <span style="font-weight: 600;">50 recipients / IST day</span>
             </div>
           </div>
         </div>
 
-        <div style="background: var(--color-paper-card); border: 1px solid var(--color-line); border-radius: var(--radius-md); padding: 24px; box-shadow: var(--shadow-sm);">
-          <h4 style="font-family: var(--font-serif); font-size: 18px; margin-bottom: 16px;">Free-Tier Resources</h4>
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-line); border-radius: var(--radius-md); padding: 22px; box-shadow: var(--shadow-sm);">
+          <h4 style="font-family: var(--font-serif); font-size: 18px; margin-bottom: 14px;">Free-Tier Quotas</h4>
           <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-line); padding-bottom: 8px;">
-              <span style="color: var(--color-ink-muted);">GmailApp Remaining Quota:</span>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-line); padding-bottom: 8px;">
+              <span style="color: var(--text-secondary);">GmailApp Remaining Quota:</span>
               <span id="healthMailQuota" style="font-weight: 700;">Loading...</span>
             </div>
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-line); padding-bottom: 8px;">
-              <span style="color: var(--color-ink-muted);">Groq LPU Free Tier:</span>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-line); padding-bottom: 8px;">
+              <span style="color: var(--text-secondary);">Groq Free-Tier Model:</span>
               <span style="font-weight: 600;">llama-3.3-70b-versatile</span>
             </div>
             <div style="display: flex; justify-content: space-between;">
-              <span style="color: var(--color-ink-muted);">GitHub Actions Runner:</span>
+              <span style="color: var(--text-secondary);">GitHub Actions Runner:</span>
               <span style="font-weight: 600;">2,000 mins/mo</span>
             </div>
           </div>
         </div>
 
-        <div style="background: var(--color-paper-card); border: 1px solid var(--color-line); border-radius: var(--radius-md); padding: 24px; box-shadow: var(--shadow-sm);">
-          <h4 style="font-family: var(--font-serif); font-size: 18px; margin-bottom: 16px;">Authorized Administrators</h4>
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-line); border-radius: var(--radius-md); padding: 22px; box-shadow: var(--shadow-sm);">
+          <h4 style="font-family: var(--font-serif); font-size: 18px; margin-bottom: 14px;">Authorized Administrators</h4>
           <div style="display: flex; flex-direction: column; gap: 10px;">
-            <div id="healthAdminList" style="font-family: var(--font-mono); font-size: 12px; background: var(--color-paper); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--color-line); color: var(--color-ink);">
+            <div id="healthAdminList" style="font-family: var(--font-mono); font-size: 12px; background: var(--bg-subtle); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-line); color: var(--text-main);">
               Loading...
             </div>
-            <div style="font-size: 11px; color: var(--color-ink-muted);">
+            <div style="font-size: 12px; color: var(--text-secondary);">
               Server-side identity verification active via Google Session.
             </div>
           </div>
@@ -1347,7 +1467,7 @@
 
   </main>
 
-  <!-- MODAL: LEAD DETAIL & COLD EMAIL EDITOR -->
+  <!-- MODAL: LEAD DETAIL & LIVE EMAIL PREVIEW -->
   <div class="modal-backdrop" id="reviewModal">
     <div class="modal-panel">
       <!-- Modal Header -->
@@ -1373,8 +1493,8 @@
           </div>
 
           <div class="dossier-field">
-            <span class="dossier-label">Verified Contact Email & Provenance</span>
-            <div id="modalEmailProvenance" style="font-size: 13px;">email@example.com</div>
+            <span class="dossier-label">Verified Contact Email</span>
+            <div id="modalEmailProvenance" style="font-size: 13px; font-weight: 500;">email@example.com</div>
           </div>
 
           <div class="dossier-field">
@@ -1385,62 +1505,112 @@
           <div class="dossier-field">
             <span class="dossier-label">Evidence Source URL</span>
             <div>
-              <a href="#" target="_blank" id="modalObservationSourceUrl" class="lead-link" style="font-size: 11px;">View live source page ↗</a>
+              <a href="#" target="_blank" id="modalObservationSourceUrl" class="lead-link" style="font-size: 12px;">View source page ↗</a>
             </div>
           </div>
 
           <div class="dossier-field">
-            <span class="dossier-label">02 · OneFolk Portfolio Proof Reference</span>
+            <span class="dossier-label">02 · OneFolk Truthful Proof Reference</span>
             <div class="proof-reference-card">
-              <strong style="font-size: 12px;">"Our team designed and built the OneFolk website."</strong>
+              <strong style="font-size: 13px; color: var(--text-main);">"Our team designed and built the OneFolk website."</strong>
               <div style="margin-top: 4px;">
-                <a href="https://onefolk.in/work" target="_blank" class="lead-link" style="font-size: 11px;">https://onefolk.in/work ↗</a>
+                <a href="https://onefolk.in/work" target="_blank" class="lead-link" style="font-size: 12px;">https://onefolk.in/work ↗</a>
               </div>
+            </div>
+          </div>
+
+          <!-- Alternative Openings Palette on Left Column -->
+          <div class="dossier-field">
+            <span class="dossier-label">03 · Alternative Grounded Openings</span>
+            <div class="alt-opening-entry">
+              <span id="modalAltOpening1" style="font-family: var(--font-serif); font-size: 13px; color: var(--text-main);">Opening 1</span>
+              <button class="btn-apply-opening" onclick="applyAltOpening(1)">Apply ↗</button>
+            </div>
+            <div class="alt-opening-entry">
+              <span id="modalAltOpening2" style="font-family: var(--font-serif); font-size: 13px; color: var(--text-main);">Opening 2</span>
+              <button class="btn-apply-opening" onclick="applyAltOpening(2)">Apply ↗</button>
             </div>
           </div>
 
           <div class="dossier-field">
             <span class="dossier-label">Verification & Freshness</span>
-            <div id="modalVerificationMeta" style="font-size: 11px; color: var(--color-ink-faint);">
+            <div id="modalVerificationMeta" style="font-size: 12px; color: var(--text-tertiary);">
               Verified 2026-10-21
             </div>
           </div>
         </div>
 
-        <!-- Right Column: Cold Email Editorial & Validation -->
-        <div class="editor-column">
-          <div class="form-group">
-            <div class="form-label-row">
-              <label for="editorSubject" class="form-label">Subject Line</label>
-              <span style="font-size: 11px; color: var(--color-ink-faint);" id="subjectCharCount">0 chars</span>
+        <!-- Right Column: Live Email Preview & Editor -->
+        <div class="email-workspace-column">
+          <!-- View Switcher: Live Email Preview vs Edit Draft -->
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="view-toggle-bar">
+              <button class="view-toggle-btn active" id="btnTogglePreview" onclick="setModalViewMode('preview')">
+                ✉ Live Email Preview
+              </button>
+              <button class="view-toggle-btn" id="btnToggleEditor" onclick="setModalViewMode('editor')">
+                ✎ Edit Subject & Body
+              </button>
             </div>
-            <input type="text" id="editorSubject" class="editor-input" oninput="onDraftChange()">
+            <span style="font-size: 12px; color: var(--text-secondary);" id="previewModeHint">
+              Exact recipient view
+            </span>
           </div>
 
-          <!-- Alternative Openings Palette -->
-          <div class="alt-openings-palette">
-            <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-ink-faint);">
-              Alternative Grounded Openings (One-Click Swap)
+          <!-- VIEW A: REALISTIC GMAIL-STYLE LIVE EMAIL PREVIEW -->
+          <div class="email-mockup-card" id="emailPreviewContainer">
+            <div class="email-mockup-top-chrome">
+              <div class="email-meta-row">
+                <div class="email-sender-profile">
+                  <div class="sender-avatar">OF</div>
+                  <div class="sender-details">
+                    <span class="sender-name">Team OneFolk</span>
+                    <span class="sender-email-address">&lt;contact.onefolk@gmail.com&gt;</span>
+                  </div>
+                </div>
+                <div style="font-size: 11px; color: var(--text-tertiary);">Today, 9:00 AM (IST)</div>
+              </div>
+              <div class="email-meta-recipient">
+                <span>to</span>
+                <strong id="previewRecipientEmail" style="color: var(--text-main);">recipient@domain.com</strong>
+              </div>
             </div>
-            <div class="alt-opening-entry">
-              <span id="modalAltOpening1" style="font-style: italic; font-family: var(--font-serif); font-size: 13px;">Opening 1</span>
-              <button class="btn-apply-opening" onclick="applyAltOpening(1)">Use Opening 1</button>
+
+            <div class="email-preview-subject-line" id="previewSubject">
+              Email Subject
             </div>
-            <div class="alt-opening-entry">
-              <span id="modalAltOpening2" style="font-style: italic; font-family: var(--font-serif); font-size: 13px;">Opening 2</span>
-              <button class="btn-apply-opening" onclick="applyAltOpening(2)">Use Opening 2</button>
+
+            <div class="email-preview-body-content" id="previewBody">
+              Email body paragraphs will render here.
+            </div>
+
+            <div class="email-mockup-signature">
+              <div class="signature-name">Team OneFolk</div>
+              <div style="color: var(--text-tertiary); font-size: 11px; margin-top: 2px;">
+                Creative-Tech & Growth Agency · Chennai, India · <a href="https://onefolk.in" target="_blank" style="color: var(--text-main); text-decoration: underline;">onefolk.in</a>
+              </div>
             </div>
           </div>
 
-          <!-- Email Body Textarea -->
-          <div class="form-group">
-            <div class="form-label-row">
-              <label for="editorBody" class="form-label">Email Draft Body (Exactly 3 Paragraphs &lt; 70 Words)</label>
+          <!-- VIEW B: EDIT DRAFT FORM (Toggled) -->
+          <div class="editor-pane-view" id="editorFormContainer">
+            <div class="form-group">
+              <div class="form-label-row">
+                <label for="editorSubject" class="form-label">Subject Line</label>
+                <span style="font-size: 12px; color: var(--text-tertiary);" id="subjectCharCount">0 chars</span>
+              </div>
+              <input type="text" id="editorSubject" class="editor-input" oninput="onDraftChange()">
             </div>
-            <textarea id="editorBody" class="editor-input" oninput="onDraftChange()"></textarea>
+
+            <div class="form-group">
+              <div class="form-label-row">
+                <label for="editorBody" class="form-label">Body Text (Exactly 3 Paragraphs &lt; 70 Words)</label>
+              </div>
+              <textarea id="editorBody" class="editor-input" oninput="onDraftChange()"></textarea>
+            </div>
           </div>
 
-          <!-- Live Compliance Ribbon -->
+          <!-- Live Compliance Ribbon (Visible in both modes) -->
           <div class="compliance-ribbon">
             <div class="compliance-metric" id="pillWords">
               <span>Words:</span>
@@ -1494,6 +1664,7 @@
     const state = {
       userEmail: '<?= userEmail || "" ?>',
       currentTab: 'overview',
+      modalViewMode: 'preview', // 'preview' or 'editor'
       queue: {
         leads: [],
         page: 1,
@@ -1558,6 +1729,29 @@
       switchTab(state.currentTab);
     }
 
+    function setModalViewMode(mode) {
+      state.modalViewMode = mode;
+      const btnPrev = document.getElementById('btnTogglePreview');
+      const btnEdit = document.getElementById('btnToggleEditor');
+      const previewCard = document.getElementById('emailPreviewContainer');
+      const editorForm = document.getElementById('editorFormContainer');
+      const hint = document.getElementById('previewModeHint');
+
+      if (mode === 'preview') {
+        btnPrev.classList.add('active');
+        btnEdit.classList.remove('active');
+        previewCard.style.display = 'flex';
+        editorForm.classList.remove('active');
+        hint.textContent = 'Exact recipient view';
+      } else {
+        btnEdit.classList.add('active');
+        btnPrev.classList.remove('active');
+        previewCard.style.display = 'none';
+        editorForm.classList.add('active');
+        hint.textContent = 'Editing draft';
+      }
+    }
+
     // -------------------------------------------------------------------------
     // OVERVIEW
     // -------------------------------------------------------------------------
@@ -1572,7 +1766,7 @@
         document.getElementById('kpi-readyToReview').textContent = m.readyToReview || 0;
         document.getElementById('kpi-needsResearch').textContent = m.needsResearch || 0;
         document.getElementById('kpi-approved').textContent = m.approved || 0;
-        document.getElementById('kpi-sentToday').innerHTML = (m.sent || 0) + ' <span style="font-size:14px;color:var(--color-ink-faint);font-family:var(--font-sans);">/ 50 cap</span>';
+        document.getElementById('kpi-sentToday').innerHTML = (m.sent || 0) + ' <span style="font-size:14px;color:var(--text-tertiary);font-family:var(--font-sans);">/ 50 cap</span>';
         document.getElementById('kpi-bounced').textContent = m.bounced || 0;
         document.getElementById('kpi-positiveReplies').textContent = m.positiveReplies || 0;
         document.getElementById('kpi-meetingsBooked').textContent = m.meetingsBooked || 0;
@@ -1592,7 +1786,7 @@
 
         if (!sys.sendingLocked && sys.enableSending === 'YES') {
           document.getElementById('headerSendingStatus').textContent = 'SENDING ACTIVE';
-          document.querySelector('.status-lock-dot').style.background = '#15803d';
+          document.querySelector('.status-lock-dot').style.background = '#15803D';
         } else {
           document.getElementById('headerSendingStatus').textContent = 'SENDING LOCKED (OFF)';
           document.querySelector('.status-lock-dot').style.background = '#D97706';
@@ -1657,8 +1851,8 @@
         const paras = lead.computed_paragraphs || 0;
         const isComp = lead.is_compliant;
         const compHtml = isComp
-          ? `<span style="color:var(--color-success);font-weight:600;font-size:11px;">✓ 3p / ${words}w</span>`
-          : `<span style="color:var(--color-warning);font-size:11px;">${paras}p / ${words}w</span>`;
+          ? `<span style="color:var(--color-success);font-weight:600;font-size:12px;">✓ 3p / ${words}w</span>`
+          : `<span style="color:var(--color-warning);font-size:12px;">${paras}p / ${words}w</span>`;
 
         html += `
           <tr onclick="openLeadReview('${leadId}')">
@@ -1675,7 +1869,7 @@
               <a href="${website}" target="_blank" class="lead-link" onclick="event.stopPropagation();">${website}</a>
             </td>
             <td style="max-width:280px;">
-              <div style="font-size:12px;color:var(--color-ink-muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+              <div style="font-size:12px;color:var(--text-secondary);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
                 ${opportunity}
               </div>
             </td>
@@ -1726,7 +1920,7 @@
     }
 
     // -------------------------------------------------------------------------
-    // REVIEW LIGHTBOX
+    // REVIEW LIGHTBOX WITH LIVE EMAIL PREVIEW
     // -------------------------------------------------------------------------
     async function openLeadReview(leadId) {
       try {
@@ -1747,15 +1941,17 @@
 
         document.getElementById('modalEmailProvenance').innerHTML = `
           <strong>${escapeHtml(lead.public_email || 'No email')}</strong>
-          <br><a href="${escapeHtml(lead.email_source_url || site)}" target="_blank" class="lead-link" style="font-size:11px;">Contact provenance page ↗</a>
+          <br><a href="${escapeHtml(lead.email_source_url || site)}" target="_blank" class="lead-link" style="font-size:12px;">Contact source page ↗</a>
         `;
+
+        document.getElementById('previewRecipientEmail').textContent = lead.public_email || 'recipient@domain.com';
 
         document.getElementById('modalObservation').textContent = `"${lead.observation || 'No direct observation recorded'}"`;
         const obsSource = document.getElementById('modalObservationSourceUrl');
         obsSource.href = lead.observation_url || site;
         obsSource.textContent = lead.observation_url || site;
 
-        document.getElementById('modalVerificationMeta').textContent = `Confidence: ${escapeHtml(lead.verification_confidence || 'Syntax + MX')} · Last Verified: ${escapeHtml(lead.last_verified_at || 'Recent')}`;
+        document.getElementById('modalVerificationMeta').textContent = `Confidence: ${escapeHtml(lead.verification_confidence || 'Syntax + MX')} · Verified: ${escapeHtml(lead.last_verified_at || 'Recent')}`;
 
         document.getElementById('modalAltOpening1').textContent = `"${lead.alt_opening_1 || 'No alternative opening 1'}"`;
         document.getElementById('modalAltOpening2').textContent = `"${lead.alt_opening_2 || 'No alternative opening 2'}"`;
@@ -1763,7 +1959,10 @@
         document.getElementById('editorSubject').value = lead.subject || '';
         document.getElementById('editorBody').value = lead.email_body || '';
 
+        // Default to live email preview view
+        setModalViewMode('preview');
         onDraftChange();
+
         document.getElementById('reviewModal').classList.add('open');
       } catch (err) {
         showToast('Error opening dossier: ' + err, 'error');
@@ -1781,29 +1980,38 @@
 
       document.getElementById('subjectCharCount').textContent = subject.length + ' chars';
 
+      // Update Live Email Preview
+      document.getElementById('previewSubject').textContent = subject || '(No subject entered)';
+      const previewBodyEl = document.getElementById('previewBody');
+      const paragraphs = body ? body.split(/\n\s*\n/).filter(p => p.trim().length > 0) : [];
+      if (paragraphs.length > 0) {
+        previewBodyEl.innerHTML = paragraphs.map(p => `<p>${escapeHtml(p)}</p>`).join('');
+      } else {
+        previewBodyEl.innerHTML = '<p style="color:var(--text-tertiary);font-style:italic;">(Email body is empty)</p>';
+      }
+
       const words = body ? body.split(/\s+/).length : 0;
-      const paras = body ? body.split(/\n\s*\n/).filter(p => p.trim().length > 0) : [];
       const proofLine = (state.queue.selectedLead && state.queue.selectedLead.proof_line)
         ? state.queue.selectedLead.proof_line.trim()
         : 'Our team designed and built the OneFolk website.';
 
       const hasProof = body.includes(proofLine);
-      const lastPara = paras.length === 3 ? paras[2].trim() : '';
+      const lastPara = paragraphs.length === 3 ? paragraphs[2].trim() : '';
       const hasQuestion = lastPara.includes('?');
 
       document.getElementById('counterWords').textContent = words;
-      document.getElementById('counterParas').textContent = paras.length;
+      document.getElementById('counterParas').textContent = paragraphs.length;
       document.getElementById('counterProof').textContent = hasProof ? 'Valid' : 'Missing';
       document.getElementById('counterQuestion').textContent = hasQuestion ? 'Valid' : 'Missing';
 
       setMetricPill('pillWords', words > 0 && words < 70);
-      setMetricPill('pillParas', paras.length === 3);
+      setMetricPill('pillParas', paragraphs.length === 3);
       setMetricPill('pillProof', hasProof);
       setMetricPill('pillQuestion', hasQuestion);
 
       const errors = [];
       if (!subject) errors.push('Subject line cannot be empty.');
-      if (paras.length !== 3) errors.push(`Email body must contain exactly 3 paragraphs (found ${paras.length}).`);
+      if (paragraphs.length !== 3) errors.push(`Email body must contain exactly 3 paragraphs (currently ${paragraphs.length}).`);
       if (words >= 70) errors.push(`Email body must be under 70 words (currently ${words}).`);
       if (!hasProof) errors.push(`Proof line missing: "${proofLine}".`);
       if (!hasQuestion) errors.push('Paragraph 3 must end with a low-commitment question mark (?).');
@@ -1848,7 +2056,7 @@
       }
 
       onDraftChange();
-      showToast(`Substituted opening paragraph with Opening ${index}`, 'info');
+      showToast(`Applied Opening ${index} — updated Live Preview!`, 'info');
     }
 
     async function saveDraftAction() {
@@ -1976,7 +2184,7 @@
               <td>${needs}</td>
               <td>${aiCalls} calls / ${fetches} reqs</td>
               <td><span class="status-badge ${st === 'COMPLETED' ? 'approved' : 'awaiting'}">${st}</span></td>
-              <td style="max-width:320px;font-size:12px;color:var(--color-ink-muted);">${escapeHtml(reasons)}</td>
+              <td style="max-width:320px;font-size:12px;color:var(--text-secondary);">${escapeHtml(reasons)}</td>
             </tr>
           `;
         });
@@ -2010,7 +2218,7 @@
 
           const threadLink = threadId
             ? `<a href="https://mail.google.com/mail/u/0/#inbox/${escapeHtml(threadId)}" target="_blank" class="lead-link">Open in Gmail ↗</a>`
-            : '<span style="color:var(--color-ink-faint);font-size:11px;">N/A</span>';
+            : '<span style="color:var(--text-tertiary);font-size:11px;">N/A</span>';
 
           html += `
             <tr>
