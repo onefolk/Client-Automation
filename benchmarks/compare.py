@@ -112,6 +112,8 @@ def research(kind):
         output=renderer.fetch_html('https://fixture.invalid/')
         smoke={'actual_tool_successes':renderer.rendered,'fallbacks':renderer.fallbacks,
                'inline_js_rendered':'rendered fixture' in BeautifulSoup(output or '', 'html.parser').get_text()}
+    capability_seconds=round(time.monotonic()-start,3) if smoke else 0
+    start=time.monotonic()
     records=[]; contacts={}; identities=set()
     for row in sample:
         domain=extract_domain(row['website'])
@@ -132,6 +134,7 @@ def research(kind):
         'evidence_qualified_candidates':sum(r['qualification_status']=='QUALIFIED' for r in records),
         'production_qualified_leads':None,'production_eligibility_note':'History/suppression unavailable in isolated benchmark',
         'records':records,'wall_seconds':round(time.monotonic()-start,3),
+        'capability_check_seconds_excluded':capability_seconds,
         'crawl4ai_successful_pages':getattr(provider.fetcher,'rendered',0),
         'crawl4ai_fallback_pages':getattr(provider.fetcher,'fallbacks',0),
         'crawl4ai_failures':getattr(provider.fetcher,'failures',[]),'synthetic_capability_check':smoke})
