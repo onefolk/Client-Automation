@@ -37,7 +37,16 @@ function doGet(e) {
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
   }
 
-  const template = HtmlService.createTemplateFromFile('Index');
+  let template;
+  try {
+    template = HtmlService.createTemplateFromFile('Index');
+  } catch (err1) {
+    try {
+      template = HtmlService.createTemplateFromFile('Index.html');
+    } catch (err2) {
+      throw new Error('HTML file missing: In your Apps Script editor (+ > HTML), create a file named "Index" and paste the code from apps-script/Index.html.');
+    }
+  }
   template.userEmail = userEmail;
   template.appName = 'OneFolk Outreach OS';
   
