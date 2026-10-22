@@ -26,8 +26,7 @@ gate is a deployment setting, not a replacement for individual human approvals.
   prohibit mass downloads/bulk feeds; no extraction permission was established.
   No Maps queries, proxies or CAPTCHA bypasses are run. Extraction yield and
   browser RAM are **unmeasured**, not zero. Production discovery is rejected.
-* **Crawl4AI 0.9.5**, Apache-2.0 terms with an additional upstream attribution
-  requirement, preserved in `NOTICE-PROVIDERS.md`. Python >=3.10, Playwright/Chromium,
+* **Crawl4AI 0.9.5**, Apache-2.0. Python >=3.10, Playwright/Chromium,
   async networking/storage, lxml, numpy, pydantic and LLM integrations.
   Optional stealth-related dependencies may be installed transitively; stealth
   mode, proxies, managed browsers and hosted APIs are not used. The adapter
