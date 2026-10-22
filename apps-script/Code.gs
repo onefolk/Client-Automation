@@ -148,7 +148,7 @@ function formatOneFolkEmail(rawBody, businessName) {
 
   // Filter out any duplicate footer lines if previously embedded
   contentParas = contentParas.filter(p => 
-    !/^work:\s*https?:\/\//i.test(p) && 
+    !/^(our\s+)?work:\s*https?:\/\//i.test(p) && 
     !/^regards,/i.test(p) && 
     !/^team onefolk/i.test(p) && 
     !/^https?:\/\/onefolk\.in\/?$/i.test(p)
@@ -159,7 +159,7 @@ function formatOneFolkEmail(rawBody, businessName) {
     '',
     contentParas.join('\n\n'),
     '',
-    'Work: https://onefolk.in/work',
+    'Our work: https://onefolk.in/work',
     '',
     'Regards,',
     'Team OneFolk',
@@ -172,7 +172,7 @@ function formatOneFolkEmail(rawBody, businessName) {
     '<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; font-size: 14.5px; line-height: 1.65; color: #1C1B18; max-width: 600px;">',
     `  <p style="margin: 0 0 16px 0; font-weight: 500;">${escapeHtml(salutation)}</p>`,
     contentParas.map(p => `  <p style="margin: 0 0 16px 0; line-height: 1.65;">${escapeHtml(p)}</p>`).join('\n'),
-    '  <p style="margin: 20px 0 14px 0; color: #4A4843;">Work: <a href="https://onefolk.in/work" style="color: #1C1B18; text-decoration: underline;">https://onefolk.in/work</a></p>',
+    '  <p style="margin: 20px 0 14px 0; color: #4A4843;">Our work: <a href="https://onefolk.in/work" style="color: #1C1B18; text-decoration: underline;">https://onefolk.in/work</a></p>',
     '  <p style="margin: 14px 0 0 0; line-height: 1.5; color: #1C1B18;">Regards,<br><strong>Team OneFolk</strong><br><a href="https://onefolk.in/" style="color: #1C1B18; text-decoration: underline;">https://onefolk.in/</a></p>',
     '</div>'
   ].join('\n');

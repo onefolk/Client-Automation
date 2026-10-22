@@ -2226,7 +2226,7 @@
 
       const salutationText = hasSalutation ? rawParas[0] : `Dear ${businessName} Team,`;
       const contentParas = (hasSalutation ? rawParas.slice(1) : rawParas).filter(p =>
-        !/^work:\s*https?:\/\//i.test(p) &&
+        !/^(our\s+)?work:\s*https?:\/\//i.test(p) &&
         !/^regards,/i.test(p) &&
         !/^team onefolk/i.test(p) &&
         !/^https?:\/\/onefolk\.in\/?$/i.test(p)
@@ -2243,7 +2243,7 @@
 
       const footerHtml = `
         <p style="margin: 20px 0 14px 0; color: inherit;">
-          Work: <a href="https://onefolk.in/work" target="_blank" style="color: inherit; text-decoration: underline;">https://onefolk.in/work</a>
+          Our work: <a href="https://onefolk.in/work" target="_blank" style="color: inherit; text-decoration: underline;">https://onefolk.in/work</a>
         </p>
         <p style="margin: 14px 0 0 0; line-height: 1.5; color: inherit;">
           Regards,<br>
