@@ -26,10 +26,13 @@ export class OneFolkDatabase {
 
   constructor(customPath?: string) {
     const DatabaseSync = getDatabaseSyncClass();
+    const defaultDir = (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
+      ? path.join('/tmp', 'onefolk-data')
+      : path.join(process.cwd(), 'data');
     const resolvedPath =
       customPath ||
       process.env.ONEFOLK_DB_PATH ||
-      path.join(process.cwd(), 'data', 'onefolk.db');
+      path.join(defaultDir, 'onefolk.db');
 
     this.dbPath = resolvedPath;
 
