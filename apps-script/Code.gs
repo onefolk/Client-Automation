@@ -256,9 +256,23 @@ function disableProductionSendingNow() {
  * Core Approved Sender: Dispatches up to daily budget through authorized Gmail.
  */
 function approvedSender() {
+  if (getProp('EMERGENCY_STOP_ACTIVE') === 'YES') {
+    Logger.log('EMERGENCY STOP is active. Disarming outbound sending.');
+    return;
+  }
+
+  // When IMPLEMENTATION_SENDING_LOCK is set to false, auto-activate ENABLE_SENDING property
+  if (!IMPLEMENTATION_SENDING_LOCK && getProp('ENABLE_SENDING') !== 'YES') {
+    setProp('ENABLE_SENDING', 'YES');
+    if (!getProp('ACTIVATION_TIMESTAMP')) {
+      setProp('ACTIVATION_TIMESTAMP', new Date().toISOString());
+    }
+    Logger.log('Auto-activated ENABLE_SENDING = YES based on IMPLEMENTATION_SENDING_LOCK = false.');
+  }
+
   const isEnabled = !IMPLEMENTATION_SENDING_LOCK && getProp('ENABLE_SENDING') === 'YES';
   if (!isEnabled) {
-    Logger.log('DRY RUN: Sending is disabled. Set ENABLE_SENDING=YES in Script Properties to activate.');
+    Logger.log('DRY RUN: Sending is disabled. Set IMPLEMENTATION_SENDING_LOCK = false in Code.gs to activate.');
     return;
   }
 
