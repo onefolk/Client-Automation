@@ -21,7 +21,7 @@ def test_crawl_failure_uses_explicit_counted_fallback(monkeypatch):
     import subprocess
     transport=Mock(); transport.fetch_html.return_value='<p>source</p>'
     def fail(*a,**kw): raise subprocess.TimeoutExpired('worker',35)
-    monkeypatch.setattr('subprocess.run',fail)
+    monkeypatch.setattr('src.providers.research.render_snapshot',fail)
     fetcher=Crawl4AIFetcher(transport)
     assert fetcher.fetch_html('https://example.com/')=='<p>source</p>'
     assert fetcher.fallbacks==1 and fetcher.rendered==0

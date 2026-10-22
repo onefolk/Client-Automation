@@ -61,7 +61,7 @@ def collect():
     for row in selected:
         url = canonical_url(row['website'])
         html = fetcher.fetch_html(url)
-        if not html:
+        if not html or re.search(r'cf-chl-|verify you are human|captcha challenge',html,re.I):
             audit.append({'url':url, 'status':'UNAVAILABLE_OR_ROBOTS_DENIED'}); continue
         soup = BeautifulSoup(html, 'html.parser')
         # Public access/robots do not override site terms. Skip explicit restrictions.
@@ -133,7 +133,8 @@ def research(kind):
         'production_qualified_leads':None,'production_eligibility_note':'History/suppression unavailable in isolated benchmark',
         'records':records,'wall_seconds':round(time.monotonic()-start,3),
         'crawl4ai_successful_pages':getattr(provider.fetcher,'rendered',0),
-        'crawl4ai_fallback_pages':getattr(provider.fetcher,'fallbacks',0),'synthetic_capability_check':smoke})
+        'crawl4ai_fallback_pages':getattr(provider.fetcher,'fallbacks',0),
+        'crawl4ai_failures':getattr(provider.fetcher,'failures',[]),'synthetic_capability_check':smoke})
     if kind=='crawl4ai' and not smoke['actual_tool_successes']:
         raise RuntimeError('Crawl4AI failed its actual invocation; fallbacks are not integration proof')
 
@@ -165,7 +166,12 @@ def drafts():
 
 def report():
     names=('collection','lightweight','crawl4ai','verify-python','verify-truemail','drafts')
+    missing=[name for name in names if not (OUT/(name+'.json')).exists()]
+    measurements={p.stem:json.loads(p.read_text()) for p in OUT.glob('*.json')
+                  if p.stem.startswith(('install-','research-','verification-')) or p.stem in ('collect-process','drafting','maps-help')}
     result={'event':os.getenv('GITHUB_EVENT_NAME','local'),'run_id':os.getenv('GITHUB_RUN_ID'),
+        'missing_stages':missing,'measurements':measurements,
+        'experiment_complete':not missing and all(m.get('exit_code')==0 for m in measurements.values()),
         'commit':os.getenv('GITHUB_SHA'),'finished_at':datetime.now(timezone.utc).isoformat(),
         'results':{name:read(name) for name in names if (OUT/(name+'.json')).exists()},
         'maps':'INSTALL_AND_HELP_ONLY: extraction policy blocked; no Maps queries',

@@ -1,8 +1,8 @@
 name: Provider evidence benchmark
 on:
   schedule:
-    # Weekly Thursday 14:07 IST. Native schedule evidence, separate from outreach.
-    - cron: '37 8 * * 4'
+    # Weekly Thursday 13:53 IST. Native schedule evidence, separate from outreach.
+    - cron: '23 8 * * 4'
   workflow_dispatch:
 permissions:
   contents: read
