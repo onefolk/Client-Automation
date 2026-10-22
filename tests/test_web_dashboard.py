@@ -90,6 +90,8 @@ def test_html_dashboard_integrity():
 def test_real_google_sheet_read_connection():
     """Verify live read connection to the existing master spreadsheet."""
     sm = SheetsManager()
+    if not sm.raw_creds:
+        pytest.skip("Live Google Sheet test skipped: GOOGLE_SERVICE_ACCOUNT_JSON not configured in environment")
     connected = sm.connect()
     assert connected is True, "Failed to connect to Google Sheets with service account"
     assert sm.spreadsheet is not None
@@ -121,6 +123,8 @@ def test_safe_reversible_sheet_write_and_cleanup():
     """Perform a safe, reversible write test on an explicitly designated isolated test record,
     then clean it up completely, ensuring zero corruption to real outreach records."""
     sm = SheetsManager()
+    if not sm.raw_creds:
+        pytest.skip("Live Google Sheet test skipped: GOOGLE_SERVICE_ACCOUNT_JSON not configured in environment")
     assert sm.connect() is True
     
     # Target tab: Approval Audit (or insert temporary test audit record)

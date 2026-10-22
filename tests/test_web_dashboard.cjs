@@ -447,24 +447,24 @@ console.log('✓ System health and campaign logs passed.\n');
 // -----------------------------------------------------------------------------
 console.log('Test 11: Cancel Authorization before Dispatch');
 // Reset and approve lead_test_01
-const queueSheet = sheetStore.get('Approval Queue');
-const rows = queueSheet.getDataRange().getValues();
-const statusCol = rows[0].indexOf('status');
-const approvalCol = rows[0].indexOf('approval');
+const cancelQueueSheet = sheetStore.get('Approval Queue');
+const queueRows = cancelQueueSheet.getDataRange().getValues();
+const cStatusCol = queueRows[0].indexOf('status');
+const cApprovalCol = queueRows[0].indexOf('approval');
 
 // Set back to AWAITING_REVIEW and approve
-queueSheet.getRange(2, statusCol + 1).setValue('AWAITING_REVIEW');
-queueSheet.getRange(2, approvalCol + 1).setValue('PENDING');
+cancelQueueSheet.getRange(2, cStatusCol + 1).setValue('AWAITING_REVIEW');
+cancelQueueSheet.getRange(2, cApprovalCol + 1).setValue('PENDING');
 const approved = vm.runInContext("apiApproveLead('lead_test_01')", mockContext);
 assert.equal(approved.success, true);
-assert.equal(queueSheet.getDataRange().getValues()[1][statusCol], 'APPROVED');
+assert.equal(cancelQueueSheet.getDataRange().getValues()[1][cStatusCol], 'APPROVED');
 
 // Now cancel authorization
 const cancelRes = vm.runInContext("apiCancelApproval('lead_test_01')", mockContext);
 assert.equal(cancelRes.success, true);
-const rowsAfterCancel = queueSheet.getDataRange().getValues();
-assert.equal(rowsAfterCancel[1][statusCol], 'AWAITING_REVIEW', 'Status must revert to AWAITING_REVIEW');
-assert.equal(rowsAfterCancel[1][approvalCol], 'PENDING', 'Approval must revert to PENDING');
+const rowsAfterCancel = cancelQueueSheet.getDataRange().getValues();
+assert.equal(rowsAfterCancel[1][cStatusCol], 'AWAITING_REVIEW', 'Status must revert to AWAITING_REVIEW');
+assert.equal(rowsAfterCancel[1][cApprovalCol], 'PENDING', 'Approval must revert to PENDING');
 assert.equal(scriptProps.get('APPROVAL_lead_test_01'), '', 'Approval fingerprint must be wiped');
 assert.equal(scriptProps.get('APPROVAL_META_lead_test_01'), '', 'Approval metadata must be wiped');
 console.log('✓ Cancellation of queued/approved leads passed.\n');
@@ -525,9 +525,10 @@ const activationTime = new Date().toISOString();
 scriptProps.set('ACTIVATION_TIMESTAMP', activationTime);
 
 // A legacy row that has status='APPROVED' and approval='APPROVED' but NO approval property
+const baseRows = sheetStore.get('Approval Queue').getDataRange().getValues();
 const headerMap = {};
-rows[0].forEach((h, i) => { headerMap[h] = i; });
-const legacyRow = [...rows[1]];
+baseRows[0].forEach((h, i) => { headerMap[h] = i; });
+const legacyRow = [...baseRows[1]];
 legacyRow[headerMap['status']] = 'APPROVED';
 legacyRow[headerMap['approval']] = 'APPROVED';
 legacyRow[headerMap['lead_id']] = 'legacy_backlog_lead';

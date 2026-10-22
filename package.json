@@ -10,7 +10,7 @@
     "build": "npm --prefix apps/web run build",
     "start": "npm --prefix apps/web run start",
     "lint": "npm --prefix apps/web run lint",
-    "test": "npm --prefix apps/web run test",
+    "test": "npm --prefix apps/web run test && node tests/test_web_dashboard.cjs",
     "typecheck": "npm --prefix apps/web run typecheck"
   },
   "devDependencies": {
