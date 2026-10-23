@@ -84,11 +84,12 @@ function extractDomain(urlOrEmail) {
  * Builds the comprehensive suppression set from hardcoded rules,
  * Suppression List tab, and historical Sent Emails.
  */
-function buildSuppressionSet() {
+function buildSuppressionSet(excludeReservationEmail) {
   const set = new Set(HARD_SUPPRESSED.map(normalizeKey));
   const book = getSpreadsheet();
+  const excludeEmail = excludeReservationEmail ? normalizeKey(excludeReservationEmail) : null;
 
-  // 1. From Suppression List tab
+  // 1. From Suppression List tab (independent suppression list - never excluded)
   const suppSheet = book.getSheetByName(TAB_SUPPRESSION_LIST);
   if (suppSheet) {
     const data = suppSheet.getDataRange().getValues();
@@ -102,7 +103,7 @@ function buildSuppressionSet() {
     }
   }
 
-  // 2. From historical Sent Emails
+  // 2. From historical Sent Emails (independent history check - never excluded)
   const sentSheet = book.getSheetByName(TAB_HISTORICAL_SENT);
   if (sentSheet) {
     const data = sentSheet.getDataRange().getValues();
@@ -112,6 +113,7 @@ function buildSuppressionSet() {
     }
   }
 
+  // 3. Queue and activity checks
   for (const tab of [TAB_APPROVAL_QUEUE, TAB_EMAIL_ACTIVITY]) {
     const sheet = book.getSheetByName(tab);
     if (!sheet) throw new Error('Required safety tab missing: ' + tab);
@@ -121,6 +123,10 @@ function buildSuppressionSet() {
       const st = normalizeKey(row[h.indexOf('status')]);
       if (tab === TAB_EMAIL_ACTIVITY || ['sent','sending','send_review','bounced','declined','unsubscribed','rejected','positive_reply','reply_review','suppressed'].includes(st)) {
         const email = normalizeKey(row[h.indexOf(tab === TAB_EMAIL_ACTIVITY ? 'recipient_email' : 'public_email')]);
+        // Exclude only the current reservation from the queue-derived suppression check
+        if (tab === TAB_APPROVAL_QUEUE && excludeEmail && email === excludeEmail && st === 'sending') {
+          continue;
+        }
         if (email) { set.add(email); set.add(extractDomain(email)); }
       }
     }
@@ -242,12 +248,13 @@ function isValidApprovedDraft(v, headerMap) {
   if (getProp('APPROVAL_' + record.lead_id) !== draftFingerprint(record)) return false;
 
   // Backlog safeguard: ensure explicit approval metadata exists and is fresh
-  const metaRaw = getProp('APPROVAL_META_' + record.lead_id);
   const activationTimeStr = getProp('ACTIVATION_TIMESTAMP');
-  if (activationTimeStr && metaRaw) {
+  if (activationTimeStr) {
+    const metaRaw = getProp('APPROVAL_META_' + record.lead_id);
+    if (!metaRaw) return false; // Metadata verification required when activation is set
     try {
       const meta = JSON.parse(metaRaw);
-      if (meta.approved_at && new Date(meta.approved_at).getTime() < new Date(activationTimeStr).getTime()) {
+      if (!meta.approved_at || new Date(meta.approved_at).getTime() < new Date(activationTimeStr).getTime()) {
         return false; // Historical approval from before activation; requires fresh human approval
       }
     } catch (e) {
@@ -520,7 +527,7 @@ function approvedSender() {
           SpreadsheetApp.flush();
           break;
         }
-        const liveBlocked = buildSuppressionSet();
+        const liveBlocked = buildSuppressionSet(email);
         if (liveBlocked.has(email) || (dom && liveBlocked.has(dom))) {
           Logger.log(`Lead ${email} found in live suppression immediately prior to send. Halting.`);
           queueSheet.getRange(rowIdx, headerMap.status + 1).setValue('SUPPRESSED');

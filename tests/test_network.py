@@ -57,3 +57,23 @@ def test_safe_url_blocking():
     with patch("socket.getaddrinfo", return_value=[(2,1,6,"",("8.8.8.8",443))]):
         assert is_safe_url("https://onefolk.in/work")
         assert is_safe_url("https://pes.edu")
+
+
+def test_safe_fetcher_pins_dns_ip():
+    from unittest.mock import patch, MagicMock
+    from src.network import SafeFetcher
+
+    fetcher = SafeFetcher()
+    fake_addr_info = [(2, 1, 6, "", ("93.184.215.14", 443))]
+    with patch("socket.getaddrinfo", return_value=fake_addr_info):
+        with patch.object(fetcher.session, "get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.headers = {"Content-Type": "text/html"}
+            mock_resp.raw.read.return_value = b"<html>OK</html>"
+            mock_get.return_value = mock_resp
+
+            res = fetcher.fetch_html("https://example.com/test")
+            assert res == "<html>OK</html>"
+            assert fetcher.dns_map.get("example.com") == "93.184.215.14"
+

@@ -64,7 +64,76 @@ def is_ip_safe(ip_str: str) -> bool:
         return False
 
 
-def is_safe_url(url: str) -> bool:
+from requests.adapters import HTTPAdapter
+from urllib3.poolmanager import PoolManager
+from urllib3.connectionpool import HTTPConnectionPool, HTTPSConnectionPool
+from urllib3.connection import HTTPConnection, HTTPSConnection
+from urllib3.util import connection as urllib3_conn
+
+
+class PinnedHTTPConnection(HTTPConnection):
+    dns_map = {}
+
+    def _new_conn(self):
+        extra_kw = {}
+        if self.source_address:
+            extra_kw["source_address"] = self.source_address
+        if self.socket_options:
+            extra_kw["socket_options"] = self.socket_options
+        target_host = self.dns_map.get(self.host.lower(), self.host)
+        return urllib3_conn.create_connection(
+            (target_host, self.port),
+            self.timeout,
+            **extra_kw,
+        )
+
+
+class PinnedHTTPSConnection(HTTPSConnection):
+    dns_map = {}
+
+    def _new_conn(self):
+        extra_kw = {}
+        if self.source_address:
+            extra_kw["source_address"] = self.source_address
+        if self.socket_options:
+            extra_kw["socket_options"] = self.socket_options
+        target_host = self.dns_map.get(self.host.lower(), self.host)
+        return urllib3_conn.create_connection(
+            (target_host, self.port),
+            self.timeout,
+            **extra_kw,
+        )
+
+
+class PinnedHTTPConnectionPool(HTTPConnectionPool):
+    ConnectionCls = PinnedHTTPConnection
+
+
+class PinnedHTTPSConnectionPool(HTTPSConnectionPool):
+    ConnectionCls = PinnedHTTPSConnection
+
+
+class PinnedPoolManager(PoolManager):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pool_classes_by_scheme = {
+            "http": PinnedHTTPConnectionPool,
+            "https": PinnedHTTPSConnectionPool,
+        }
+
+
+class PinnedAdapter(HTTPAdapter):
+    def __init__(self, dns_map=None, *args, **kwargs):
+        self.dns_map = dns_map if dns_map is not None else {}
+        super().__init__(*args, **kwargs)
+
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        PinnedHTTPConnection.dns_map = self.dns_map
+        PinnedHTTPSConnection.dns_map = self.dns_map
+        self.poolmanager = PinnedPoolManager(num_pools=connections, maxsize=maxsize, block=block, **pool_kwargs)
+
+
+def is_safe_url(url: str, pinned_ip_holder: Optional[list] = None) -> bool:
     """Bulletproof SSRF check with DNS pre-resolution to block internal IP destinations."""
     if not url:
         return False
@@ -86,10 +155,14 @@ def is_safe_url(url: str) -> bool:
             addr_info = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
             if not addr_info:
                 return False
+            safe_ips = []
             for entry in addr_info:
                 ip_str = entry[4][0]
                 if not is_ip_safe(ip_str):
                     return False
+                safe_ips.append(ip_str)
+            if pinned_ip_holder is not None and safe_ips:
+                pinned_ip_holder.append(safe_ips[0])
         except socket.gaierror:
             # Domain cannot be resolved via DNS
             return False
@@ -100,14 +173,18 @@ def is_safe_url(url: str) -> bool:
 
 
 class SafeFetcher:
-    """SSRF-guarded, bounded HTTP fetcher with strict size and request limits."""
+    """SSRF-guarded, bounded HTTP fetcher with pinned destination IP to prevent DNS rebinding."""
 
     def __init__(self, max_fetches: int = MAX_HTTP_FETCHES, timeout: int = HTTP_TIMEOUT_SECONDS):
         self.count = 0
         self.limit = max_fetches
         self.timeout = timeout
+        self.dns_map = {}
         self.session = requests.Session()
         self.session.trust_env = False  # Disable uncontrolled environment proxies
+        adapter = PinnedAdapter(self.dns_map)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
         self.session.headers.update({
             "User-Agent": USER_AGENT,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -115,7 +192,7 @@ class SafeFetcher:
         })
 
     def fetch_html(self, url: str, max_redirects: int = 3) -> Optional[str]:
-        """Fetches HTML content from URL safely with redirect re-verification."""
+        """Fetches HTML content from URL safely with redirect re-verification and IP pinning."""
         current_url = url
         redirects_followed = 0
 
@@ -124,9 +201,14 @@ class SafeFetcher:
                 logger.warning("HTTP fetch limit (%d) reached. Skipping %s", self.limit, current_url)
                 return None
 
-            if not is_safe_url(current_url):
+            ip_holder = []
+            if not is_safe_url(current_url, pinned_ip_holder=ip_holder):
                 logger.warning("SSRF blocked or unsafe URL: %s", current_url)
                 return None
+
+            host = (urlparse(current_url).hostname or "").lower()
+            if host and ip_holder:
+                self.dns_map[host] = ip_holder[0]
 
             self.count += 1
             response = None
@@ -144,9 +226,13 @@ class SafeFetcher:
                     if not location:
                         return None
                     next_url = urljoin(current_url, location)
-                    if not is_safe_url(next_url):
+                    next_ip_holder = []
+                    if not is_safe_url(next_url, pinned_ip_holder=next_ip_holder):
                         logger.warning("SSRF redirect blocked to: %s", next_url)
                         return None
+                    next_host = (urlparse(next_url).hostname or "").lower()
+                    if next_host and next_ip_holder:
+                        self.dns_map[next_host] = next_ip_holder[0]
                     current_url = next_url
                     redirects_followed += 1
                     continue

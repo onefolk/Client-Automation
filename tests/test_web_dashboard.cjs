@@ -542,10 +542,14 @@ mockContext.headerMap = headerMap;
 // Without ScriptProperty APPROVAL_legacy_backlog_lead, it must fail validation
 assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Legacy approved row without fingerprint must be rejected');
 
-// Even if someone manually sets the fingerprint but with an old approval timestamp < activationTime
+// If fingerprint is set but metadata is completely missing, it must fail validation
 const recordMock = Object.fromEntries(Object.keys(headerMap).map(k => [k, legacyRow[headerMap[k]]]));
 mockContext.recordMock = recordMock;
 scriptProps.set('APPROVAL_legacy_backlog_lead', vm.runInContext('draftFingerprint(recordMock)', mockContext));
+scriptProps.delete('APPROVAL_META_legacy_backlog_lead');
+assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Missing approval metadata when activation is set must be rejected');
+
+// Even if someone manually sets the fingerprint but with an old approval timestamp < activationTime
 scriptProps.set('APPROVAL_META_legacy_backlog_lead', JSON.stringify({
   approved_by: 'old_admin@onefolk.in',
   approved_at: '2026-10-20T00:00:00.000Z', // Before activation
@@ -637,3 +641,63 @@ for (const phrase of ["I noticed", "I've noticed", 'my team', 'Unlock your busin
 const rendered = vm.runInContext("formatOneFolkEmail(officialBody, 'Swarnandhra College')", mockContext);
 assert.equal(rendered.plainText, officialBody);
 console.log('Official Team OneFolk writing-standard regression tests passed.');
+
+// -----------------------------------------------------------------------------
+// TEST 16: Queue Suppression Exclusion vs Independent Suppression Checks
+// -----------------------------------------------------------------------------
+console.log('Test 16: Queue Suppression Exclusion vs Independent Checks');
+const testQueueSheet = sheetStore.get('Approval Queue');
+const testQueueVals = testQueueSheet.getDataRange().getValues();
+const testEmail = 'lead.sending.test@example.com';
+const sendingRow = [...testQueueVals[1]];
+sendingRow[qHeaders.indexOf('public_email')] = testEmail;
+sendingRow[qHeaders.indexOf('status')] = 'SENDING';
+testQueueSheet.appendRow(sendingRow);
+
+// Without exclusion, buildSuppressionSet() includes the SENDING lead
+const globalBlocked = vm.runInContext('buildSuppressionSet()', mockContext);
+assert.ok(globalBlocked.has(testEmail), 'General suppression set must include queue-derived SENDING leads');
+
+// With exclusion of this current reservation, buildSuppressionSet(testEmail) excludes only this reservation from queue check
+const reservationBlocked = vm.runInContext(`buildSuppressionSet('${testEmail}')`, mockContext);
+assert.equal(reservationBlocked.has(testEmail), false, 'Current sending reservation must not suppress itself via queue check');
+
+// But independent suppression on Suppression List tab must still block it even if passed as reservation
+const testSuppSheet = sheetStore.get('Suppression List');
+testSuppSheet.appendRow(['sup_test', 'EMAIL', testEmail, 'manual entry', 'manual', new Date().toISOString()]);
+const suppBlocked = vm.runInContext(`buildSuppressionSet('${testEmail}')`, mockContext);
+assert.ok(suppBlocked.has(testEmail), 'Suppression List tab must block lead regardless of reservation exclusion');
+
+// Clean up test rows
+const queueCleanVals = testQueueSheet.getDataRange().getValues();
+queueCleanVals.pop();
+testQueueSheet.getDataRange().setValues(queueCleanVals);
+const suppCleanVals = testSuppSheet.getDataRange().getValues();
+suppCleanVals.pop();
+testSuppSheet.getDataRange().setValues(suppCleanVals);
+console.log('✓ Queue suppression exclusion and independent check preservation passed.\n');
+
+// -----------------------------------------------------------------------------
+// TEST 17: Formula Injection Sanitization in Batch Rejection
+// -----------------------------------------------------------------------------
+console.log('Test 17: Formula Injection Sanitization in Batch Rejection');
+const testInjectSheet = sheetStore.get('Approval Queue');
+const injectLeadId = 'inject_test_lead';
+const injectRow = [...testInjectSheet.getDataRange().getValues()[1]];
+injectRow[qHeaders.indexOf('lead_id')] = injectLeadId;
+injectRow[qHeaders.indexOf('reviewer_notes')] = '=cmd|\' /C calc\'!A0';
+injectRow[qHeaders.indexOf('status')] = 'AWAITING_REVIEW';
+testInjectSheet.appendRow(injectRow);
+
+// Batch reject with formula in reason
+vm.runInContext(`apiBatchRejectLeads(['${injectLeadId}'], '=HYPERLINK("http://evil.com","Click")')`, mockContext);
+const updatedInjectVals = testInjectSheet.getDataRange().getValues();
+const updatedRow = updatedInjectVals.find(r => r[qHeaders.indexOf('lead_id')] === injectLeadId);
+assert.ok(updatedRow[qHeaders.indexOf('reviewer_notes')].startsWith("'"), 'Notes with formula must be sanitized with leading apostrophe');
+
+// Clean up
+const finalQueueVals = testInjectSheet.getDataRange().getValues();
+finalQueueVals.pop();
+testInjectSheet.getDataRange().setValues(finalQueueVals);
+console.log('✓ Formula sanitization in batch rejection passed.\n');
+

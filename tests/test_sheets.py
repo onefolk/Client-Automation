@@ -90,3 +90,53 @@ def test_dashboard_kpis_calculation():
     assert metric_map["Prospects discovered"] == 100
     assert metric_map["Emails drafted"] == 75
     assert metric_map["Actual spending"] == "₹0.00"
+
+
+def test_reserve_store_quoted_range_and_bulk_appends():
+    from src.reserve import ReserveStore
+
+    sheets = MagicMock()
+    ws = MagicMock()
+    ws.get_all_records.return_value = []
+    sheets.ensure_tab.return_value = ws
+
+    store = ReserveStore(sheets)
+
+    # 1. Single put with quoted range like "'Automation State'!A3:C3"
+    ws.append_row.return_value = {
+        "updates": {"updatedRange": "'Automation State'!A3:C3"}
+    }
+    store.put("key1", {"foo": "bar"})
+    assert store.indices["key1"] == 3
+
+    # 2. Bulk put with quoted range
+    ws.append_rows.return_value = {
+        "updates": {"updatedRange": "'Automation State'!A4:C5"}
+    }
+    store.put_many_new({"key2": {"v": 2}, "key3": {"v": 3}})
+    assert store.indices["key2"] == 4
+    assert store.indices["key3"] == 5
+
+
+def test_append_records_prevents_overwriting_concurrent_approvals():
+    from src.reserve import append_records
+
+    sheets = MagicMock()
+    ws = MagicMock()
+    # Initial snapshot taken at T0: lead_100 was PENDING / AWAITING_REVIEW
+    ws.get_all_records.return_value = [
+        {"lead_id": "lead_100", "status": "AWAITING_REVIEW", "approval": "PENDING", "business": "Acme", "reviewer_notes": ""}
+    ]
+    columns = ["lead_id", "status", "approval", "business", "reviewer_notes"]
+    # At T1, a human approved it in the live sheet
+    ws.row_values.side_effect = lambda idx: columns if idx == 1 else ["lead_100", "APPROVED", "APPROVED", "Acme", "Looks good"]
+    ws.col_count = 5
+    sheets.ensure_tab.return_value = ws
+
+    # At T2, pipeline attempts to refresh lead_100
+    records = [{"lead_id": "lead_100", "status": "AWAITING_REVIEW", "approval": "PENDING", "business": "Acme New"}]
+    append_records(sheets, "Approval Queue", records, refresh_pending=True)
+
+    # ws.update must NOT have been called on row 2 because live state is APPROVED
+    ws.update.assert_not_called()
+

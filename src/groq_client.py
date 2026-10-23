@@ -269,7 +269,7 @@ class GroqClient:
                     (len(paragraphs) == 3 and paragraphs[0].startswith(observation + ' '))):
                 return None
         # Disallow fabricated quantitative/financial claims
-        if re.search(r'\b\d+%\b|\b\d+\s+percent\b|\b\$\d+|\b₹\d+', body, re.I):
+        if re.search(r'(?:(?<!\w)\d+(?:\.\d+)?%|(?<!\w)\d+\s*(?:percent|%|x\b)|[\$₹€£]\s*\d+)', body, re.I):
             logger.info("Draft rejected due to unsupported quantitative metrics or currency claims")
             return None
         valid_urls = [u for _, u in research_data.get("page_contexts", [])]

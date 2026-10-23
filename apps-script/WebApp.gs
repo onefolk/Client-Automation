@@ -1038,7 +1038,8 @@ function apiBatchRejectLeads(leadIds, reason) {
     }
 
     if (rejectedCount > 0) {
-      sheet.getDataRange().setValues(rows);
+      const sanitizedRows = rows.map(r => r.map(sanitizeCellValue));
+      sheet.getDataRange().setValues(sanitizedRows);
     }
 
     return {

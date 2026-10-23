@@ -201,3 +201,21 @@ def test_grounding_and_url_mismatch_fail_closed():
         'strict_grounding':True, 'observation':'A different verified observation.'}) is None
     assert client._validate_and_sanitize(official_draft(), '', 'https://wrong.edu', {
         'page_contexts': [('Evidence','https://right.edu')]}) is None
+
+
+@pytest.mark.parametrize('claim', [
+    '500% growth',
+    '$500 revenue',
+    '₹500 revenue',
+    '100 percent increase',
+    '50% higher',
+    '10x growth',
+    '£500 profit',
+    '€500 value',
+])
+def test_metric_and_currency_claims_rejected(claim):
+    client = GroqClient(api_key='test')
+    raw = official_draft()
+    raw['email_body'] = raw['email_body'].replace('could help prospective students', f'could help prospective students achieve {claim}')
+    assert client._validate_and_sanitize(raw, '', '', {}) is None
+

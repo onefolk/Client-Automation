@@ -37,10 +37,17 @@ testContext.GmailApp={createDraft:()=>({send:()=>{attempts++;throw Error('Ambigu
 vm.createContext(testContext);
 vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8')+'\n'+fs.readFileSync('apps-script/Morning.gs','utf8'),testContext);
 const fields=Object.keys(r), r2={...r,lead_id:'test2',company_id:'second',website:'https://second.edu',public_email:'info@second.edu',email_source_url:'https://second.edu/contact',observation_url:'https://second.edu/apply'};
-const sheet={getDataRange:()=>({getValues:()=>[fields,Object.values(r),Object.values(r2)]}),getRange:()=>({setValue(){}})};
-testContext.book={getSheetByName:()=>sheet};
-testContext.SpreadsheetApp={flush(){}};
-vm.runInContext('getSpreadsheet=()=>book; buildSuppressionSet=()=>new Set();',testContext);
+const queueRows = [fields, Object.values(r), Object.values(r2)];
+const queueSheet = {
+  getDataRange: () => ({ getValues: () => queueRows }),
+  getRange: (row, col) => ({ setValue(val) { queueRows[row-1][col-1] = val; } })
+};
+const emptySheet = { getDataRange: () => ({ getValues: () => [['header1', 'header2', 'header3', 'header4', 'status', 'recipient_email']] }) };
+testContext.book = {
+  getSheetByName: (name) => (name === 'Approval Queue' ? queueSheet : emptySheet)
+};
+testContext.SpreadsheetApp = { flush() {} };
+vm.runInContext('getSpreadsheet=()=>book;', testContext);
 props.set('APPROVAL_test',context.draftFingerprint(r));
 props.set('APPROVAL_test2',context.draftFingerprint(r2));
 props.set('SENT_2026-10-22','49');
