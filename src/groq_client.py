@@ -95,21 +95,23 @@ class GroqClient:
             "approved_project": proof_project,
             "scraped_pages": contexts_summary,
             "style_reference_only": (
-                'Your BCA course outcomes page displays “Website Under Construction.” '
-                'Adding the relevant programme outcomes and syllabus information could help prospective students '
-                'access essential course details more easily.\n\n'
-                'At OneFolk, we help institutions improve website content and structure.\n\n'
-                'Could you direct us to the person responsible for website updates?'
+                'Your postgraduate diploma admissions process asks applicants to download Form A, complete it by hand, and email it to the admissions team. '
+                'An online application and document-upload system could simplify submissions and make applications easier to manage.\n\n'
+                'At OneFolk, we build online applications and document-management systems for institutions.\n\n'
+                'Could you direct us to the person responsible for admissions technology?'
             ),
             "strict_rules": [
                 "Return subject, email_body, alt_opening_1, alt_opening_2, opportunity and skip.",
                 "Subject: 3-7 words, natural and specific to the observation; no clickbait or fake familiarity.",
-                "Body: four short paragraphs: verified observation; practical relevance; OneFolk introduction with ONLY one matching service; one low-pressure CTA question.",
-                "Observation and relevance may share a paragraph, as in the reference. Do not introduce OneFolk before the capability paragraph.",
+                "Body: exactly three concise paragraphs matching the style reference:\n"
+                "- Paragraph 1 (2 sentences): Verified observation of their current site or workflow, followed by the practical opportunity/benefit framed neutrally with 'could'.\n"
+                "- Paragraph 2 (1 sentence): OneFolk introduction with ONLY one matching capability ('At OneFolk, we build online applications and document-management systems for institutions.').\n"
+                "- Paragraph 3 (1 sentence): Exactly one low-pressure CTA referral question ('Could you direct us to the person responsible for admissions technology?').",
+                "Do not introduce OneFolk before the second paragraph.",
                 "The style reference is not evidence. Never copy its business details unless supported by this prospect research.",
                 "Explain why the observation matters in plain English; frame possible benefits as possibilities, not promises.",
-                "Example capability: At OneFolk, we help institutions improve website content and structure.",
-                "Example CTA: Could you direct us to the person responsible for website updates?",
+                "Example capability: At OneFolk, we build online applications and document-management systems for institutions.",
+                "Example CTA: Could you direct us to the person responsible for admissions technology?",
                 "Do not force a portfolio proof sentence or an online submission CTA. Use only the service relevant to this prospect.",
                 "Return body copy only. The platform adds Dear " + business + " Team, and Regards, / Team OneFolk / https://onefolk.in/.",
                 "Provide two distinct, genuine, single-sentence alternative observations based on the same evidence; use We noticed or direct company phrasing, never I.",
