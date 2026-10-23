@@ -83,16 +83,9 @@ class MorningQueueManager:
                 'city':r.get('city',''), 'source_url':r.get('source_url',''), 'state':'DISCOVERED',
                 'last_attempt':0, 'reason':'Legacy evidence incomplete; automatically re-research'
             } for r in old_leads if r.get('website')})
-            # Invalid pending rows cannot continue to look reviewable in the live Sheet.
-            ws = self.sheets.spreadsheet.worksheet('Approval Queue')
-            headers = ws.row_values(1)
-            invalid_ids = {r['lead_id']:why for r,why in invalid}
-            updates=[]
-            for i,r in enumerate(queue,2):
-                if r.get('lead_id') in invalid_ids:
-                    from gspread.utils import rowcol_to_a1
-                    updates.append({'range':rowcol_to_a1(i,headers.index('status')+1),'values':[['NEEDS_RESEARCH']]})
-            if updates: ws.batch_update(updates, value_input_option='RAW')
+            # Never rewrite operator-owned queue rows from a stale pipeline snapshot.
+            # Validators exclude invalid rows; retain their original content and decisions.
+            summary['invalid_pending_rows'] = len(invalid)
             if not publish_only:
                 discovered, errors = [], []
                 discovery = OpenDiscovery(store, self.campaign_cfg)

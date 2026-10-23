@@ -14,11 +14,8 @@ OPERATOR_COLUMNS = frozenset({'status', 'approval', 'reviewer_notes'})
 
 class SerializedMutationGateway:
     """
-    Shared serialized mutation gateway for Google Sheets.
-    Enforces thread-safe serialized execution, actual row-version checking,
-    separation of operator inputs from pipeline-owned data, and
-    compare-before-commit verification to prevent overwriting concurrent
-    approvals and draft edits.
+    Process-local serialization for pipeline-owned data.
+    This is not a distributed lock. Approval Queue refreshes are append-only.
     """
     def __init__(self):
         self._lock = threading.RLock()
@@ -42,131 +39,30 @@ class SerializedMutationGateway:
         payload = "|".join(items)
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
-    def update_row(self, ws, row_idx: int, columns: list, expected_record: dict, new_record: dict, tab: str) -> bool:
+    def update_row(self, ws, row_idx, columns, expected_record, new_record, tab):
+        """Best-effort refresh for non-queue data, serialized within this process only.
+
+        Approval Queue rows are never refreshed in place by Python. No number of
+        pre-write reads can make Sheets compare-and-swap atomic across writers.
         """
-        Transactionally updates a row under serialization lock with actual
-        row-version checking, separation of operator inputs from pipeline data,
-        and fail-closed terminal state protection.
-        Fails closed (returns False) on read errors, concurrent approvals, or draft edits.
-        """
+        if tab == 'Approval Queue':
+            return False
         with self._lock:
-            # 1. Initial live read
             try:
-                live_vals = ws.row_values(row_idx)
+                values = ws.row_values(row_idx)
             except Exception:
-                # Fail closed on read error: do not overwrite
                 return False
-
-            if not live_vals:
+            if not values:
                 return False
-
-            live_row = dict(zip(columns, live_vals))
-
-            # 2. Status/approval terminal check for Approval Queue
-            if tab == 'Approval Queue':
-                curr_st = str(live_row.get('status', '')).strip().upper()
-                curr_app = str(live_row.get('approval', '')).strip().upper()
-                # Abort if lead has already been approved, sent, or rejected
-                if curr_st in ('APPROVED', 'SENT', 'SENDING', 'SUPPRESSED') or curr_app in ('APPROVED', 'REJECTED'):
-                    return False
-                if curr_st not in ('NEEDS_RESEARCH', 'AWAITING_REVIEW') or curr_app != 'PENDING':
-                    return False
-
-            # 3. Actual row-version verification against expected_record
-            if expected_record:
-                # If explicit row version token provided, compare directly
-                exp_version = expected_record.get('_row_version') or expected_record.get('row_version')
-                if exp_version:
-                    if self.compute_row_version(live_row) != exp_version:
-                        return False
-
-                # Compare all fields present in expected_record (ignoring ephemeral timestamps and version keys)
-                for k, exp_val in expected_record.items():
-                    if k in ('updated_at', '_row_version', 'row_version'):
-                        continue
-                    curr_val = str(live_row.get(k, '')).strip()
-                    exp_val_str = str(exp_val).strip()
-                    if k in ('status', 'approval'):
-                        if curr_val.upper() != exp_val_str.upper():
-                            return False
-                    else:
-                        if curr_val != exp_val_str:
-                            # Draft edit (subject, body, reviewer_notes, etc.) detected: fail closed
-                            return False
-
-            # 4. Prepare proposed update payload with strict separation of operator inputs
-            sanitized_new = dict(new_record)
-            if tab == 'Approval Queue':
-                # Automated pipeline never proposes or mutates operator decision columns
-                for op_col in OPERATOR_COLUMNS:
-                    sanitized_new.pop(op_col, None)
-
-            merged = {**live_row, **sanitized_new}
-            if tab == 'Approval Queue':
-                for op_col in OPERATOR_COLUMNS:
-                    merged[op_col] = live_row.get(op_col, '')
-
+            live = dict(zip(columns, values))
+            if expected_record and any(str(live.get(k, '')).strip() != str(v).strip()
+                                       for k, v in expected_record.items() if k != 'updated_at'):
+                return False
+            merged = {**live, **new_record}
             if 'updated_at' in columns:
                 merged['updated_at'] = datetime.now(IST).isoformat()
-
-            # 5. Compare-before-commit verification
-            try:
-                pre_commit_vals = ws.row_values(row_idx)
-            except Exception:
-                # Fail closed on pre-commit read error
-                return False
-
-            if not pre_commit_vals:
-                return False
-
-            pre_commit_row = dict(zip(columns, pre_commit_vals))
-
-            if tab == 'Approval Queue':
-                pre_st = str(pre_commit_row.get('status', '')).strip().upper()
-                pre_app = str(pre_commit_row.get('approval', '')).strip().upper()
-                if pre_st in ('APPROVED', 'SENT', 'SENDING', 'SUPPRESSED') or pre_app in ('APPROVED', 'REJECTED'):
-                    return False
-                if pre_st not in ('NEEDS_RESEARCH', 'AWAITING_REVIEW') or pre_app != 'PENDING':
-                    return False
-
-            # Enforce that live row content did not change between initial read and write
-            if self.compute_row_version(pre_commit_row) != self.compute_row_version(live_row):
-                return False
-
-            # 6. Execute atomic write
-            # For Approval Queue, separate operator inputs: write only pipeline-owned columns
-            if tab == 'Approval Queue':
-                from gspread.utils import rowcol_to_a1
-                update_ranges = []
-                current_start = None
-                for i, col in enumerate(columns):
-                    if col not in OPERATOR_COLUMNS:
-                        if current_start is None:
-                            current_start = i
-                    else:
-                        if current_start is not None:
-                            update_ranges.append((current_start, i - 1))
-                            current_start = None
-                if current_start is not None:
-                    update_ranges.append((current_start, len(columns) - 1))
-
-                batch_payload = []
-                for s_idx, e_idx in update_ranges:
-                    s_a1 = rowcol_to_a1(row_idx, s_idx + 1)
-                    e_a1 = rowcol_to_a1(row_idx, e_idx + 1)
-                    rng = f"{s_a1}:{e_a1}" if s_idx != e_idx else s_a1
-                    vals = [merged.get(columns[k], '') for k in range(s_idx, e_idx + 1)]
-                    batch_payload.append({'range': rng, 'values': [vals]})
-
-                if hasattr(ws, 'batch_update') and callable(getattr(ws, 'batch_update')):
-                    ws.batch_update(batch_payload, value_input_option='RAW')
-                else:
-                    for item in batch_payload:
-                        ws.update(range_name=item['range'], values=item['values'], value_input_option='RAW')
-            else:
-                row_data = [merged.get(h, '') for h in columns]
-                ws.update(range_name=f'A{row_idx}', values=[row_data], value_input_option='RAW')
-
+            ws.update(range_name=f'A{row_idx}', values=[[merged.get(k, '') for k in columns]],
+                      value_input_option='RAW')
             return True
 
 
@@ -244,11 +140,19 @@ class ReserveStore:
 
 def transactional_update_row(ws, row_idx, columns, expected_record, new_record, tab):
     """
-    Transactionally update a row only if fresh live state matches expected version.
-    Fails closed on read errors, concurrent approvals, or draft edits.
-    Delegates to shared SerializedMutationGateway.
+    Compatibility wrapper: queue rows cannot be updated by the pipeline.
+    Other tabs use best-effort version checks under a process-local lock.
     """
     return mutation_gateway.update_row(ws, row_idx, columns, expected_record, new_record, tab)
+
+
+def queue_revision_digest(record):
+    """Stable content identity for replay-safe, separately approved revisions."""
+    ignored = {'lead_id', 'status', 'approval', 'reviewer_notes', 'created_at',
+               'updated_at', 'campaign_date', 'timestamp'}
+    payload = {k: v for k, v in record.items() if k not in ignored}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=True,
+                                    separators=(',', ':'), default=str).encode()).hexdigest()[:20]
 
 
 def append_records(sheets, tab, records, key='lead_id', refresh_pending=False):
@@ -274,7 +178,25 @@ def append_records(sheets, tab, records, key='lead_id', refresh_pending=False):
             if rid in ids:
                 if refresh_pending:
                     row_idx, old = by_id[rid]
-                    mutation_gateway.update_row(ws, row_idx, columns, old, record, tab)
+                    if tab == 'Approval Queue':
+                        if (str(old.get('status', '')).upper() not in ('NEEDS_RESEARCH', 'AWAITING_REVIEW')
+                                or str(old.get('approval', '')).upper() != 'PENDING'):
+                            continue
+                        # Compare only proposed fields: existing Sheets may include extra columns.
+                        old_content = {k: old.get(k, '') for k in record}
+                        if queue_revision_digest(old_content) == queue_revision_digest(record):
+                            continue
+                        revision_id = rid + '_rev_' + queue_revision_digest(record)
+                        if revision_id in ids:
+                            continue
+                        revision = {**record, key: revision_id, 'status': 'AWAITING_REVIEW',
+                                    'approval': 'PENDING',
+                                    'reviewer_notes': 'New research revision of ' + rid + '; requires separate approval.'}
+                        new.append([json.dumps(revision.get(h, '')) if isinstance(revision.get(h), (dict, list))
+                                    else revision.get(h, '') for h in columns])
+                        ids.add(revision_id)
+                    else:
+                        mutation_gateway.update_row(ws, row_idx, columns, old, record, tab)
                 continue
             new.append([json.dumps(record.get(h, '')) if isinstance(record.get(h), (dict, list)) else record.get(h, '') for h in columns])
             ids.add(rid)

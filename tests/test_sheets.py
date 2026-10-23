@@ -175,218 +175,49 @@ def test_reserve_store_recovers_row_or_raises_never_guesses():
         store.put_many_new({"not_found_1": {"x": 1}})
 
 
-def test_transactional_update_row_fails_closed():
+
+@pytest.mark.parametrize('status', ['AWAITING_REVIEW', 'NEEDS_RESEARCH', 'APPROVED', 'SENDING', 'SENT'])
+def test_pipeline_cannot_mutate_existing_queue_row(status):
     from src.reserve import transactional_update_row
-
     ws = MagicMock()
-    columns = ["lead_id", "status", "approval", "business", "reviewer_notes", "updated_at"]
-
-    # 1. Read error fails closed
-    ws.row_values.side_effect = RuntimeError("Google API network timeout")
-    ok = transactional_update_row(ws, 2, columns, {"status": "AWAITING_REVIEW", "approval": "PENDING"}, {"business": "New"}, "Approval Queue")
-    assert ok is False
+    assert not transactional_update_row(ws, 2, ['status'], {'status':status},
+                                        {'status':'AWAITING_REVIEW'}, 'Approval Queue')
+    ws.row_values.assert_not_called()
     ws.update.assert_not_called()
-
-    # 2. Version mismatch fails closed
-    ws.row_values.side_effect = None
-    ws.row_values.return_value = ["lead_1", "REJECTED", "PENDING", "Acme", "", ""]
-    ok = transactional_update_row(ws, 2, columns, {"status": "AWAITING_REVIEW", "approval": "PENDING"}, {"business": "New"}, "Approval Queue")
-    assert ok is False
-    ws.update.assert_not_called()
-
-    # 3. Live approval fails closed
-    ws.row_values.return_value = ["lead_1", "APPROVED", "APPROVED", "Acme", "Human approved", ""]
-    ok = transactional_update_row(ws, 2, columns, {"status": "AWAITING_REVIEW", "approval": "PENDING"}, {"business": "New"}, "Approval Queue")
-    assert ok is False
-    ws.update.assert_not_called()
-
-    # 4. Matching pending version succeeds
-    ws.row_values.return_value = ["lead_1", "AWAITING_REVIEW", "PENDING", "Acme", "Keep note", ""]
-    ok = transactional_update_row(ws, 2, columns, {"status": "AWAITING_REVIEW", "approval": "PENDING"}, {"business": "Acme Updated"}, "Approval Queue")
-    assert ok is True
-    ws.batch_update.assert_called_once()
-    payload = ws.batch_update.call_args[0][0]
-    ranges = {item['range']: item['values'][0] for item in payload}
-    assert 'D2' in ranges and ranges['D2'][0] == "Acme Updated"
-    # Operator columns (B2: status, C2: approval, E2: reviewer_notes) are strictly excluded from update payload
-    assert 'B2' not in ranges and 'C2' not in ranges and 'E2' not in ranges
-
-
-def test_transactional_update_row_intervening_approval_fails_closed():
-    from src.reserve import transactional_update_row
-
-    ws = MagicMock()
-    columns = ["lead_id", "status", "approval", "business", "reviewer_notes", "updated_at"]
-
-    # Intervening approval arrives between initial read and compare-before-commit verification
-    ws.row_values.side_effect = [
-        ["lead_1", "AWAITING_REVIEW", "PENDING", "Acme", "", ""],
-        ["lead_1", "APPROVED", "APPROVED", "Acme", "Approved by human in sheet", ""],
-    ]
-    ok = transactional_update_row(
-        ws, 2, columns,
-        {"status": "AWAITING_REVIEW", "approval": "PENDING", "business": "Acme"},
-        {"business": "Acme Overwrite"},
-        "Approval Queue"
-    )
-    assert ok is False
     ws.batch_update.assert_not_called()
-    ws.update.assert_not_called()
 
 
-def test_transactional_update_row_separates_operator_inputs_and_prevents_concurrent_overwrite():
-    from src.reserve import transactional_update_row
-
-    class ConcurrentMockWorksheet:
-        def __init__(self):
-            self.row = ["lead_1", "AWAITING_REVIEW", "PENDING", "Acme", "Operator note", "2026-10-23T00:00:00"]
-            self.batch_updates = []
-
-        def row_values(self, idx):
-            snapshot = list(self.row)
-            # Simulate human operator or Apps Script approving lead immediately after read
-            self.row[1] = "APPROVED"
-            self.row[2] = "APPROVED"
-            self.row[4] = "Approved by operator"
+@pytest.mark.parametrize('race', [False, True])
+def test_requalification_appends_revision_without_touching_original(race):
+    import copy
+    from src.reserve import append_records
+    columns = ['lead_id','business','status','approval','email_body','reviewer_notes','last_verified_at']
+    original = dict(zip(columns, ['lead1','Acme','NEEDS_RESEARCH','PENDING','old human text','keep note','old']))
+    class Worksheet:
+        col_count = len(columns)
+        def __init__(self): self.rows = [copy.deepcopy(original)]
+        def get_all_records(self):
+            snapshot = copy.deepcopy(self.rows)
+            if race: self.rows[0].update(status='APPROVED', approval='APPROVED', email_body='approved human text')
             return snapshot
-
-        def batch_update(self, payload, **kwargs):
-            self.batch_updates.append(payload)
-
-    ws = ConcurrentMockWorksheet()
-    columns = ["lead_id", "status", "approval", "business", "reviewer_notes", "updated_at"]
-
-    # When compare-before-commit re-reads the row, it detects intervening approval and fails closed
-    ok = transactional_update_row(
-        ws, 2, columns,
-        {"status": "AWAITING_REVIEW", "approval": "PENDING", "business": "Acme"},
-        {"business": "Acme Concurrent Refreshed", "status": "AWAITING_REVIEW", "approval": "PENDING"},
-        "Approval Queue"
-    )
-    # 1. Pipeline fails closed because lead was approved
-    assert ok is False
-    # 2. Operator columns were preserved and NEVER overwritten with AWAITING_REVIEW / PENDING
-    assert ws.row[1] == "APPROVED"
-    assert ws.row[2] == "APPROVED"
-    assert ws.row[4] == "Approved by operator"
-    # 3. No update was executed against the approved row
-    assert len(ws.batch_updates) == 0
-
-
-def test_pipeline_update_payload_never_contains_operator_columns():
-    from src.reserve import transactional_update_row
-
-    class OperatorIsolationWorksheet:
-        def __init__(self):
-            self.row = ["lead_1", "AWAITING_REVIEW", "PENDING", "Acme", "Operator note", "2026-10-23T00:00:00"]
-            self.batch_updates = []
-
-        def row_values(self, idx):
-            return list(self.row)
-
-        def batch_update(self, payload, **kwargs):
-            self.batch_updates.append(payload)
-            for item in payload:
-                rng = item['range']
-                vals = item['values'][0]
-                if 'D' in rng:
-                    self.row[3] = vals[0]
-
-    ws = OperatorIsolationWorksheet()
-    columns = ["lead_id", "status", "approval", "business", "reviewer_notes", "updated_at"]
-
-    # Pipeline attempts to propose status and approval values in new_record
-    ok = transactional_update_row(
-        ws, 2, columns,
-        {"status": "AWAITING_REVIEW", "approval": "PENDING", "business": "Acme"},
-        {"business": "Acme Updated", "status": "AWAITING_REVIEW", "approval": "PENDING", "reviewer_notes": "Bot note"},
-        "Approval Queue"
-    )
-    assert ok is True
-    # Verify that status (B), approval (C), and reviewer_notes (E) are NEVER in any batch update range
-    assert len(ws.batch_updates) == 1
-    for item in ws.batch_updates[0]:
-        rng = item['range']
-        assert 'B' not in rng, f"Status column B leaked into update range {rng}"
-        assert 'C' not in rng, f"Approval column C leaked into update range {rng}"
-        assert 'E' not in rng, f"Reviewer notes column E leaked into update range {rng}"
-    # Business was updated
-    assert ws.row[3] == "Acme Updated"
-    # Operator note was untouched
-    assert ws.row[4] == "Operator note"
-
-
-def test_transactional_update_row_draft_edit_fails_closed():
-    from src.reserve import transactional_update_row
-
-    ws = MagicMock()
-    columns = ["lead_id", "status", "approval", "business", "subject", "email_body", "reviewer_notes", "updated_at"]
-
-    # Baseline pipeline record before human reviewed
-    baseline_record = {
-        "lead_id": "lead_1",
-        "status": "AWAITING_REVIEW",
-        "approval": "PENDING",
-        "business": "Acme",
-        "subject": "Initial Pipeline Draft Subject",
-        "email_body": "Initial Pipeline Draft Body",
-        "reviewer_notes": "",
-    }
-
-    # Human edited the subject in the Google Sheet directly
-    ws.row_values.return_value = [
-        "lead_1", "AWAITING_REVIEW", "PENDING", "Acme", "Human Edited Custom Subject", "Initial Pipeline Draft Body", "", ""
-    ]
-
-    ok = transactional_update_row(
-        ws, 2, columns,
-        baseline_record,
-        {"subject": "Regenerated Subject", "email_body": "Regenerated Body"},
-        "Approval Queue"
-    )
-    assert ok is False
-    ws.update.assert_not_called()
-
-
-def test_serialized_mutation_gateway_thread_safety():
-    from src.reserve import mutation_gateway
-    import threading
-
-    ws = MagicMock()
-    columns = ["lead_id", "status", "approval", "business", "updated_at"]
-    ws.row_values.return_value = ["lead_1", "AWAITING_REVIEW", "PENDING", "Acme", ""]
-
-    results = []
-    def worker(val):
-        res = mutation_gateway.update_row(
-            ws, 2, columns,
-            {"status": "AWAITING_REVIEW", "approval": "PENDING"},
-            {"business": val},
-            "Approval Queue"
-        )
-        results.append(res)
-
-    threads = [threading.Thread(target=worker, args=(f"Acme {i}",)) for i in range(4)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-
-    assert all(results)
-    assert ws.batch_update.call_count == 4
-
-
-def test_compute_row_version_deterministic():
-    from src.reserve import compute_row_version
-
-    rec1 = {"lead_id": "L1", "status": "AWAITING_REVIEW", "subject": "Hello", "updated_at": "2026-10-23T10:00:00"}
-    rec2 = {"subject": "Hello", "lead_id": "L1", "status": "AWAITING_REVIEW", "updated_at": "2026-10-23T12:00:00"}
-    rec3 = {"lead_id": "L1", "status": "AWAITING_REVIEW", "subject": "Hello Edited"}
-
-    # Keys order and updated_at difference do not affect version hash
-    assert compute_row_version(rec1) == compute_row_version(rec2)
-    # Content modification alters version hash
-    assert compute_row_version(rec1) != compute_row_version(rec3)
-
-
-
+        def row_values(self, index):
+            assert index == 1, 'Existing queue rows must never be fetched for overwrite'
+            return columns
+        def append_rows(self, rows, **kwargs):
+            assert kwargs['value_input_option'] == 'RAW'
+            self.rows.extend(dict(zip(columns, r)) for r in rows)
+        def update(self, **kwargs): raise AssertionError('Existing queue was overwritten')
+        def batch_update(self, *args, **kwargs): raise AssertionError('Existing queue was overwritten')
+    ws = Worksheet()
+    sheets = MagicMock(); sheets.ensure_tab.return_value = ws
+    new = {**original, 'status':'AWAITING_REVIEW', 'email_body':'new verified draft', 'last_verified_at':'new'}
+    assert append_records(sheets, 'Approval Queue', [new], refresh_pending=True) == 1
+    assert ws.rows[0]['email_body'] == ('approved human text' if race else 'old human text')
+    assert ws.rows[0]['status'] == ('APPROVED' if race else 'NEEDS_RESEARCH')
+    assert ws.rows[0]['reviewer_notes'] == 'keep note'
+    revision = ws.rows[1]
+    assert revision['lead_id'].startswith('lead1_rev_')
+    assert revision['status'] == 'AWAITING_REVIEW' and revision['approval'] == 'PENDING'
+    assert revision['email_body'] == 'new verified draft'
+    assert append_records(sheets, 'Approval Queue', [new], refresh_pending=True) == 0
+    assert len(ws.rows) == 2

@@ -124,3 +124,14 @@ def test_opportunity_matches_industry(industry, observation, expected):
     if industry != 'education':
         assert 'admissions' not in copy
     assert 'menu access' in workflow_opportunity('hospitality', 'MANUAL_WORKFLOW', 'Download our menu')
+
+
+def test_invalid_pending_cleanup_never_writes_operator_status(rig):
+    manager, store, queue = rig
+    r = valid_record()
+    r['email_body'] = 'invalid'
+    queue.append(r)
+    result = manager.run(publish_only=True)
+    assert result['invalid_pending_rows'] == 1
+    manager.sheets.spreadsheet.worksheet.return_value.batch_update.assert_not_called()
+    assert queue[0]['status'] == 'AWAITING_REVIEW'
