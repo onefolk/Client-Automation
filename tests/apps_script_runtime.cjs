@@ -93,3 +93,34 @@ for (const key of ['company_id','email_source_url','observation_url','opportunit
   delete incomplete[key];
   assert.equal(context.reviewableRecord(incomplete), false, 'Missing evidence must fail: ' + key);
 }
+
+// Malformed quota configuration must never turn comparisons into NaN bypasses.
+for (const cap of ['invalid','0','-1','Infinity','51']) {
+  queueRows[1]=Object.values(r); queueRows[2]=Object.values(r2);
+  props.set('ENABLE_SENDING','YES'); props.set('EMERGENCY_STOP_ACTIVE','NO');
+  props.set('SENT_2026-10-22','50'); props.set('HOURLY_BATCH_CAP',cap);
+  const before=attempts;
+  testContext.approvedSender();
+  assert.equal(attempts,before,'Malformed cap must not bypass exhausted daily budget: '+cap);
+}
+props.set('HOURLY_BATCH_CAP','6'); props.set('SENT_2026-10-22','invalid');
+assert.throws(()=>testContext.approvedSender(),/Invalid daily recipient counter/);
+props.set('SENT_2026-10-22','0');
+const savedSafety=testContext.evaluateOutreachSafety;
+let safetyChecks=0;
+testContext.evaluateOutreachSafety=()=>{safetyChecks++;return [];};
+props.set('DIGEST_2026-10-22','DELIVERED');
+testContext.Utilities.formatDate=(d,tz,f)=>f==='u'?'5':f==='HH:mm'?'14:00':'2026-10-22';
+testContext.morningWatchdog(); testContext.morningWatchdog();
+assert.equal(safetyChecks,2,'Watchdog must keep checking after digest delivery');
+testContext.evaluateOutreachSafety=savedSafety;
+props.set('ENABLE_SENDING','YES');props.set('EMERGENCY_STOP_ACTIVE','NO');
+const badHistory=Array.from({length:10},(_,i)=>({status:i===0?'BOUNCED':'SENT'}));
+assert.equal(testContext.evaluateOutreachSafety(badHistory).length,1);
+assert.equal(props.get('EMERGENCY_STOP_ACTIVE'),'YES');
+assert.equal(testContext.classifyReply('Our team is unstoppable.'),'REPLY_REVIEW');
+assert.equal(testContext.classifyReply('Thanks.\nOn Monday Alice wrote:\nPlease remove me'),'REPLY_REVIEW');
+assert.equal(testContext.classifyReply('Context '.repeat(400)+'Please remove me.'),'DECLINED');
+assert.equal(testContext.classifyReply('Please share your pricing.'),'POSITIVE_REPLY');
+assert.equal(testContext.classifyReply('We are not ready for a meeting.'),'REPLY_REVIEW');
+console.log('Final audit: quota failure, continuous watchdog and reply classification regressions passed');

@@ -3,6 +3,10 @@
 import ipaddress
 import logging
 import socket
+import time
+import threading
+import queue
+from urllib3.util import Timeout
 from typing import Optional
 from urllib.parse import urljoin, urlparse
 import requests
@@ -157,7 +161,62 @@ class PinnedAdapter(HTTPAdapter):
         self.poolmanager = PinnedPoolManager(dns_map=self.dns_map, num_pools=connections, maxsize=maxsize, block=block, **pool_kwargs)
 
 
-def is_safe_url(url: str, pinned_ip_holder: Optional[list] = None) -> bool:
+_DNS_SLOTS = threading.BoundedSemaphore(4)
+
+
+def bounded_resolve(hostname, timeout):
+    """Bound caller latency and outstanding DNS workers even if OS DNS stalls."""
+    if timeout <= 0 or not _DNS_SLOTS.acquire(blocking=False):
+        raise TimeoutError('DNS resolver unavailable')
+    result = queue.Queue(maxsize=1)
+    def resolve():
+        try:
+            result.put(socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM))
+        except Exception as exc:
+            result.put(exc)
+        finally:
+            _DNS_SLOTS.release()
+    threading.Thread(target=resolve, daemon=True).start()
+    try:
+        value = result.get(timeout=timeout)
+    except queue.Empty:
+        raise TimeoutError('DNS deadline exceeded')
+    if isinstance(value, Exception):
+        raise value
+    return value
+
+
+def read_bounded(response, max_bytes, deadline):
+    """Reject oversized/encoded payloads; never interpret truncated HTML as evidence."""
+    encoding = response.headers.get('Content-Encoding', '').lower()
+    if encoding not in ('', 'identity'):
+        raise ValueError('Compressed responses are not accepted by the bounded crawler')
+    length = response.headers.get('Content-Length', '')
+    if length and (not length.isdigit() or int(length) > max_bytes):
+        raise ValueError('Payload too large or invalid content length')
+    content = bytearray()
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError('Fetch deadline exceeded')
+        connection = getattr(response.raw, '_connection', None)
+        sock = getattr(connection, 'sock', None)
+        if sock is not None:
+            sock.settimeout(remaining)
+        chunk = response.raw.read1(min(65536, max_bytes + 1 - len(content)), decode_content=False)
+        if time.monotonic() > deadline:
+            raise TimeoutError('Fetch deadline exceeded')
+        if not chunk:
+            break
+        if not isinstance(chunk, bytes):
+            raise ValueError('Invalid response stream')
+        content.extend(chunk)
+        if len(content) > max_bytes:
+            raise ValueError('Payload too large')
+    return bytes(content)
+
+
+def is_safe_url(url: str, pinned_ip_holder: Optional[list] = None, timeout: float = HTTP_TIMEOUT_SECONDS) -> bool:
     """Bulletproof SSRF check with DNS pre-resolution to block internal IP destinations."""
     if not url:
         return False
@@ -176,7 +235,7 @@ def is_safe_url(url: str, pinned_ip_holder: Optional[list] = None) -> bool:
 
         # Resolve hostname to actual IP addresses
         try:
-            addr_info = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+            addr_info = bounded_resolve(hostname, timeout)
             if not addr_info:
                 return False
             safe_ips = []
@@ -213,75 +272,60 @@ class SafeFetcher:
             "User-Agent": USER_AGENT,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "identity",
         })
 
+    def _request(self, url, deadline):
+        if self.count >= self.limit:
+            raise ValueError('HTTP request budget exhausted')
+        remaining = deadline - time.monotonic()
+        pins = []
+        if remaining <= 0 or not is_safe_url(url, pinned_ip_holder=pins, timeout=remaining) or not pins:
+            raise ValueError('Unsafe destination or DNS deadline')
+        self.dns_map[urlparse(url).hostname.lower()] = pins[0]
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError('Fetch deadline exceeded')
+        self.count += 1
+        return self.session.get(url, timeout=Timeout(total=remaining, connect=min(3, remaining), read=min(3, remaining)),
+                                allow_redirects=False, stream=True)
+
+    def _before_fetch(self, url, deadline):
+        return True
+
+    def _allow_redirect(self, old_url, new_url):
+        return True
+
     def fetch_html(self, url: str, max_redirects: int = 3) -> Optional[str]:
-        """Fetches HTML content from URL safely with redirect re-verification and IP pinning."""
-        current_url = url
-        redirects_followed = 0
-
-        while redirects_followed <= max_redirects:
-            if self.count >= self.limit:
-                logger.warning("HTTP fetch limit (%d) reached. Skipping %s", self.limit, current_url)
-                return None
-
-            ip_holder = []
-            if not is_safe_url(current_url, pinned_ip_holder=ip_holder):
-                logger.warning("SSRF blocked or unsafe URL: %s", current_url)
-                return None
-
-            host = (urlparse(current_url).hostname or "").lower()
-            if host and ip_holder:
-                self.dns_map[host] = ip_holder[0]
-
-            self.count += 1
+        deadline = time.monotonic() + self.timeout
+        current = url
+        for hop in range(max_redirects + 1):
             response = None
             try:
-                response = self.session.get(
-                    current_url,
-                    timeout=self.timeout,
-                    allow_redirects=False,
-                    stream=True,
-                )
-
-                # Safe manual redirect following with SSRF check on every hop
-                if response.status_code in (301, 302, 303, 307, 308):
-                    location = response.headers.get("Location")
-                    if not location:
+                if not self._before_fetch(current, deadline):
+                    return None
+                response = self._request(current, deadline)
+                if response.status_code in (301,302,303,307,308):
+                    location = response.headers.get('Location')
+                    if not location or hop == max_redirects:
                         return None
-                    next_url = urljoin(current_url, location)
-                    next_ip_holder = []
-                    if not is_safe_url(next_url, pinned_ip_holder=next_ip_holder):
-                        logger.warning("SSRF redirect blocked to: %s", next_url)
+                    destination = urljoin(current, location)
+                    if not self._allow_redirect(current, destination):
                         return None
-                    next_host = (urlparse(next_url).hostname or "").lower()
-                    if next_host and next_ip_holder:
-                        self.dns_map[next_host] = next_ip_holder[0]
-                    current_url = next_url
-                    redirects_followed += 1
+                    current = destination
                     continue
-
                 if response.status_code != 200:
-                    logger.debug("HTTP %d for %s", response.status_code, current_url)
                     return None
-
-                content_type = response.headers.get("Content-Type", "").lower()
-                if "html" not in content_type and "xml" not in content_type and "text" not in content_type:
+                content_type = response.headers.get('Content-Type', '').lower()
+                if not any(t in content_type for t in ('html', 'xml', 'text')):
                     return None
-
-                # Bounded read to prevent memory exhaustion (max 1 MB)
-                content = response.raw.read(1000000, decode_content=True)
-                return content.decode("utf-8", errors="replace")
-
-            except requests.RequestException as e:
-                logger.debug("Request failed for %s: %s", current_url, str(e)[:120])
-                return None
-            except Exception as e:
-                logger.debug("Unexpected error fetching %s: %s", current_url, str(e)[:120])
+                content = read_bounded(response, 1000000, deadline)
+                self.last_url = current
+                return content.decode('utf-8', errors='replace')
+            except Exception as exc:
+                logger.debug('Fetch rejected for %s: %s', current, type(exc).__name__)
                 return None
             finally:
                 if response is not None:
                     response.close()
-
         return None
-

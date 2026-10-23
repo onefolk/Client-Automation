@@ -416,7 +416,7 @@ function apiGetApprovalQueue(params) {
       else statusCounts.BACKLOG++;
     } else if (st === 'needs_research') {
       statusCounts.NEEDS_RESEARCH++;
-    } else if (st === 'approved' || app === 'approved' || st === 'queued') {
+    } else if (st === 'approved' || st === 'queued') {
       statusCounts.APPROVED++;
     } else if (st === 'sending') {
       statusCounts.SENDING = (statusCounts.SENDING || 0) + 1;
@@ -921,16 +921,14 @@ function apiBatchApproveLeads(leadIds) {
       if (approvalCol !== -1) rows[i][approvalCol] = 'APPROVED';
       if (notesCol !== -1) rows[i][notesCol] = sanitizeCellValue('Batch approved via OneFolk Dashboard by ' + userEmail);
       if (updatedCol !== -1) rows[i][updatedCol] = nowIso;
+      [statusCol, approvalCol, notesCol, updatedCol].filter(c => c >= 0).forEach(c =>
+        sheet.getRange(i + 1, c + 1).setValue(sanitizeCellValue(rows[i][c])));
       recordAuditEntry(rowLeadId, userEmail, 'APPROVED', fingerprint);
       results.approvedCount++;
       results.approvedIds.push(rowLeadId);
     }
 
-    // Single atomic batch write to Google Sheets for all approved leads (sanitizing all cells against formula injection)
-    if (results.approvedCount > 0) {
-      const sanitizedRows = rows.map(r => r.map(sanitizeCellValue));
-      sheet.getDataRange().setValues(sanitizedRows);
-    }
+
 
 
     return {
@@ -1025,6 +1023,7 @@ function apiBatchRejectLeads(leadIds, reason) {
       const rowLeadId = String(rows[i][leadIdCol]).trim();
       if (!targetSet.has(rowLeadId)) continue;
 
+      if (['sent','sending','send_review','bounced','declined','unsubscribed','positive_reply'].includes(normalizeKey(rows[i][statusCol]))) continue;
       setProp('APPROVAL_' + rowLeadId, '');
 
       // In-memory update
@@ -1033,14 +1032,14 @@ function apiBatchRejectLeads(leadIds, reason) {
       if (notesCol !== -1) rows[i][notesCol] = sanitizeCellValue(rejReason + ' by ' + userEmail);
       if (updatedCol !== -1) rows[i][updatedCol] = new Date().toISOString();
 
+      [statusCol, approvalCol, notesCol, updatedCol].filter(c => c >= 0).forEach(c =>
+        sheet.getRange(i + 1, c + 1).setValue(sanitizeCellValue(rows[i][c])));
+      setProp('APPROVAL_META_' + rowLeadId, '');
       recordAuditEntry(rowLeadId, userEmail, 'REJECTED', '');
       rejectedCount++;
     }
 
-    if (rejectedCount > 0) {
-      const sanitizedRows = rows.map(r => r.map(sanitizeCellValue));
-      sheet.getDataRange().setValues(sanitizedRows);
-    }
+
 
     return {
       success: true,
@@ -1437,4 +1436,9 @@ function recordAuditEntry(leadId, reviewer, action, fingerprint) {
   } catch (err) {
     Logger.log('Failed to write audit entry: ' + err);
   }
+}
+
+
+function clientValidationSource() {
+  return [normalizeWhitespace, splitSentences, validateEmailStructure, formatOneFolkEmail].map(fn => fn.toString()).join('\n');
 }

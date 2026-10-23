@@ -54,7 +54,9 @@ function getISTDateString() {
 
 function getDailySendCount() {
   const key = 'SENT_' + getISTDateString();
-  return Number(getProp(key) || 0);
+  const count = Number(getProp(key) || 0);
+  if (!Number.isSafeInteger(count) || count < 0) throw new Error('Invalid daily recipient counter');
+  return count;
 }
 
 function incrementDailySendCount() {
@@ -138,6 +140,7 @@ function buildSuppressionSet(excludeReservationEmail) {
 function normalizeWhitespace(text) {
   return String(text || '')
     .replace(/[\ufeff\u200b\u200c\u200d\u2060]/g, '')
+    .replace(/[\x1c-\x1f]/g, ' ')
     .replace(/\r\n/g, '\n')
     .replace(/[\r\u0085\u2028\u2029]/g, '\n')
     .replace(/[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g, ' ');
@@ -150,9 +153,9 @@ function normalizeWhitespace(text) {
 function formatOneFolkEmail(rawBody, businessName) {
   const raw = normalizeWhitespace(rawBody).trim();
   const biz = businessName || 'Prospect';
-  const salutationMatch = raw.match(/^Dear[^\n]+,\s*/i);
+  const salutationMatch = raw.match(/^Dear[^\n]+,\s*\n+/i);
   const salutation = salutationMatch ? salutationMatch[0].trim() : `Dear ${biz} Team,`;
-  const copy = raw.replace(/^Dear[^\n]+,\s*/i, '')
+  const copy = raw.replace(/^Dear[^\n]+,\s*\n+/i, '')
     .replace(/(?:\n\s*)+Regards,?\s*\nTeam OneFolk\s*\nhttps:\/\/onefolk\.in\/?\s*$/i, '').trim();
   let contentParas = copy.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   // Also filter any remnant footer line if present with single newlines
@@ -197,18 +200,18 @@ function splitSentences(text) {
  */
 function validateEmailStructure(rawBody, proofLine) {
   const raw = normalizeWhitespace(rawBody).trim();
-  const copy = raw.replace(/^Dear[^\n]+,\s*/i, '')
+  const copy = raw.replace(/^Dear[^\n]+,\s*\n+/i, '')
     .replace(/(?:\n\s*)+Regards,?\s*\nTeam OneFolk\s*\nhttps:\/\/onefolk\.in\/?\s*$/i, '').trim();
   const contentParas = copy.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   const wordCount = contentParas.join(' ').split(/\s+/).filter(Boolean).length;
   const result = {isValid:false, reason:'', wordCount, paragraphCount:contentParas.length, contentParas};
   const fail = reason => ({...result, reason});
-  if (/(?<![\w\u00C0-\u024F])(?:i(?:['’](?:m|ve|d|ll))?|my|mine|myself|me)(?![\w\u00C0-\u024F])/i.test(raw)) return fail('First-person singular is forbidden; use Team OneFolk voice.');
+  if (/(?<![A-Za-z0-9_\u00C0-\u024F])(?:i(?:['’](?:m|ve|d|ll))?|my|mine|myself|me)(?![A-Za-z0-9_\u00C0-\u024F])/i.test(raw)) return fail('First-person singular is forbidden; use Team OneFolk voice.');
   const banned = ['unlock your business potential','enhance your digital ecosystem','optimise the customer journey',
     'optimize the customer journey','reduce enquiry friction','transform your digital presence','drive exponential growth',
     'take your business to the next level','we have some exciting ideas','enquiry friction','opportunity worth exploring',
     'guaranteed','urgent','limited time','streamline','seamless','cutting-edge','synergy','game-changer','exponential','unlock'];
-  if (banned.some(p => new RegExp('(?<![\\w\\u00C0-\\u024F])' + p + '(?![\\w\\u00C0-\\u024F])', 'i').test(raw.replace(/\s+/g, ' ')))) return fail('Prohibited jargon or sales pressure.');
+  if (banned.some(p => new RegExp('(?<![A-Za-z0-9_\\u00C0-\\u024F])' + p + '(?![A-Za-z0-9_\\u00C0-\\u024F])', 'i').test(raw.replace(/\s+/g, ' ')))) return fail('Prohibited jargon or sales pressure.');
   if (![3,4].includes(contentParas.length)) return fail('Use observation, relevance, OneFolk capability and CTA in 3 or 4 paragraphs.');
   if (wordCount < 40 || wordCount > 120) return fail('Target 45-70 body words; allowed range is 40-120.');
   const opening = contentParas.slice(0,-2), capability = contentParas[contentParas.length-2], cta = contentParas[contentParas.length-1];
@@ -433,6 +436,7 @@ function approvedSender() {
     }
 
     const activitySheet = book.getSheetByName(TAB_EMAIL_ACTIVITY);
+    if (evaluateOutreachSafety().length) return;
     const blocked = buildSuppressionSet();
     const usedToday = getDailySendCount();
     const mailQuota = MailApp.getRemainingDailyQuota();
@@ -444,7 +448,7 @@ function approvedSender() {
         const parts = nowFormatted.split(' ');
         const weekday = Number(parts[0]);
         const hhmm = parts[1];
-        if (isNaN(weekday) || weekday < 1 || weekday > 7 || !/^\d{2}:\d{2}$/.test(hhmm)) {
+        if (isNaN(weekday) || weekday < 1 || weekday > 7 || ! /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(hhmm)) {
           Logger.log('Invalid IST date components (' + nowFormatted + '). Failing closed.');
           return;
         }
@@ -452,12 +456,12 @@ function approvedSender() {
           Logger.log(`Outside business hours (${nowFormatted} IST). Holding approved queue for active business window (09:00 - 18:00 IST Mon-Fri).`);
           return;
         }
-      } else if (getProp('BYPASS_BUSINESS_HOURS') !== 'YES' && typeof process === 'undefined') {
+      } else if (getProp('BYPASS_BUSINESS_HOURS') !== 'YES') {
         Logger.log('Could not format IST date. Failing closed.');
         return;
       }
     } catch (e) {
-      if (getProp('BYPASS_BUSINESS_HOURS') !== 'YES' && typeof process === 'undefined') {
+      if (getProp('BYPASS_BUSINESS_HOURS') !== 'YES') {
         Logger.log('Business hours verification error. Failing closed: ' + e);
         return;
       }
@@ -465,7 +469,12 @@ function approvedSender() {
 
     // Natural Pacing: Drip ~6 emails per hourly trigger across the 8-hour workday (50 / 8 = ~6/hr)
     // Prevents burst spam detection and mimics genuine human SDR dispatch.
-    const hourlyCap = Math.max(1, Number(getProp('HOURLY_BATCH_CAP') || 6));
+    const hourlyCap = Number(getProp('HOURLY_BATCH_CAP') || 6);
+    if (!Number.isSafeInteger(hourlyCap) || hourlyCap < 1 || hourlyCap > MAX_DAILY_RECIPIENTS ||
+        !Number.isSafeInteger(mailQuota) || mailQuota < 0) {
+      Logger.log('Invalid dispatch quota configuration; holding queue.');
+      return;
+    }
     let remainingBudget = Math.min(MAX_DAILY_RECIPIENTS - usedToday, mailQuota, hourlyCap);
 
     if (remainingBudget <= 0) {
@@ -499,10 +508,10 @@ function approvedSender() {
     for (let i = 1; i < rows.length; i++) {
       if (remainingBudget <= 0 || consecutiveErrors >= 2) break;
       if (getProp('EMERGENCY_STOP_ACTIVE') === 'YES' || getProp('ENABLE_SENDING') !== 'YES') break;
-      if (getProp('BYPASS_BUSINESS_HOURS') !== 'YES' && typeof process === 'undefined') {
+      if (getProp('BYPASS_BUSINESS_HOURS') !== 'YES') {
         try {
           const currentHhmm = Utilities.formatDate(new Date(), IST_TIMEZONE, 'HH:mm');
-          if (currentHhmm >= '18:00' || currentHhmm < '09:00') {
+          if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(currentHhmm) || currentHhmm >= '18:00' || currentHhmm < '09:00') {
             Logger.log('Business window closed during dispatch. Halting remaining batch.');
             break;
           }
@@ -539,7 +548,7 @@ function approvedSender() {
         // Atomic pre-send interlock check
         if (getProp('EMERGENCY_STOP_ACTIVE') === 'YES' || getProp('ENABLE_SENDING') !== 'YES') {
           Logger.log('Emergency stop or sending lock engaged immediately prior to dispatch. Halting send.');
-          queueSheet.getRange(rowIdx, headerMap.status + 1).setValue('AWAITING_REVIEW');
+          queueSheet.getRange(rowIdx, headerMap.status + 1).setValue('APPROVED');
           SpreadsheetApp.flush();
           break;
         }
@@ -623,6 +632,24 @@ function monitorReplies() {
   try { monitorRepliesLocked(); } finally { lock.releaseLock(); }
 }
 
+function latestReplyText(body) {
+  const lines = String(body || '').replace(/\r\n?/g, '\n').split('\n');
+  const fresh = [];
+  for (const line of lines) {
+    if (/^\s*(?:On .+wrote:|From:|[-_]{2,}\s*(?:Original|Forwarded) message)/i.test(line)) break;
+    if (!/^\s*>/.test(line)) fresh.push(line);
+  }
+  return fresh.join('\n').trim();
+}
+
+function classifyReply(body) {
+  const text = latestReplyText(body);
+  if (/\b(?:not interested|unsubscribe|remove me|please remove|do not contact|don't contact|stop (?:contacting|emailing|sending))\b|^\s*stop[.!]?\s*$/i.test(text)) return 'DECLINED';
+  if (/\b(?:not|don't|cannot|can't|unable)\b/i.test(text)) return 'REPLY_REVIEW';
+  if (/\b(?:we are interested|i am interested|let'?s (?:schedule|discuss|talk)|please (?:send|share) (?:your )?(?:pricing|rates|portfolio|quote)|would like to (?:discuss|schedule))\b/i.test(text)) return 'POSITIVE_REPLY';
+  return 'REPLY_REVIEW';
+}
+
 function monitorRepliesLocked() {
   const book = getSpreadsheet();
   let queueSheet = book.getSheetByName(TAB_APPROVAL_QUEUE) || book.getSheetByName(TAB_LEGACY_QUEUE);
@@ -662,15 +689,13 @@ function monitorRepliesLocked() {
       const match = fromHeader.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
       const sender = match ? normalizeKey(match[0]) : '';
       const subject = String(msg.getSubject() || '');
-      const body = msg.getPlainBody().slice(0, 1500);
+      const body = String(msg.getPlainBody() || '');
 
       // 1. Check direct replies from recipients
       if (sender && sentMap.has(sender)) {
         const rowIdx = sentMap.get(sender);
-        const isDeclined = /not interested|unsubscribe|remove me|please remove|do not contact|stop/i.test(body);
-        const isPositive = /schedule|meeting|call|discuss (?:further|details|options|project)|interested|rates|quote|pricing|price|portfolio/i.test(body);
-
-        const newStatus = isDeclined ? 'DECLINED' : (isPositive ? 'POSITIVE_REPLY' : 'REPLY_REVIEW');
+        const newStatus = classifyReply(body);
+        const isDeclined = newStatus === 'DECLINED';
         queueSheet.getRange(rowIdx, statusCol + 1).setValue(newStatus);
         recordReplyActivity(activitySheet, sender, newStatus, thread, msg);
         if (isDeclined) sentMap.delete(sender);
@@ -721,6 +746,7 @@ function monitorRepliesLocked() {
   }
   setProp('INBOX_PAGE', threads.length === 100 ? page + 100 : 0);
   setProp('PROCESSED_MESSAGES', JSON.stringify(Array.from(processed).slice(-250)));
+  evaluateOutreachSafety();
 }
 
 /**

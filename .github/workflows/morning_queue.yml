@@ -47,4 +47,4 @@ jobs:
           fi
       - name: Failure is visible; independent Apps Script watchdog checks the heartbeat
         if: failure()
-        run: echo '::error::Morning queue incomplete. Check credentials, quotas, source yield and Sheet writes. No readiness claim was made.'
+        run: echo '::error::Morning queue failed or reported SHORTFALL. Inspect the persisted heartbeat and run summary for the exact status.'

@@ -1,9 +1,10 @@
-"""Robots-aware research; deny on ambiguous robots failures or access challenges."""
+"""Robots-aware bounded crawler: each redirect rechecks destination policy."""
 from urllib.parse import urlsplit
 from urllib.robotparser import RobotFileParser
 import time
-from src.network import SafeFetcher, is_safe_url
+from src.network import SafeFetcher, read_bounded, extract_domain
 from src.config import USER_AGENT
+
 
 class PermittedFetcher(SafeFetcher):
     def __init__(self, **kwargs):
@@ -11,33 +12,35 @@ class PermittedFetcher(SafeFetcher):
         self.robots = {}
         self.last_request = {}
 
-    def fetch_html(self, url, max_redirects=3):
-        origin = '{0.scheme}://{0.netloc}'.format(urlsplit(url))
-        if origin not in self.robots:
-            robots_url = origin + '/robots.txt'
-            ip_holder = []
-            if not is_safe_url(robots_url, pinned_ip_holder=ip_holder) or self.count >= self.limit:
-                return None
-            host = (urlsplit(origin).hostname or "").lower()
-            if not host or not ip_holder:
-                return None
-            self.dns_map[host] = ip_holder[0]
-            self.count += 1
-            try:
-                with self.session.get(robots_url, timeout=self.timeout, allow_redirects=False) as response:
-                    parser = RobotFileParser()
-                    if response.status_code == 404: parser.parse([])
-                    elif response.status_code == 200: parser.parse(response.text[:100000].splitlines())
-                    else: return None
-                    self.robots[origin] = parser
-            except Exception:
-                return None
-        rules = self.robots[origin]
-        if not rules.can_fetch(USER_AGENT, url): return None
-        delay = max(1, rules.crawl_delay(USER_AGENT) or 1)
-        if delay > 10: return None
-        time.sleep(max(0, delay - (time.monotonic()-self.last_request.get(origin,0))))
-        self.last_request[origin] = time.monotonic()
-        # Follow bounded redirects with verified safe destination
-        return super().fetch_html(url, max_redirects=max_redirects)
+    def _allow_redirect(self, old_url, new_url):
+        # Cross-company redirects cannot establish official evidence for the old company.
+        return extract_domain(old_url) == extract_domain(new_url)
 
+    def _before_fetch(self, url, deadline):
+        parts = urlsplit(url)
+        origin = f'{parts.scheme}://{parts.netloc}'
+        if origin not in self.robots:
+            response = None
+            try:
+                response = self._request(origin + '/robots.txt', deadline)
+                parser = RobotFileParser()
+                if response.status_code == 404:
+                    parser.parse([])
+                elif response.status_code == 200:
+                    parser.parse(read_bounded(response, 100000, deadline).decode('utf-8', errors='replace').splitlines())
+                else:
+                    return False
+                self.robots[origin] = parser
+            finally:
+                if response is not None:
+                    response.close()
+        rules = self.robots[origin]
+        if not rules.can_fetch(USER_AGENT, url):
+            return False
+        delay = max(1, rules.crawl_delay(USER_AGENT) or 1)
+        pause = max(0, delay - (time.monotonic() - self.last_request.get(origin, 0)))
+        if delay > 10 or time.monotonic() + pause >= deadline:
+            return False
+        time.sleep(pause)
+        self.last_request[origin] = time.monotonic()
+        return True

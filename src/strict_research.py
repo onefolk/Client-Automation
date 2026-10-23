@@ -5,7 +5,7 @@ from src.research import ProspectResearcher
 from src.config import load_portfolio
 from src.open_discovery import company_id
 
-RESEARCH_VERSION = 2
+RESEARCH_VERSION = 3
 
 
 def workflow_opportunity(industry, observation_type, observation):
@@ -27,6 +27,27 @@ def workflow_opportunity(industry, observation_type, observation):
     else:
         workflow = "customer inquiries and service requests"
     return f"Offer an online workflow for {workflow}, based on the documented intake process."
+
+
+def corroborated_identity(name, text):
+    generic = {'the','and','private','limited','pvt','ltd','college','school','university',
+               'institute','academy','hotel','restaurant','resort','services','company','group'}
+    words = [w for w in re.findall(r'[a-z]{3,}', str(name).lower()) if w not in generic]
+    observed = set(re.findall(r'[a-z]{3,}', text.lower()))
+    return bool(words) and all(w in observed for w in words)
+
+
+def workflow_project(observation):
+    text = observation.lower()
+    rules = [
+        (r'\b(?:menu|food|ordering|catering)\b', 'Campus Kiosk'),
+        (r'\b(?:event|banquet|ticket|conference)\b', 'Event Operations Platform'),
+        (r'\b(?:room|hostel|accommodation)\b', 'Hostel Room Allocation Suite'),
+        (r'\b(?:invoice|billing|tax|ledger)\b', 'Enterprise Invoicing Suite'),
+        (r'\b(?:attendance|workforce|shift|staff scheduling)\b', 'Internal Workforce Operations Suite'),
+    ]
+    name = next((project for pattern, project in rules if re.search(pattern, text)), 'OneFolk website')
+    return next((p for p in load_portfolio() if p['project'] == name), {})
 
 
 class StrictResearcher(ProspectResearcher):
@@ -91,20 +112,23 @@ class StrictResearcher(ProspectResearcher):
             result.get('industry', candidate.get('industry', 'other')),
             result['observation_type'], result['observation'])
         # Match workflow evidence to relevant proof, not an unrelated industry product.
-        project = next((p for p in load_portfolio() if p['project']=='OneFolk website'), {})
+        project = workflow_project(result['observation'])
         result['proof_project'] = project.get('project','')
         result['proof_line'] = project.get('proof','')
         result['proof_url'] = project.get('evidence_url','')
         if result['proof_url'] not in self.proof_cache:
             html = self.fetcher.fetch_html(result['proof_url']) if result['proof_url'] else None
             text = BeautifulSoup(html or '', 'html.parser').get_text(' ',strip=True).lower()
-            self.proof_cache[result['proof_url']] = bool(html and 'onefolk' in text)
+            from urllib.parse import urlsplit
+            anchor = urlsplit(result['proof_url']).fragment
+            soup = BeautifulSoup(html or '', 'html.parser')
+            supported = (not anchor or soup.find(id=anchor) is not None
+                         or project['project'].lower() in text)
+            self.proof_cache[result['proof_url']] = bool(html and 'onefolk' in text and supported)
         result['proof_verified'] = 'YES' if self.proof_cache.get(result['proof_url']) else 'NO'
         # Require the business name to be corroborated by the fetched official page.
-        name_words = [w.lower() for w in re.findall(r'[A-Za-z]{3,}', candidate.get('name',''))
-                      if w.lower() not in ('the','and','private','limited','pvt','ltd')]
         page_text = ' '.join(t for t,_ in result['page_contexts']).lower()
-        identity = bool(name_words and any(w in page_text for w in name_words))
+        identity = corroborated_identity(candidate.get('name',''), page_text)
         is_evidenced = bool(identity and result['opportunity'] and result['proof_verified']=='YES')
         result['qualification_status'] = 'QUALIFIED' if is_evidenced else 'NEEDS_RESEARCH'
         score = int(result.get('priority_score', result.get('qualification_score', 80)) or 0)

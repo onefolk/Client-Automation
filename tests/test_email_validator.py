@@ -71,6 +71,9 @@ def test_python_apps_script_official_format_parity():
         "Regards,\nTeam OneFolk\nhttps://onefolk.in/"
     )
     cases = [(reference, True), (BODY, True), (reference.replace('\n', '\r\n'), True)]
+    cases.extend([(BODY.replace('Your BCA', '\u03b1I saw your BCA'), False),
+                  (BODY.replace(' ', '\x1c'), True), (BODY.replace(' ', '\u00a0'), True),
+                  (BODY.replace(' ', '\u0085'), True)])
     for phrase in ['me', 'myself', 'streamline', 'seamless', 'cutting-edge', 'synergy', 'game-changer', 'exponential', 'unlock']:
         cases.append((BODY.replace(RELEVANCE, RELEVANCE + ' ' + phrase), False))
     # Single sentence with St. Xavier's must fail (abbreviation must not count as a sentence break)

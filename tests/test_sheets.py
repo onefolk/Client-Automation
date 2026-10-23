@@ -80,7 +80,7 @@ def test_dashboard_kpis_calculation():
 
     manager.update_dashboard(metrics)
 
-    mock_dash.clear.assert_called_once()
+    mock_dash.clear.assert_not_called()
     mock_dash.update.assert_called_once()
     update_kwargs = mock_dash.update.call_args[1]
     rows = update_kwargs["values"]

@@ -909,3 +909,46 @@ directQueueSheet.getDataRange().setValues(cleanVals);
 console.log('✓ Direct Sheet approval metadata, dispatch readiness, and edit invalidation passed.\n');
 
 
+
+console.log('Test 19: Selected-cell batch writes preserve concurrent data');
+currentActiveUser='contact.onefolk@gmail.com'; currentEffectiveUser=currentActiveUser;
+const finalRow=directLeadRow.slice();
+finalRow[qHeaders.indexOf('lead_id')]='final_batch';
+finalRow[qHeaders.indexOf('public_email')]='info@final-fixture.edu';
+for (const field of ['website','observation_url','email_source_url']) finalRow[qHeaders.indexOf(field)]='https://final-fixture.edu/';
+finalRow[qHeaders.indexOf('status')]='AWAITING_REVIEW';finalRow[qHeaders.indexOf('approval')]='PENDING';
+const finalSheet=createMockSheet('Approval Queue',qHeaders,[finalRow]);
+const originalRange=finalSheet.getDataRange;
+let appended=false;
+finalSheet.getDataRange=()=>({getValues:()=>{
+  const snapshot=originalRange().getValues();
+  if (!appended) { appended=true;const extra=finalRow.slice();extra[0]='concurrent_append';finalSheet.appendRow(extra); }
+  return snapshot;
+},setValues:()=>{throw Error('Whole-sheet snapshot rewrite forbidden');}});
+sheetStore.set('Approval Queue',finalSheet);
+const batchResult=mockContext.apiBatchApproveLeads(['final_batch']);
+assert.equal(batchResult.approvedCount,1);
+assert.equal(originalRange().getValues().length,3);
+assert.equal(originalRange().getValues()[2][qHeaders.indexOf('status')],'AWAITING_REVIEW');
+mockContext.apiBatchRejectLeads(['final_batch'],'Review later');
+assert.equal(originalRange().getValues()[2][qHeaders.indexOf('status')],'AWAITING_REVIEW');
+finalSheet.getRange(2,qHeaders.indexOf('status')+1).setValue('SENT');
+finalSheet.getRange(2,qHeaders.indexOf('approval')+1).setValue('APPROVED');
+const counts=mockContext.apiGetApprovalQueue({}).statuses;
+assert.equal(counts.SENT,1);assert.equal(counts.APPROVED,0);
+console.log('Selected-cell writes and terminal status counters passed');
+
+console.log('Test 20: Browser editor uses the server validator');
+const html=fs.readFileSync('apps-script/Index.html','utf8');
+const clientSource=mockContext.clientValidationSource();
+const editorSource=html.slice(html.indexOf('    function onDraftChange()'),html.indexOf('    function setMetricPill('));
+const elements=new Map();
+const el=id=>{if(!elements.has(id))elements.set(id,{value:'',classList:{add(){},remove(){}},disabled:false});return elements.get(id);};
+const editor={document:{getElementById:el},state:{queue:{selectedLead:{business:'Fixture'}}},escapeHtml:s=>s,setMetricPill(){}};
+vm.createContext(editor);vm.runInContext(clientSource+'\n'+editorSource,editor);
+el('editorSubject').value='Course information update';
+el('editorBody').value=directLeadRow[qHeaders.indexOf('email_body')];
+editor.onDraftChange();assert.equal(el('btnModalApprove').disabled,false);
+el('editorBody').value=el('editorBody').value.replace('We noticed','I noticed');
+editor.onDraftChange();assert.equal(el('btnModalApprove').disabled,true);
+console.log('Browser/server validator parity passed');

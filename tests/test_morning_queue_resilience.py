@@ -23,6 +23,7 @@ def rig(monkeypatch):
     manager.sheets.spreadsheet.worksheet.return_value.get_all_records.return_value=[]
     manager.sheets.spreadsheet.worksheet.return_value.row_values.return_value=['lead_id','status']
     monkeypatch.setattr(mq,'ReserveStore',lambda _:store)
+    monkeypatch.setattr(mq,'require_production_writer',lambda:None)
     monkeypatch.setattr(mq,'validate_credentials',lambda **_:None)
     monkeypatch.setattr(mq.OpenDiscovery,'harvest',lambda _: ([],[]))
     monkeypatch.setenv('SCHEDULE_SLOT','test_slot')
@@ -135,3 +136,18 @@ def test_invalid_pending_cleanup_never_writes_operator_status(rig):
     assert result['invalid_pending_rows'] == 1
     manager.sheets.spreadsheet.worksheet.return_value.batch_update.assert_not_called()
     assert queue[0]['status'] == 'AWAITING_REVIEW'
+
+
+def test_separate_scheduled_occurrences_do_not_share_ready_slot(rig, monkeypatch):
+    manager, store, queue = rig
+    queue.extend(valid_record(i) for i in range(2))
+    discovery = MagicMock(return_value=([], []))
+    monkeypatch.setattr(mq.OpenDiscovery, 'harvest', discovery)
+    monkeypatch.setenv('GITHUB_RUN_ID', '100')
+    assert manager.run()['status'] == 'READY'
+    discovery.reset_mock()
+    manager.run()
+    discovery.assert_not_called()
+    monkeypatch.setenv('GITHUB_RUN_ID', '101')
+    manager.run()
+    assert discovery.called

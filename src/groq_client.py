@@ -1,5 +1,7 @@
 """Groq Free-Tier API client with rate-limit backoff, token budgeting, and factual grounding validation."""
 
+import math
+from datetime import datetime, timezone
 import json
 import logging
 import os
@@ -172,6 +174,8 @@ class GroqClient:
                             retry_after = max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
                         except Exception:
                             retry_after = backoff
+                    if not math.isfinite(retry_after) or retry_after < 0:
+                        retry_after = backoff
                     logger.warning("Groq 429 Rate Limit encountered. Backing off for %.1f seconds...", retry_after)
                     if retry_after > 60:
                         self.quota_exhausted = True

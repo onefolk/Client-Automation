@@ -131,7 +131,7 @@ MAX_AI_CALLS = int(os.getenv("MAX_AI_CALLS", "120"))
 QUALIFIED_TARGET = int(os.getenv("QUALIFIED_TARGET", "100"))
 MAX_HTTP_FETCHES = int(os.getenv("MAX_HTTP_FETCHES", "1200"))
 MAX_DIRECTORY_LINKS = int(os.getenv("MAX_DIRECTORY_LINKS", "600"))
-HTTP_TIMEOUT_SECONDS = int(os.getenv("HTTP_TIMEOUT_SECONDS", "10"))
+HTTP_TIMEOUT_SECONDS = int(os.getenv("HTTP_TIMEOUT_SECONDS", "8"))
 MAX_DAILY_SENDS = int(os.getenv("MAX_DAILY_SENDS", "50"))
 ENABLE_SENDING = os.getenv("ENABLE_SENDING", "false").lower() in ("true", "yes", "1")
 

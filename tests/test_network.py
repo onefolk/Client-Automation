@@ -70,7 +70,7 @@ def test_safe_fetcher_pins_dns_ip():
             mock_resp = MagicMock()
             mock_resp.status_code = 200
             mock_resp.headers = {"Content-Type": "text/html"}
-            mock_resp.raw.read.return_value = b"<html>OK</html>"
+            mock_resp.raw.read1.side_effect = [b"<html>OK</html>", b""]
             mock_get.return_value = mock_resp
 
             res = fetcher.fetch_html("https://example.com/test")
@@ -109,9 +109,8 @@ def test_permitted_fetcher_pins_robots_dns():
         with patch.object(fetcher.session, "get") as mock_get:
             mock_resp = MagicMock()
             mock_resp.status_code = 200
-            mock_resp.text = "User-agent: *\nAllow: /"
+            mock_resp.raw.read1.side_effect = [b"User-agent: *\nAllow: /", b"", b"<html>OK</html>", b""]
             mock_resp.headers = {"Content-Type": "text/html"}
-            mock_resp.raw.read.return_value = b"<html>OK</html>"
             mock_resp.__enter__.return_value = mock_resp
             mock_get.return_value = mock_resp
 

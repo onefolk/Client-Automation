@@ -5,7 +5,10 @@ from tests.test_morning_queue_resilience import Store
 def test_partition_checkpoint_replay_deduplicates(monkeypatch):
     store=Store()
     response=Mock()
-    response.json.return_value={'elements':[{'type':'node','id':123,'tags':{'name':'Fixture Academy','website':'https://fixture.edu/'}}]}
+    payload={'elements':[{'type':'node','id':123,'tags':{'name':'Fixture Academy','website':'https://fixture.edu/'}}]}
+    import json
+    response.headers = {}
+    response.raw.read1.side_effect = [json.dumps(payload).encode(), b'', json.dumps(payload).encode(), b'']
     monkeypatch.setattr('src.open_discovery.requests.post',lambda *a,**k:response)
     discovery=OpenDiscovery(store,{'industries':['education'],'target_cities':['Chennai']})
     first,errors=discovery.harvest()

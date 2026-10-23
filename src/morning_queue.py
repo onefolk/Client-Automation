@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 import json
 import os
 import time
+from src.writer_policy import require_production_writer
 from src.config import get_active_campaign, validate_credentials
 from src.sheets import SheetsManager
 from src.suppression import SuppressionManager
@@ -35,6 +36,7 @@ class MorningQueueManager:
     def run(self, publish_only=False):
         if self.dry_run:
             raise ValueError("Use the isolated test harness; production orchestrator never invents dry-run leads")
+        require_production_writer()
         validate_credentials(require_groq=not publish_only, require_sheets=True)
         if not self.sheets.connect(): raise RuntimeError("Sheet credentials/connectivity failed")
         self.sheets.initialize_schema()
@@ -51,6 +53,8 @@ class MorningQueueManager:
                    'suppressed_or_duplicate':0, 'shortage_reasons':[], 'target_queue':self.target_queue}
         # Per scheduled slot, persist completion so reruns don't consume another batch budget.
         slot = os.getenv('SCHEDULE_SLOT', 'local')
+        # Unique per scheduled occurrence and stable on rerun.
+        slot += ':' + run_id
         slot_key = 'slot:'+day+':'+slot
         prior = store.get(slot_key)
         if prior and prior.get('status') == 'READY':

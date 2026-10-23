@@ -156,6 +156,18 @@ function auditApprovalEdit(e) {
   } finally { lock.releaseLock(); }
 }
 
+function evaluateOutreachSafety(queueRows) {
+  const rows = queueRows || recordsFrom(getSpreadsheet().getSheetByName(TAB_APPROVAL_QUEUE));
+  const failures = [];
+  const contacted=rows.filter(r=>['SENT','BOUNCED','DECLINED','POSITIVE_REPLY','REPLY_REVIEW'].includes(r.status));
+  const bounceRate=contacted.length ? contacted.filter(r=>r.status==='BOUNCED').length/contacted.length : 0;
+  const declineRate=contacted.length ? contacted.filter(r=>r.status==='DECLINED').length/contacted.length : 0;
+  if (contacted.length>=10 && (bounceRate>=0.05 || declineRate>=0.1)) {
+    emergencyStop(); failures.push('Sending halted: elevated bounce/decline rate');
+  }
+  return failures;
+}
+
 function automationSnapshot() {
   const book=getSpreadsheet(), blocked=buildSuppressionSet(), seen=new Set();
   const rows=recordsFrom(book.getSheetByName(TAB_APPROVAL_QUEUE));
@@ -176,12 +188,7 @@ function automationSnapshot() {
     failures.push('Missing or stale successful cloud run: schedule or credential failure possible');
   if (attempt.status==='FAILED' || attempt.status==='RUNNING') failures.push('Latest cloud run '+attempt.status);
   failures.push(...(success.shortage_reasons||[]));
-  const contacted=rows.filter(r=>['SENT','BOUNCED','DECLINED','POSITIVE_REPLY','REPLY_REVIEW'].includes(r.status));
-  const bounceRate=contacted.length ? contacted.filter(r=>r.status==='BOUNCED').length/contacted.length : 0;
-  const declineRate=contacted.length ? contacted.filter(r=>r.status==='DECLINED').length/contacted.length : 0;
-  if (contacted.length>=10 && (bounceRate>=0.05 || declineRate>=0.1)) {
-    emergencyStop(); failures.push('Sending halted: elevated bounce/decline rate');
-  }
+  failures.push(...evaluateOutreachSafety(rows));
 
   const runs=recordsFrom(book.getSheetByName('Campaign Runs')).filter(r=>r.campaign_date===date);
   return {ready, priority_ready:priorityReady, review_goal:DAILY_REVIEW_GOAL, needs, shortage:Math.max(0,DAILY_REVIEW_GOAL-priorityReady), newly_discovered:runs.reduce((n,r)=>n+Number(r.newly_discovered_today||0),0),
@@ -197,7 +204,7 @@ function recordReplyActivity(sheet,email,status,thread,msg) {
     if (normalizeKey(values[i][h.indexOf('recipient_email')])!==email) continue;
     for (const [key,value] of Object.entries({reply_status:status,reply_snippet:msg.getPlainBody().slice(0,300),
       gmail_thread_id:thread.getId(),updated_at:new Date().toISOString()})) {
-      const col=h.indexOf(key); if (col>=0) sheet.getRange(i+1,col+1).setValue(value);
+      const col=h.indexOf(key); if (col>=0) sheet.getRange(i+1,col+1).setValue(sanitizeCellValue(value));
     }
   }
 }
@@ -227,7 +234,9 @@ function sendMorningQueueDigest() {
 function morningWatchdog() {
   const weekday=Number(Utilities.formatDate(new Date(),IST_TIMEZONE,'u'));
   const hhmm=Utilities.formatDate(new Date(),IST_TIMEZONE,'HH:mm');
-  if (weekday>5 || hhmm<'08:45' || hhmm>'10:00') return;
+  if (weekday>5 || hhmm<'08:45' || hhmm>='18:00') return;
+  // Safety evaluation must run even after the once-daily digest was delivered.
+  evaluateOutreachSafety();
   // Independent of GitHub. Missing heartbeats produce a failure email, never a success claim.
   sendMorningQueueDigest();
 }
