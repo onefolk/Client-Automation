@@ -105,18 +105,35 @@ function auditApprovalEdit(e) {
     for (let row=first; row<=last; row++) {
       const r=Object.fromEntries(headers.map((h,i)=>[h,values[row-1][i]]));
       if (['SENT','SENDING','SEND_REVIEW','BOUNCED','DECLINED','UNSUBSCRIBED','REJECTED'].includes(r.status)) continue;
-      if (r.status === 'APPROVED' && r.approval === 'APPROVED' && getProp('APPROVAL_' + r.lead_id) === draftFingerprint(r)) continue;
+      if (r.status === 'APPROVED' && r.approval === 'APPROVED' && getProp('APPROVAL_' + r.lead_id) === draftFingerprint(r) && getProp('APPROVAL_META_' + r.lead_id)) continue;
       setProp('APPROVAL_'+r.lead_id,'');
+      setProp('APPROVAL_META_'+r.lead_id,'');
       const individual=e.range.getNumRows()===1 && e.range.getNumColumns()===1 && e.range.getColumn()===approvalCol;
-      const reviewer=e.user ? e.user.getEmail() : '';
+      const reviewer=(e.user && typeof e.user.getEmail === 'function') ? e.user.getEmail() :
+                     (e && typeof e.user === 'string' && e.user) ? e.user :
+                     (typeof getAuthenticatedUserEmail === 'function' ? getAuthenticatedUserEmail() : '');
       const isAuthorized = reviewer && typeof isAuthorizedAdmin === 'function' && isAuthorizedAdmin(reviewer);
       const blocked=buildSuppressionSet();
-      const approved=individual && e.value==='APPROVED' && isAuthorized && reviewableRecord(r) &&
-        !blocked.has(normalizeKey(r.public_email)) && !blocked.has(extractDomain(r.website));
+      const isReviewable = reviewableRecord(r);
+      const emailBlocked = blocked.has(normalizeKey(r.public_email));
+      const domBlocked = blocked.has(extractDomain(r.website));
+      const approved=individual && e.value==='APPROVED' && isAuthorized && isReviewable && !emailBlocked && !domBlocked;
       const rejected=individual && e.value==='REJECTED' && isAuthorized;
       sheet.getRange(row,statusCol).setValue(rejected?'REJECTED':approved?'APPROVED':'AWAITING_REVIEW');
       sheet.getRange(row,approvalCol).setValue(rejected?'REJECTED':approved?'APPROVED':'PENDING');
-      if (approved) setProp('APPROVAL_'+r.lead_id,draftFingerprint(r));
+      if (approved) {
+        const fp = draftFingerprint(r);
+        setProp('APPROVAL_'+r.lead_id, fp);
+        const meta = {
+          approved_by: reviewer,
+          approved_at: new Date().toISOString(),
+          recipient: r.public_email,
+          subject: r.subject,
+          fingerprint: fp,
+          source: 'sheet_edit'
+        };
+        setProp('APPROVAL_META_'+r.lead_id, JSON.stringify(meta));
+      }
       let audit=getSpreadsheet().getSheetByName('Approval Audit');
       if (!audit) { audit=getSpreadsheet().insertSheet('Approval Audit'); audit.appendRow(['timestamp','lead_id','reviewer','action','fingerprint']); }
       audit.appendRow([new Date().toISOString(),r.lead_id,reviewer||'UNIDENTIFIED',rejected?'REJECTED':approved?'APPROVED':'INVALIDATED',draftFingerprint(r)]);

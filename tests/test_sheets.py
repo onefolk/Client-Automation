@@ -210,3 +210,98 @@ def test_transactional_update_row_fails_closed():
     assert written_row[4] == "Keep note"  # Preserved reviewer notes
 
 
+def test_transactional_update_row_intervening_approval_fails_closed():
+    from src.reserve import transactional_update_row
+
+    ws = MagicMock()
+    columns = ["lead_id", "status", "approval", "business", "reviewer_notes", "updated_at"]
+
+    # Intervening approval arrives between initial read and compare-before-commit verification
+    ws.row_values.side_effect = [
+        ["lead_1", "AWAITING_REVIEW", "PENDING", "Acme", "", ""],
+        ["lead_1", "APPROVED", "APPROVED", "Acme", "Approved by human in sheet", ""],
+    ]
+    ok = transactional_update_row(
+        ws, 2, columns,
+        {"status": "AWAITING_REVIEW", "approval": "PENDING", "business": "Acme"},
+        {"business": "Acme Overwrite"},
+        "Approval Queue"
+    )
+    assert ok is False
+    ws.update.assert_not_called()
+
+
+def test_transactional_update_row_draft_edit_fails_closed():
+    from src.reserve import transactional_update_row
+
+    ws = MagicMock()
+    columns = ["lead_id", "status", "approval", "business", "subject", "email_body", "reviewer_notes", "updated_at"]
+
+    # Baseline pipeline record before human reviewed
+    baseline_record = {
+        "lead_id": "lead_1",
+        "status": "AWAITING_REVIEW",
+        "approval": "PENDING",
+        "business": "Acme",
+        "subject": "Initial Pipeline Draft Subject",
+        "email_body": "Initial Pipeline Draft Body",
+        "reviewer_notes": "",
+    }
+
+    # Human edited the subject in the Google Sheet directly
+    ws.row_values.return_value = [
+        "lead_1", "AWAITING_REVIEW", "PENDING", "Acme", "Human Edited Custom Subject", "Initial Pipeline Draft Body", "", ""
+    ]
+
+    ok = transactional_update_row(
+        ws, 2, columns,
+        baseline_record,
+        {"subject": "Regenerated Subject", "email_body": "Regenerated Body"},
+        "Approval Queue"
+    )
+    assert ok is False
+    ws.update.assert_not_called()
+
+
+def test_serialized_mutation_gateway_thread_safety():
+    from src.reserve import mutation_gateway
+    import threading
+
+    ws = MagicMock()
+    columns = ["lead_id", "status", "approval", "business", "updated_at"]
+    ws.row_values.return_value = ["lead_1", "AWAITING_REVIEW", "PENDING", "Acme", ""]
+
+    results = []
+    def worker(val):
+        res = mutation_gateway.update_row(
+            ws, 2, columns,
+            {"status": "AWAITING_REVIEW", "approval": "PENDING"},
+            {"business": val},
+            "Approval Queue"
+        )
+        results.append(res)
+
+    threads = [threading.Thread(target=worker, args=(f"Acme {i}",)) for i in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert all(results)
+    assert ws.update.call_count == 4
+
+
+def test_compute_row_version_deterministic():
+    from src.reserve import compute_row_version
+
+    rec1 = {"lead_id": "L1", "status": "AWAITING_REVIEW", "subject": "Hello", "updated_at": "2026-10-23T10:00:00"}
+    rec2 = {"subject": "Hello", "lead_id": "L1", "status": "AWAITING_REVIEW", "updated_at": "2026-10-23T12:00:00"}
+    rec3 = {"lead_id": "L1", "status": "AWAITING_REVIEW", "subject": "Hello Edited"}
+
+    # Keys order and updated_at difference do not affect version hash
+    assert compute_row_version(rec1) == compute_row_version(rec2)
+    # Content modification alters version hash
+    assert compute_row_version(rec1) != compute_row_version(rec3)
+
+
+

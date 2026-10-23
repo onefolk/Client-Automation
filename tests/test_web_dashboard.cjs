@@ -739,3 +739,144 @@ finalQueueVals.pop();
 testInjectSheet.getDataRange().setValues(finalQueueVals);
 console.log('✓ Formula sanitization in batch rejection passed.\n');
 
+// -----------------------------------------------------------------------------
+// TEST 18: Direct Sheet Approval Metadata & Dispatch Interlock Parity
+// -----------------------------------------------------------------------------
+console.log('Test 18: Direct Sheet Approval Metadata & Dispatch Interlock Parity');
+
+// 1. Setup a valid reviewable lead in Approval Queue
+const directQueueSheet = sheetStore.get('Approval Queue');
+const directLeadId = 'direct_edit_lead_01';
+const directLeadRow = new Array(qHeaders.length).fill('');
+const setCol = (name, val) => {
+  const idx = qHeaders.indexOf(name);
+  if (idx !== -1) directLeadRow[idx] = val;
+};
+setCol('lead_id', directLeadId);
+setCol('business', 'Stella Maris College');
+setCol('industry', 'education');
+setCol('website', 'https://stellamariscollege.edu.in/');
+setCol('public_email', 'principal@stellamariscollege.edu.in');
+setCol('subject', 'Simplify your application process');
+setCol('email_body', 'We noticed that your admissions page directs applicants to submit forms physically at the campus office.\n\nAn online application portal could simplify student submissions and simplify review for your administrative staff.\n\nAt OneFolk, we design and build modern digital portals and web applications for institutions.\n\nCould you direct us to the person who manages your website and digital workflows?');
+setCol('alt_opening_1', 'I noticed your admissions page answers physical submission.');
+setCol('alt_opening_2', 'Your prospectus details hardcopy form collection.');
+setCol('observation', 'Site states: "Where do I submit completed forms"');
+setCol('observation_url', 'https://stellamariscollege.edu.in/admissions');
+setCol('email_source_url', 'https://stellamariscollege.edu.in/contact');
+setCol('opportunity', 'Online form submission workflow');
+setCol('proof_project', 'OneFolk website');
+setCol('proof_line', 'Our team designed and built the OneFolk website.');
+setCol('proof_url', 'https://onefolk.in/work');
+setCol('proof_verified', 'YES');
+setCol('qualification_score', 100);
+setCol('qualification_status', 'QUALIFIED');
+setCol('mail_domain_status', 'MX_VALID_MAILBOX_UNCONFIRMED');
+setCol('company_id', 'company_smc_01');
+setCol('last_verified_at', new Date().toISOString());
+setCol('created_at', new Date().toISOString());
+setCol('updated_at', new Date().toISOString());
+setCol('status', 'AWAITING_REVIEW');
+setCol('approval', 'PENDING');
+setCol('reviewer_notes', '');
+
+directQueueSheet.appendRow(directLeadRow);
+
+const directRowIdx = directQueueSheet.getDataRange().getValues().length; // 1-based row index
+const approvalColIdx = qHeaders.indexOf('approval') + 1; // 1-based column index
+const subjectColIdx = qHeaders.indexOf('subject') + 1;
+
+// 2. Direct Sheet approval by authorized admin via onEdit trigger (auditApprovalEdit)
+mockContext.testDirectEditEvent = {
+  range: {
+    getSheet: () => directQueueSheet,
+    getNumRows: () => 1,
+    getNumColumns: () => 1,
+    getColumn: () => approvalColIdx,
+    getRow: () => directRowIdx,
+    getLastRow: () => directRowIdx
+  },
+  value: 'APPROVED',
+  user: { getEmail: () => 'contact.onefolk@gmail.com' }
+};
+
+vm.runInContext('auditApprovalEdit(testDirectEditEvent)', mockContext);
+
+// Verify Sheet cells updated to APPROVED
+const directApprovedRow = directQueueSheet.getDataRange().getValues()[directRowIdx - 1];
+assert.equal(directApprovedRow[qHeaders.indexOf('status')], 'APPROVED', 'Status cell must be APPROVED');
+assert.equal(directApprovedRow[qHeaders.indexOf('approval')], 'APPROVED', 'Approval cell must be APPROVED');
+
+// Verify APPROVAL_<lead_id> fingerprint and APPROVAL_META_<lead_id> metadata written
+const fp = scriptProps.get('APPROVAL_' + directLeadId);
+assert.ok(fp, 'APPROVAL_<lead_id> fingerprint must be stored');
+const metaRaw = scriptProps.get('APPROVAL_META_' + directLeadId);
+assert.ok(metaRaw, 'APPROVAL_META_<lead_id> must be stored');
+const meta = JSON.parse(metaRaw);
+assert.equal(meta.approved_by, 'contact.onefolk@gmail.com', 'Reviewer email must match authorized admin');
+assert.equal(meta.fingerprint, fp, 'Metadata fingerprint must match stored approval fingerprint');
+assert.equal(meta.source, 'sheet_edit', 'Metadata source must record sheet_edit');
+assert.ok(Number.isFinite(new Date(meta.approved_at).getTime()), 'approved_at must be valid ISO timestamp');
+
+// Verify that this direct-approved draft satisfies Code.gs isValidApprovedDraft dispatch check
+const directHeaderMap = Object.fromEntries(qHeaders.map((h, i) => [h, i]));
+mockContext.testDirectRow = directApprovedRow;
+mockContext.testHeaderMap = directHeaderMap;
+const isValid = vm.runInContext('isValidApprovedDraft(testDirectRow, testHeaderMap)', mockContext);
+assert.equal(isValid, true, 'Direct Sheet approved draft must pass Code.gs isValidApprovedDraft for dispatch');
+
+// 3. Edit draft content (e.g. subject) directly in Sheet to test invalidation
+directQueueSheet.getRange(directRowIdx, subjectColIdx).setValue('Modified Subject After Direct Approval');
+mockContext.testDirectInvalidateEvent = {
+  range: {
+    getSheet: () => directQueueSheet,
+    getNumRows: () => 1,
+    getNumColumns: () => 1,
+    getColumn: () => subjectColIdx,
+    getRow: () => directRowIdx,
+    getLastRow: () => directRowIdx
+  },
+  value: 'Modified Subject After Direct Approval',
+  user: { getEmail: () => 'contact.onefolk@gmail.com' }
+};
+vm.runInContext('auditApprovalEdit(testDirectInvalidateEvent)', mockContext);
+
+// Verify status was invalidated to AWAITING_REVIEW and PENDING
+const invalidatedVals = directQueueSheet.getDataRange().getValues()[directRowIdx - 1];
+assert.equal(invalidatedVals[qHeaders.indexOf('status')], 'AWAITING_REVIEW', 'Status must revert to AWAITING_REVIEW');
+assert.equal(invalidatedVals[qHeaders.indexOf('approval')], 'PENDING', 'Approval must revert to PENDING');
+assert.equal(scriptProps.get('APPROVAL_' + directLeadId), '', 'APPROVAL_<lead_id> must be cleared on edit');
+assert.equal(scriptProps.get('APPROVAL_META_' + directLeadId), '', 'APPROVAL_META_<lead_id> must be cleared on edit');
+
+// Verify that invalidated draft is rejected by isValidApprovedDraft
+mockContext.testDirectRowInvalid = invalidatedVals;
+const isStillValid = vm.runInContext('isValidApprovedDraft(testDirectRowInvalid, testHeaderMap)', mockContext);
+assert.equal(isStillValid, false, 'Invalidated draft must fail Code.gs isValidApprovedDraft');
+
+// 4. Unauthorized user edit to APPROVED must be rejected
+mockContext.testUnauthorizedEvent = {
+  range: {
+    getSheet: () => directQueueSheet,
+    getNumRows: () => 1,
+    getNumColumns: () => 1,
+    getColumn: () => approvalColIdx,
+    getRow: () => directRowIdx,
+    getLastRow: () => directRowIdx
+  },
+  value: 'APPROVED',
+  user: { getEmail: () => 'unauthorized.user@external.com' }
+};
+vm.runInContext('auditApprovalEdit(testUnauthorizedEvent)', mockContext);
+const unauthVals = directQueueSheet.getDataRange().getValues()[directRowIdx - 1];
+assert.equal(unauthVals[qHeaders.indexOf('status')], 'AWAITING_REVIEW');
+assert.equal(unauthVals[qHeaders.indexOf('approval')], 'PENDING');
+assert.equal(scriptProps.get('APPROVAL_' + directLeadId), '');
+assert.equal(scriptProps.get('APPROVAL_META_' + directLeadId), '');
+
+// Clean up
+const cleanVals = directQueueSheet.getDataRange().getValues();
+cleanVals.pop();
+directQueueSheet.getDataRange().setValues(cleanVals);
+console.log('✓ Direct Sheet approval metadata, dispatch readiness, and edit invalidation passed.\n');
+
+
