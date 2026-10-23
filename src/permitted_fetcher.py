@@ -31,5 +31,6 @@ class PermittedFetcher(SafeFetcher):
         if delay > 10: return None
         time.sleep(max(0, delay - (time.monotonic()-self.last_request.get(origin,0))))
         self.last_request[origin] = time.monotonic()
-        # Do not follow unverified redirects into a different robots policy.
-        return super().fetch_html(url, max_redirects=0)
+        # Follow bounded redirects with verified safe destination
+        return super().fetch_html(url, max_redirects=max_redirects)
+

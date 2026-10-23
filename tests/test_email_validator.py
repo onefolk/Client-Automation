@@ -51,3 +51,42 @@ def test_intro_order_and_missing_relevance():
 def test_signature_does_not_hide_extra_content():
     malicious = BODY + '\n\nRegards, we guarantee exponential growth and I want a meeting.'
     assert not validate_email_body(malicious)[0]
+
+
+@pytest.mark.parametrize('replacement', ['me', 'myself', 'streamline', 'seamless', 'cutting-edge', 'synergy', 'game-changer', 'exponential', 'unlock'])
+def test_official_voice_and_buzzwords(replacement):
+    assert not validate_email_body(BODY.replace(RELEVANCE, RELEVANCE + ' ' + replacement))[0]
+
+
+def test_python_apps_script_official_format_parity():
+    import json
+    import subprocess
+    from pathlib import Path
+    reference = (
+        "Dear St. Xavier's College Team,\n\n"
+        "Your postgraduate diploma admissions process asks applicants to download Form A, complete it by hand, and email it to the admissions team. "
+        "An online application and document-upload system could simplify submissions and make applications easier to manage.\n\n"
+        "At OneFolk, we build online applications and document-management systems for institutions.\n\n"
+        "Could you direct us to the person responsible for admissions technology?\n\n"
+        "Regards,\nTeam OneFolk\nhttps://onefolk.in/"
+    )
+    cases = [(reference, True), (BODY, True), (reference.replace('\n', '\r\n'), True)]
+    for phrase in ['me', 'myself', 'streamline', 'seamless', 'cutting-edge', 'synergy', 'game-changer', 'exponential', 'unlock']:
+        cases.append((BODY.replace(RELEVANCE, RELEVANCE + ' ' + phrase), False))
+    # Single sentence with St. Xavier's must fail (abbreviation must not count as a sentence break)
+    single_sentence_with_abbr = reference.replace(" An online application and document-upload system could simplify submissions and make applications easier to manage.", "")
+    cases.append((single_sentence_with_abbr, False))
+    cases.extend([
+        (BODY.replace(RELEVANCE, RELEVANCE + ' https://example.com/?page=1'), False),
+        (BODY.replace(CTA, 'Could you help. Please contact us?'), False),
+        (BODY.replace(CTA, 'Could!!! you direct us to the right person?'), False),
+        (BODY.replace(CTA, 'Could you help? Would you reply?'), False),
+    ])
+    script = """const fs=require('fs'),vm=require('vm');const c={};vm.createContext(c);
+vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8'),c);
+console.log(JSON.stringify(JSON.parse(fs.readFileSync(0,'utf8')).map(body=>c.validateEmailStructure(body).isValid)));"""
+    result = subprocess.run(['node', '-e', script], input=json.dumps([body for body, _ in cases]),
+                            capture_output=True, text=True, encoding='utf-8', check=True,
+                            cwd=Path(__file__).resolve().parents[1])
+    assert json.loads(result.stdout) == [expected for _, expected in cases]
+    assert [validate_email_body(body)[0] for body, _ in cases] == [expected for _, expected in cases]

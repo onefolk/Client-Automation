@@ -180,9 +180,14 @@ function formatOneFolkEmail(rawBody, businessName) {
   return { plainText, htmlBody };
 }
 
+function splitSentences(text) {
+  const protectedText = String(text || '').replace(/\b(St|Dr|Mr|Mrs|Ms|Prof|vs|etc|e\.g|i\.e)\./gi, '$1__DOT__');
+  return protectedText.split(/[.!?][”"’']?(?:\s+|$)/).map(s => s.replace(/__DOT__/g, '.').trim()).filter(Boolean);
+}
+
 /**
  * Single Authoritative Email Structure Validator for OneFolk Apps Script layer.
- * Validates the Team OneFolk structure (target 50-90 body words).
+ * Validates the Team OneFolk structure (target 45-70 body words).
  */
 function validateEmailStructure(rawBody, proofLine) {
   const raw = normalizeWhitespace(rawBody).trim();
@@ -192,20 +197,19 @@ function validateEmailStructure(rawBody, proofLine) {
   const wordCount = contentParas.join(' ').split(/\s+/).filter(Boolean).length;
   const result = {isValid:false, reason:'', wordCount, paragraphCount:contentParas.length, contentParas};
   const fail = reason => ({...result, reason});
-  if (/(?<![\w\u00C0-\u024F])(?:i(?:['’](?:m|ve|d|ll))?|my|mine|myself)(?![\w\u00C0-\u024F])/i.test(raw)) return fail('First-person singular is forbidden; use Team OneFolk voice.');
+  if (/(?<![\w\u00C0-\u024F])(?:i(?:['’](?:m|ve|d|ll))?|my|mine|myself|me)(?![\w\u00C0-\u024F])/i.test(raw)) return fail('First-person singular is forbidden; use Team OneFolk voice.');
   const banned = ['unlock your business potential','enhance your digital ecosystem','optimise the customer journey',
     'optimize the customer journey','reduce enquiry friction','transform your digital presence','drive exponential growth',
     'take your business to the next level','we have some exciting ideas','enquiry friction','opportunity worth exploring',
-    'guaranteed','urgent','limited time'];
+    'guaranteed','urgent','limited time','streamline','seamless','cutting-edge','synergy','game-changer','exponential','unlock'];
   if (banned.some(p => new RegExp('(?<![\\w\\u00C0-\\u024F])' + p + '(?![\\w\\u00C0-\\u024F])', 'i').test(raw.replace(/\s+/g, ' ')))) return fail('Prohibited jargon or sales pressure.');
   if (![3,4].includes(contentParas.length)) return fail('Use observation, relevance, OneFolk capability and CTA in 3 or 4 paragraphs.');
-  if (wordCount < 40 || wordCount > 120) return fail('Target 50-90 body words; allowed range is 40-120.');
+  if (wordCount < 40 || wordCount > 120) return fail('Target 45-70 body words; allowed range is 40-120.');
   const opening = contentParas.slice(0,-2), capability = contentParas[contentParas.length-2], cta = contentParas[contentParas.length-1];
   if (opening.some(p => /\bonefolk\b/i.test(p))) return fail('Introduce OneFolk after observation and relevance.');
-  if (contentParas.length === 3 && contentParas[0].split(/[.!?][”"’']?(?:\s+|$)/).length < 3) return fail('Include both observation and relevance sentences.');
+  if (contentParas.length === 3 && splitSentences(contentParas[0]).length < 2) return fail('Include both observation and relevance sentences.');
   if (!/\bonefolk\b/i.test(capability)) return fail('Introduce OneFolk and one relevant service before the CTA.');
-  const copyWithoutUrls = copy.replace(/https?:\/\/\S+/g, '');
-  if ((copyWithoutUrls.match(/\?/g) || []).length !== 1 || !cta.endsWith('?') || !/^(could|would|may|can)\s+/i.test(cta)) return fail('End with exactly one low-pressure question.');
+  if ((copy.match(/\?/g) || []).length !== 1 || !cta.endsWith('?') || splitSentences(cta).length > 1 || !/^(could|would|may|can)\s+/i.test(cta)) return fail('End with exactly one low-pressure question.');
   return {...result, isValid:true, reason:'VALID'};
 }
 
@@ -223,13 +227,13 @@ function isValidApprovedDraft(v, headerMap) {
   // Strict email syntax
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return false;
 
-  // Explicit dual human approval ('approved' or 'queued' status, approval must be 'approved')
-  if ((status !== 'approved' && status !== 'queued') || approval !== 'approved') return false;
+  // Explicit dual human approval strictly requiring APPROVED status and approval
+  if (status !== 'approved' || approval !== 'approved') return false;
 
   // Content requirements
   if (!subject || !body || !proofLine) return false;
 
-  // Validate Team OneFolk structure and word count (target 50-90 body words)
+  // Validate Team OneFolk structure and word count (target 45-70 body words)
   const val = validateEmailStructure(body, proofLine);
   if (!val.isValid) return false;
 
@@ -417,6 +421,10 @@ function approvedSender() {
         const parts = nowFormatted.split(' ');
         const weekday = Number(parts[0]);
         const hhmm = parts[1];
+        if (isNaN(weekday) || weekday < 1 || weekday > 7 || !/^\d{2}:\d{2}$/.test(hhmm)) {
+          Logger.log('Invalid IST date components (' + nowFormatted + '). Failing closed.');
+          return;
+        }
         if (getProp('BYPASS_BUSINESS_HOURS') !== 'YES' && (weekday > 5 || hhmm < '09:00' || hhmm >= '18:00')) {
           Logger.log(`Outside business hours (${nowFormatted} IST). Holding approved queue for active business window (09:00 - 18:00 IST Mon-Fri).`);
           return;
@@ -505,6 +513,21 @@ function approvedSender() {
       SpreadsheetApp.flush();
 
       try {
+        // Atomic pre-send interlock check
+        if (getProp('EMERGENCY_STOP_ACTIVE') === 'YES' || getProp('ENABLE_SENDING') !== 'YES') {
+          Logger.log('Emergency stop or sending lock engaged immediately prior to dispatch. Halting send.');
+          queueSheet.getRange(rowIdx, headerMap.status + 1).setValue('AWAITING_REVIEW');
+          SpreadsheetApp.flush();
+          break;
+        }
+        const liveBlocked = buildSuppressionSet();
+        if (liveBlocked.has(email) || (dom && liveBlocked.has(dom))) {
+          Logger.log(`Lead ${email} found in live suppression immediately prior to send. Halting.`);
+          queueSheet.getRange(rowIdx, headerMap.status + 1).setValue('SUPPRESSED');
+          SpreadsheetApp.flush();
+          continue;
+        }
+
         const formatted = formatOneFolkEmail(v[headerMap.email_body], v[headerMap.business]);
         const subject = String(v[headerMap.subject]).trim();
 
@@ -547,7 +570,7 @@ function approvedSender() {
             '',
             'Sent successfully',
             now
-          ]);
+          ].map(sanitizeCellValue));
         }
 
         // Randomized natural human pacing between sends (10-25 seconds)

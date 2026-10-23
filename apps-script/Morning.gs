@@ -48,17 +48,19 @@ function reviewableRecord(r) {
   if (!body.includes(r.proof_line) && !body.toLowerCase().includes('onefolk')) return false;
   if (alt1 === alt2) return false;
 
-  const validProjects = [
-    'OneFolk website',
-    'Hostel Room Allocation Suite',
-    'Campus Kiosk',
-    'Event Operations Platform',
-    'Enterprise Invoicing Suite',
-    'Internal Workforce Operations Suite'
+  const APPROVED_PORTFOLIO = [
+    { project: "Campus Kiosk", proof: "Our portfolio includes a multi-vendor campus ordering web application with live order status and QR pickup.", evidence_url: "https://onefolk.in/work#campus-kiosk" },
+    { project: "Event Operations Platform", proof: "Our portfolio includes an event registration, ticketing and QR access-management platform.", evidence_url: "https://onefolk.in/work#event-operations" },
+    { project: "Hostel Room Allocation Suite", proof: "Our portfolio includes a digital room allocation and accommodation management system.", evidence_url: "https://onefolk.in/work#hostel-allocation" },
+    { project: "Enterprise Invoicing Suite", proof: "Our portfolio includes an invoicing, tax computation and financial operations web application.", evidence_url: "https://onefolk.in/work#enterprise-invoicing" },
+    { project: "Internal Workforce Operations Suite", proof: "Our portfolio includes an internal workforce operations suite with role-based project and attendance tracking.", evidence_url: "https://onefolk.in/work#workforce-operations" },
+    { project: "OneFolk website", proof: "Our team designed and built the OneFolk website.", evidence_url: "https://onefolk.in/work" }
   ];
-  return validProjects.includes(r.proof_project) &&
-    proofUrl.startsWith('https://onefolk.in/work') &&
-    String(r.proof_line || '').trim().length > 0;
+  return APPROVED_PORTFOLIO.some(p =>
+    p.project === r.proof_project &&
+    p.proof === r.proof_line &&
+    p.evidence_url === proofUrl
+  );
 }
 
 function draftFingerprint(r) {
@@ -66,9 +68,13 @@ function draftFingerprint(r) {
   const norm = {
     lead_id: String(r.lead_id || ''),
     company_id: String(r.company_id || dom || ''),
+    business: String(r.business || ''),
+    website: String(r.website || ''),
     public_email: String(r.public_email || ''),
     subject: String(r.subject || ''),
     email_body: String(r.email_body || ''),
+    alt_opening_1: String(r.alt_opening_1 || ''),
+    alt_opening_2: String(r.alt_opening_2 || ''),
     observation: String(r.observation || ''),
     observation_url: String(r.observation_url || r.website || ''),
     email_source_url: String(r.email_source_url || r.website || ''),
@@ -80,9 +86,9 @@ function draftFingerprint(r) {
     mail_domain_status: String(r.mail_domain_status || 'MX_VALID_MAILBOX_UNCONFIRMED'),
     qualification_status: String(r.qualification_status || 'QUALIFIED')
   };
-  const keys = ['lead_id','company_id','public_email','subject','email_body','observation',
-    'observation_url','email_source_url','opportunity','proof_project','proof_line','proof_url',
-    'last_verified_at','mail_domain_status','qualification_status'];
+  const keys = ['lead_id','company_id','business','website','public_email','subject','email_body',
+    'alt_opening_1','alt_opening_2','observation','observation_url','email_source_url','opportunity',
+    'proof_project','proof_line','proof_url','last_verified_at','mail_domain_status','qualification_status'];
   return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
     JSON.stringify(keys.map(k => norm[k]))));
 }
@@ -103,10 +109,11 @@ function auditApprovalEdit(e) {
       setProp('APPROVAL_'+r.lead_id,'');
       const individual=e.range.getNumRows()===1 && e.range.getNumColumns()===1 && e.range.getColumn()===approvalCol;
       const reviewer=e.user ? e.user.getEmail() : '';
+      const isAuthorized = reviewer && typeof isAuthorizedAdmin === 'function' && isAuthorizedAdmin(reviewer);
       const blocked=buildSuppressionSet();
-      const approved=individual && e.value==='APPROVED' && reviewer && reviewableRecord(r) &&
+      const approved=individual && e.value==='APPROVED' && isAuthorized && reviewableRecord(r) &&
         !blocked.has(normalizeKey(r.public_email)) && !blocked.has(extractDomain(r.website));
-      const rejected=individual && e.value==='REJECTED';
+      const rejected=individual && e.value==='REJECTED' && isAuthorized;
       sheet.getRange(row,statusCol).setValue(rejected?'REJECTED':approved?'APPROVED':'AWAITING_REVIEW');
       sheet.getRange(row,approvalCol).setValue(rejected?'REJECTED':approved?'APPROVED':'PENDING');
       if (approved) setProp('APPROVAL_'+r.lead_id,draftFingerprint(r));

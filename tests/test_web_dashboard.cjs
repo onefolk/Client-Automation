@@ -70,7 +70,7 @@ sheetStore.set('Approval Queue', createMockSheet('Approval Queue', [
   [
     'lead_test_01', 'Stella Maris College', 'education', 'https://stellamariscollege.edu.in/',
     'principal@stellamariscollege.edu.in', 'Simplify your application process',
-    'We noticed that your admissions page directs applicants to submit forms physically at the campus office.\n\nAn online application portal could streamline student submissions and simplify review for your administrative staff.\n\nAt OneFolk, we design and build modern digital portals and web applications for institutions.\n\nCould you direct us to the person who manages your website and digital workflows?',
+    'We noticed that your admissions page directs applicants to submit forms physically at the campus office.\n\nAn online application portal could simplify student submissions and simplify review for your administrative staff.\n\nAt OneFolk, we design and build modern digital portals and web applications for institutions.\n\nCould you direct us to the person who manages your website and digital workflows?',
     'I noticed your admissions page answers physical submission.', 'Your prospectus details hardcopy form collection.',
     'Site states: "Where do I submit completed forms"', 'https://stellamariscollege.edu.in/',
     'OneFolk website', 'Our team designed and built the OneFolk website.', 100,
@@ -381,7 +381,7 @@ console.log('✓ Dual-key approval and audit logging passed.\n');
 // TEST 7: Post-Approval Edit Invalidates Approval
 // -----------------------------------------------------------------------------
 console.log('Test 7: Post-Approval Edit Invalidation');
-const newValidBody = 'We noticed that your admissions page directs applicants to submit forms physically at the campus office.\n\nAn online application portal could streamline student submissions and simplify review for your administrative staff.\n\nAt OneFolk, we design and build modern digital portals and web applications for institutions.\n\nCould online submission save your staff time and improve the applicant experience?';
+const newValidBody = 'We noticed that your admissions page directs applicants to submit forms physically at the campus office.\n\nAn online application portal could simplify student submissions and simplify review for your administrative staff.\n\nAt OneFolk, we design and build modern digital portals and web applications for institutions.\n\nCould online submission save your staff time and improve the applicant experience?';
 mockContext.newValidBody = newValidBody;
 vm.runInContext("apiSaveDraft('lead_test_01', 'Updated Subject', newValidBody)", mockContext);
 

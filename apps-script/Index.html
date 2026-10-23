@@ -1817,7 +1817,7 @@
           <div class="compliance-ribbon">
             <div class="compliance-metric" id="pillWords">
               <span>Words:</span>
-              <strong id="counterWords">0</strong> (50–90 target)
+              <strong id="counterWords">0</strong> (45–70 target)
             </div>
             <div class="compliance-metric" id="pillParas">
               <span>Paragraphs:</span>
@@ -2540,8 +2540,8 @@
 
       const hasProof = paragraphs.length >= 3 && /\bonefolk\b/i.test(paragraphs[paragraphs.length - 2]) && !paragraphs.slice(0,-2).some(p => /\bonefolk\b/i.test(p));
       const lastPara = paragraphs.length ? paragraphs[paragraphs.length - 1].trim() : '';
-      const textWithoutUrls = paragraphs.join(' ').replace(/https?:\/\/\S+/g, '');
-      const hasQuestion = (textWithoutUrls.match(/\?/g) || []).length === 1 && lastPara.endsWith('?') && /^(could|would|may|can)\s+/i.test(lastPara);
+      const bodyCopy = paragraphs.join(' ');
+      const hasQuestion = (bodyCopy.match(/\?/g) || []).length === 1 && lastPara.endsWith('?') && !/[.!][”"’']?(?:\s+|$)/.test(lastPara) && /^(could|would|may|can)\s+/i.test(lastPara);
 
       document.getElementById('counterWords').textContent = words;
       document.getElementById('counterParas').textContent = paragraphs.length;
@@ -2556,17 +2556,17 @@
       const errors = [];
       if (subject.split(/\s+/).filter(Boolean).length < 3 || subject.split(/\s+/).length > 7) errors.push('Subject must contain 3–7 words.');
       if (![3,4].includes(paragraphs.length)) errors.push(`Use 3 or 4 paragraphs: observation, relevance, OneFolk capability and CTA.`);
-      if (words < 40 || words > 120) errors.push(`Target 50–90 body words; allowed 40–120 (currently ${words}).`);
+      if (words < 40 || words > 120) errors.push(`Target 45–70 body words; allowed 40–120 (currently ${words}).`);
       if (!hasProof) errors.push('Introduce OneFolk after observation and relevance, before the CTA.');
       if (paragraphs.length === 3 && paragraphs[0].split(/[.!?][”"’']?(?:\s+|$)/).length < 3) errors.push('Include observation and relevance sentences in the opening.');
-      if (!hasQuestion) errors.push('Paragraph 4 must end with a straightforward, low-pressure question (?) requesting contact or discussion.');
+      if (!hasQuestion) errors.push('The final paragraph must end with a straightforward, low-pressure question (?) requesting contact or discussion.');
 
       // Brand Tone & Voice Checks
       const toneWarnings = [];
-      if (/\b(?:i(?:['’](?:m|ve|d|ll))?|my|mine|myself)\b/i.test(body)) {
+      if (/\b(?:i(?:['’](?:m|ve|d|ll))?|my|mine|myself|me)\b/i.test(body)) {
         toneWarnings.push("Contains first-person singular ('I'). Company voice requires writing from team perspective ('we', 'our', 'Team OneFolk').");
       }
-      if (/unlock your business potential|enhance your digital ecosystem|optimi[sz]e the customer journey|enquiry friction|transform your digital presence|drive exponential growth|take your business to the next level|we have some exciting ideas|opportunity worth exploring|guaranteed|urgent|limited time/i.test(body)) {
+      if (/unlock your business potential|enhance your digital ecosystem|optimi[sz]e the customer journey|enquiry friction|transform your digital presence|drive exponential growth|take your business to the next level|we have some exciting ideas|opportunity worth exploring|\b(?:streamline|seamless|cutting-edge|synergy|game-changer|exponential|unlock)\b|guaranteed|urgent|limited time/i.test(body)) {
         toneWarnings.push("Contains UX jargon or awkward phrasing. Use patient-friendly, natural plain language.");
       }
 

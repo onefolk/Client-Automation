@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def canonical_url(url: str) -> str:
-    """Normalizes and canonicalizes a URL."""
+    """Normalizes and canonicalizes a URL, preserving essential query parameters."""
     if not url:
         return ""
     url = url.strip()
@@ -23,7 +23,9 @@ def canonical_url(url: str) -> str:
     scheme = parsed.scheme.lower()
     netloc = parsed.netloc.lower()
     path = parsed.path.rstrip("/") or "/"
-    return f"{scheme}://{netloc}{path}"
+    query = f"?{parsed.query}" if parsed.query else ""
+    return f"{scheme}://{netloc}{path}{query}"
+
 
 
 def extract_domain(url: str) -> str:
@@ -105,6 +107,7 @@ class SafeFetcher:
         self.limit = max_fetches
         self.timeout = timeout
         self.session = requests.Session()
+        self.session.trust_env = False  # Disable uncontrolled environment proxies
         self.session.headers.update({
             "User-Agent": USER_AGENT,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -126,6 +129,7 @@ class SafeFetcher:
                 return None
 
             self.count += 1
+            response = None
             try:
                 response = self.session.get(
                     current_url,
@@ -155,8 +159,8 @@ class SafeFetcher:
                 if "html" not in content_type and "xml" not in content_type and "text" not in content_type:
                     return None
 
-                # Bounded read to prevent memory exhaustion (max 250 KB)
-                content = response.raw.read(250000, decode_content=True)
+                # Bounded read to prevent memory exhaustion (max 1 MB)
+                content = response.raw.read(1000000, decode_content=True)
                 return content.decode("utf-8", errors="replace")
 
             except requests.RequestException as e:
@@ -165,5 +169,9 @@ class SafeFetcher:
             except Exception as e:
                 logger.debug("Unexpected error fetching %s: %s", current_url, str(e)[:120])
                 return None
+            finally:
+                if response is not None:
+                    response.close()
 
         return None
+

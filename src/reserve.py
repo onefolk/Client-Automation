@@ -21,8 +21,16 @@ class ReserveStore:
         if key in self.indices:
             self.ws.update(range_name=f'A{self.indices[key]}:C{self.indices[key]}', values=[row], value_input_option='RAW')
         else:
-            self.ws.append_row(row, value_input_option='RAW')
-            self.indices[key] = len(self.indices)+2
+            resp = self.ws.append_row(row, value_input_option='RAW')
+            row_idx = None
+            if resp and isinstance(resp, dict) and 'updates' in resp:
+                import re
+                m = re.search(r'[A-Za-z0-9_ ]+![A-Z]+(\d+):', resp['updates'].get('updatedRange', ''))
+                if m:
+                    row_idx = int(m.group(1))
+            if not row_idx:
+                row_idx = len(self.indices) + 2
+            self.indices[key] = row_idx
         self.data[key] = value
 
     def values(self, prefix):
@@ -58,6 +66,11 @@ def append_records(sheets, tab, records, key='lead_id', refresh_pending=False):
         if rid in ids:
             if refresh_pending:
                 row_idx, old=by_id[rid]
+                if tab == 'Approval Queue':
+                    curr_st = str(old.get('status', '')).upper()
+                    curr_app = str(old.get('approval', '')).upper()
+                    if curr_st in ('APPROVED', 'SENT', 'SENDING') or curr_app == 'APPROVED':
+                        continue
                 if tab != 'Approval Queue' or (old.get('status') in ('NEEDS_RESEARCH','AWAITING_REVIEW') and old.get('approval')=='PENDING'):
                     merged={**old,**record}
                     # Keep reviewer notes; edits invalidate any previous approval fingerprint.

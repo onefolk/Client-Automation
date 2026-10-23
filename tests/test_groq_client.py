@@ -10,7 +10,7 @@ def test_validation_four_paragraphs_and_word_limit():
     client = GroqClient(api_key="gsk_mock_test_key")
     proof = "Our portfolio includes an invoicing, tax computation and financial operations web application."
 
-    # Valid response: exactly 4 paragraphs, 50-90 words target (40-120 valid), contains proof
+    # Valid response: exactly 4 paragraphs, 45-70 words target (40-120 valid), contains proof
     valid_result = {
         "subject": "Web portal review for Studio Alpha",
         "email_body": (
@@ -172,7 +172,7 @@ def test_prompt_schema_envelope_and_natural_strict_cta(monkeypatch):
     schema = payload['response_format']['json_schema']['schema']
     assert 'opportunity' in schema['required']
     prompt = json.loads(payload['messages'][1]['content'])
-    assert '50-90' in prompt['task']
+    assert '45-70' in prompt['task']
     assert 'my company' in payload['messages'][0]['content']
 
 

@@ -926,10 +926,12 @@ function apiBatchApproveLeads(leadIds) {
       results.approvedIds.push(rowLeadId);
     }
 
-    // Single atomic batch write to Google Sheets for all approved leads
+    // Single atomic batch write to Google Sheets for all approved leads (sanitizing all cells against formula injection)
     if (results.approvedCount > 0) {
-      sheet.getDataRange().setValues(rows);
+      const sanitizedRows = rows.map(r => r.map(sanitizeCellValue));
+      sheet.getDataRange().setValues(sanitizedRows);
     }
+
 
     return {
       success: true,
