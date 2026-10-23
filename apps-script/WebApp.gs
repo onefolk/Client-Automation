@@ -245,23 +245,23 @@ function apiGetDashboardData() {
         const app = approvalCol !== -1 ? normalizeKey(rows[i][approvalCol]) : '';
         const sc = scoreCol !== -1 ? Number(rows[i][scoreCol] || 0) : 80;
         
-        if (st === 'awaiting_review' && app === 'pending') {
+        if (st === 'sent') {
+          sentCount++;
+        } else if (st === 'bounced') {
+          bouncedCount++;
+        } else if (st === 'positive_reply') {
+          positiveReplyCount++;
+        } else if (st === 'rejected' || app === 'rejected') {
+          rejectedCount++;
+        } else if (st === 'awaiting_review' && app === 'pending') {
           readyToReview++;
           awaitingApproval++;
           if (sc >= 80) top10Priority++;
           else secondaryBacklog++;
         } else if (st === 'needs_research') {
           needsResearch++;
-        } else if (st === 'approved' || app === 'approved') {
+        } else if (st === 'approved' || st === 'queued' || (app === 'approved' && !['sent', 'sending', 'bounced', 'positive_reply', 'declined'].includes(st))) {
           approvedCount++;
-        } else if (st === 'rejected' || app === 'rejected') {
-          rejectedCount++;
-        } else if (st === 'sent') {
-          sentCount++;
-        } else if (st === 'bounced') {
-          bouncedCount++;
-        } else if (st === 'positive_reply') {
-          positiveReplyCount++;
         }
       }
     }

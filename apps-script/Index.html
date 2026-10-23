@@ -2008,7 +2008,8 @@
         const elApproved = document.getElementById('kpi-approved');
         if (elApproved) elApproved.textContent = m.approved || 0;
         const elSentToday = document.getElementById('kpi-sentToday');
-        if (elSentToday) elSentToday.innerHTML = (m.sent || 0) + ' <span style="font-size:14px;color:var(--text-tertiary);font-family:var(--font-sans);">/ 50 cap</span>';
+        const sentNum = (sys && sys.dailySentToday > 0) ? sys.dailySentToday : (m.sent || 0);
+        if (elSentToday) elSentToday.innerHTML = sentNum + ' <span style="font-size:14px;color:var(--text-tertiary);font-family:var(--font-sans);">/ 50 cap</span>';
         const elBounced = document.getElementById('kpi-bounced');
         if (elBounced) elBounced.textContent = m.bounced || 0;
         const elReplies = document.getElementById('kpi-positiveReplies');
