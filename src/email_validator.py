@@ -15,28 +15,37 @@ BANNED_PHRASES = [
     "we have some exciting ideas", "enquiry friction", "opportunity worth exploring",
     "guaranteed", "urgent", "limited time",
 ]
-FIRST_PERSON_SINGULAR = re.compile(r"\b(?:i(?:['’](?:m|ve|d|ll))?|my|mine|myself)\b", re.I)
+def normalize_whitespace(text: str) -> str:
+    s = re.sub(r'[\ufeff\u200b\u200c\u200d\u2060]', '', str(text or ''))
+    s = s.replace('\r\n', '\n')
+    s = re.sub(r'[\r\u0085\u2028\u2029]', '\n', s)
+    s = re.sub(r'[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]', ' ', s)
+    return s
+
+
+FIRST_PERSON_SINGULAR = re.compile(r"(?<![\w\u00c0-\u024f])(?:i(?:['’](?:m|ve|d|ll))?|my|mine|myself)(?![\w\u00c0-\u024f])", re.I)
 
 
 def voice_error(text):
-    if FIRST_PERSON_SINGULAR.search(text):
+    text_norm = normalize_whitespace(text)
+    if FIRST_PERSON_SINGULAR.search(text_norm):
         return "First-person singular is forbidden; write as Team OneFolk."
-    normalized = " ".join(text.lower().split())
+    normalized = " ".join(text_norm.lower().split())
     for phrase in BANNED_PHRASES:
-        if re.search(r"\b" + re.escape(phrase) + r"\b", normalized):
+        if re.search(r"(?<![\w\u00c0-\u024f])" + re.escape(phrase) + r"(?![\w\u00c0-\u024f])", normalized):
             return "Prohibited phrasing: " + phrase
     return ""
 
 
 def parse_email_paragraphs(raw_body: str) -> Tuple[Optional[str], List[str]]:
-    raw = str(raw_body or "").strip()
+    raw = normalize_whitespace(raw_body).strip()
     salutation = None
-    match = re.match(r"^(Dear[^\n]+,)\s*\r?\n+", raw, re.I)
+    match = re.match(r"^(Dear[^\n]+,)\s*\n+", raw, re.I)
     if match:
         salutation = match.group(1).strip()
         raw = raw[match.end():].strip()
     # Strip only a trailing, recognized envelope, never arbitrary body paragraphs.
-    raw = re.sub(r"(?:\r?\n\s*)+Regards,?\s*\r?\nTeam OneFolk\s*\r?\nhttps://onefolk\.in/?\s*$", "", raw, flags=re.I)
+    raw = re.sub(r"(?:\n\s*)+Regards,?\s*\nTeam OneFolk\s*\nhttps://onefolk\.in/?\s*$", "", raw, flags=re.I)
     return salutation, [p.strip() for p in re.split(r"\n\s*\n", raw) if p.strip()]
 
 

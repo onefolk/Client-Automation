@@ -129,17 +129,25 @@ function buildSuppressionSet() {
   return set;
 }
 
+function normalizeWhitespace(text) {
+  return String(text || '')
+    .replace(/[\ufeff\u200b\u200c\u200d\u2060]/g, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/[\r\u0085\u2028\u2029]/g, '\n')
+    .replace(/[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g, ' ');
+}
+
 /**
  * Formats outreach emails with strict paragraph spacing, greeting, and signature.
  * Generates both clean plainText and HTML representation for high-fidelity rendering.
  */
 function formatOneFolkEmail(rawBody, businessName) {
-  const raw = String(rawBody || '').trim();
+  const raw = normalizeWhitespace(rawBody).trim();
   const biz = businessName || 'Prospect';
   const salutationMatch = raw.match(/^Dear[^\n]+,\s*/i);
   const salutation = salutationMatch ? salutationMatch[0].trim() : `Dear ${biz} Team,`;
   const copy = raw.replace(/^Dear[^\n]+,\s*/i, '')
-    .replace(/(?:\r?\n\s*)+Regards,?\s*\r?\nTeam OneFolk\s*\r?\nhttps:\/\/onefolk\.in\/?\s*$/i, '').trim();
+    .replace(/(?:\n\s*)+Regards,?\s*\nTeam OneFolk\s*\nhttps:\/\/onefolk\.in\/?\s*$/i, '').trim();
   let contentParas = copy.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   // Also filter any remnant footer line if present with single newlines
   contentParas = contentParas.filter(p => 
@@ -177,19 +185,19 @@ function formatOneFolkEmail(rawBody, businessName) {
  * Validates the Team OneFolk structure (target 50-90 body words).
  */
 function validateEmailStructure(rawBody, proofLine) {
-  const raw = String(rawBody || '').trim();
+  const raw = normalizeWhitespace(rawBody).trim();
   const copy = raw.replace(/^Dear[^\n]+,\s*/i, '')
-    .replace(/(?:\r?\n\s*)+Regards,?\s*\r?\nTeam OneFolk\s*\r?\nhttps:\/\/onefolk\.in\/?\s*$/i, '').trim();
+    .replace(/(?:\n\s*)+Regards,?\s*\nTeam OneFolk\s*\nhttps:\/\/onefolk\.in\/?\s*$/i, '').trim();
   const contentParas = copy.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   const wordCount = contentParas.join(' ').split(/\s+/).filter(Boolean).length;
   const result = {isValid:false, reason:'', wordCount, paragraphCount:contentParas.length, contentParas};
   const fail = reason => ({...result, reason});
-  if (/\b(?:i(?:['’](?:m|ve|d|ll))?|my|mine|myself)\b/i.test(raw)) return fail('First-person singular is forbidden; use Team OneFolk voice.');
+  if (/(?<![\w\u00C0-\u024F])(?:i(?:['’](?:m|ve|d|ll))?|my|mine|myself)(?![\w\u00C0-\u024F])/i.test(raw)) return fail('First-person singular is forbidden; use Team OneFolk voice.');
   const banned = ['unlock your business potential','enhance your digital ecosystem','optimise the customer journey',
     'optimize the customer journey','reduce enquiry friction','transform your digital presence','drive exponential growth',
     'take your business to the next level','we have some exciting ideas','enquiry friction','opportunity worth exploring',
     'guaranteed','urgent','limited time'];
-  if (banned.some(p => new RegExp('\\b' + p + '\\b', 'i').test(raw.replace(/\s+/g, ' ')))) return fail('Prohibited jargon or sales pressure.');
+  if (banned.some(p => new RegExp('(?<![\\w\\u00C0-\\u024F])' + p + '(?![\\w\\u00C0-\\u024F])', 'i').test(raw.replace(/\s+/g, ' ')))) return fail('Prohibited jargon or sales pressure.');
   if (![3,4].includes(contentParas.length)) return fail('Use observation, relevance, OneFolk capability and CTA in 3 or 4 paragraphs.');
   if (wordCount < 40 || wordCount > 120) return fail('Target 50-90 body words; allowed range is 40-120.');
   const opening = contentParas.slice(0,-2), capability = contentParas[contentParas.length-2], cta = contentParas[contentParas.length-1];
@@ -467,7 +475,10 @@ function approvedSender() {
             Logger.log('Business window closed during dispatch. Halting remaining batch.');
             break;
           }
-        } catch (e) {}
+        } catch (e) {
+          Logger.log('Business hours verification error in dispatch loop. Halting batch: ' + e);
+          break;
+        }
       }
 
       const rowIdx = i + 1;
