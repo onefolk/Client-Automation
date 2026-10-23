@@ -40,10 +40,10 @@ jobs:
         run: |
           if [ "$SCHEDULE_SLOT" = '0 3 * * 1-5' ]; then
             python -m src.cli preflight --no-groq
-            python -m src.cli morning-queue --target 50 --publish-only
+            python -m src.cli morning-queue --target 10 --publish-only
           else
             python -m src.cli preflight
-            python -m src.cli morning-queue --target 50
+            python -m src.cli morning-queue --target 10
           fi
       - name: Failure is visible; independent Apps Script watchdog checks the heartbeat
         if: failure()

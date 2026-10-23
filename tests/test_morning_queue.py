@@ -7,7 +7,7 @@ from src.morning_queue import campaign_day
 
 def valid_record(index=1):
     return dict(lead_id=f'lead_{index}', company_id=f'company_{index}', business=f'Fixture Business {index}',
-        industry='education', website=f'https://fixture{index}.edu/',public_email=f'info@fixture{index}.edu',
+        industry='education', priority_score=85, website=f'https://fixture{index}.edu/',public_email=f'info@fixture{index}.edu',
         email_source_url=f'https://fixture{index}.edu/contact',observation='Download the application form.',
         observation_url=f'https://fixture{index}.edu/admissions',opportunity='Online application submission',
         proof_project='OneFolk website', proof_line='Our team designed and built the OneFolk website.',

@@ -18,7 +18,7 @@ another AI batch. No workflow dispatch is required for routine use.
 The Sheet `Automation State` stores source cursors, company IDs, research, draft
 outboxes, reserved budgets, and heartbeat records. Persisted drafts survive Sheet
 write failures; failed discovery partitions resume without duplicate candidates.
-The inventory is replenished toward 100 fresh pending drafts, with 50 as the morning
+The inventory is replenished toward 100 fresh pending drafts, with 10 high-priority drafts as the morning
 review target. Research expires after seven days; stale pending records are excluded
 and automatically researched again. Rejected/contacted companies are suppressed.
 Missing evidence or failed AI output never becomes READY.
@@ -86,3 +86,24 @@ heartbeats and failed Actions runs. Bounce >=5% or decline >=10% with at least t
 contacted rows halts sending when the watchdog evaluates the queue. Provider spam
 complaints cannot be inferred reliably from Gmail/MX and remain an observability
 gap. The web app remains a separate local tool; it is not a production approval UI.
+
+
+## 23 October targeted corrections
+
+Research version 2 bypasses the cooldown for older NEEDS_RESEARCH records and
+invalidates their cached research on the next research batch. Existing rejected,
+suppressed and approved companies remain protected; the 25-candidate batch and
+runtime budgets still apply. All 95 historical failures are not guaranteed to be
+processed in one night. Current-version failures retain the normal cooldown.
+
+Scheduled review target and the Apps Script digest now use 10 high-priority
+eligible drafts. The dispatch ceiling remains 50 recipients per IST day.
+Commercial opportunity recommendations are industry-aware. Approval requires
+actual evidence and alternate openings, without injecting qualification defaults.
+
+Stops persist until explicit authorization; the sender never enables itself.
+The compile-time lock remains false. Deploy the updated Code.gs, Morning.gs,
+WebApp.gs and Index.html together to activate Apps Script changes. Preserve live
+Script Properties; do not run installTriggers as a routine code update because
+that installer deliberately stops sending. A Git push alone does not deploy the
+bound Apps Script or update its versioned web app.

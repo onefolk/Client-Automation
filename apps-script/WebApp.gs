@@ -294,7 +294,7 @@ function apiGetDashboardData() {
       healthInfo = {
         ready: readyToReview,
         needs: needsResearch,
-        shortage: Math.max(0, 50 - readyToReview),
+        shortage: Math.max(0, DAILY_REVIEW_GOAL - top10Priority),
         failures: [],
         last_success: 'NONE'
       };
@@ -303,7 +303,7 @@ function apiGetDashboardData() {
     healthInfo = {
       ready: readyToReview,
       needs: needsResearch,
-      shortage: Math.max(0, 50 - readyToReview),
+      shortage: Math.max(0, DAILY_REVIEW_GOAL - top10Priority),
       failures: ['Snapshot error: ' + String(err)],
       last_success: 'NONE'
     };
@@ -683,14 +683,11 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
     // Apply edits if provided
     if (editedSubject && editedSubject.trim()) {
       r.subject = editedSubject.trim();
-      if (subjectCol !== -1) sheet.getRange(targetRow, subjectCol + 1).setValue(sanitizeCellValue(r.subject));
     }
     if (editedBody && editedBody.trim()) {
       r.email_body = editedBody.trim();
-      if (bodyCol !== -1) sheet.getRange(targetRow, bodyCol + 1).setValue(sanitizeCellValue(r.email_body));
       const w = r.email_body.split(/\s+/).length;
       r.word_count = w;
-      if (wordCountCol !== -1) sheet.getRange(targetRow, wordCountCol + 1).setValue(w);
     }
 
     // Check current status
@@ -726,18 +723,14 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
       }
     }
 
-    // Set qualification requirements for reviewableRecord check
-    if (!r.qualification_status) r.qualification_status = 'QUALIFIED';
-    if (!r.proof_verified) r.proof_verified = 'YES';
-    if (!r.mail_domain_status) r.mail_domain_status = 'MX_VALID_MAILBOX_UNCONFIRMED';
-    if (!r.proof_project) r.proof_project = 'OneFolk website';
-    if (!r.proof_url) r.proof_url = 'https://onefolk.in/work';
-    if (!r.alt_opening_1) r.alt_opening_1 = 'I noticed your website details.';
-    if (!r.alt_opening_2) r.alt_opening_2 = 'Your admissions page provides online information.';
-    if (!r.observation_url) r.observation_url = r.website;
-    if (!r.email_source_url) r.email_source_url = r.website;
-    if (!r.company_id) r.company_id = extractDomain(r.website);
-    if (!r.last_verified_at) r.last_verified_at = new Date().toISOString();
+    if (!reviewableRecord(r)) {
+      throw new Error('Approval blocked: complete, fresh research evidence and genuine alternative openings are required.');
+    }
+
+    // Persist only after the entire proposed record passes validation.
+    if (subjectCol !== -1) sheet.getRange(targetRow, subjectCol + 1).setValue(sanitizeCellValue(r.subject));
+    if (bodyCol !== -1) sheet.getRange(targetRow, bodyCol + 1).setValue(sanitizeCellValue(r.email_body));
+    if (wordCountCol !== -1) sheet.getRange(targetRow, wordCountCol + 1).setValue(String(r.email_body).split(/\s+/).length);
 
     // Compute fingerprint
     const fingerprint = draftFingerprint(r);
@@ -762,19 +755,6 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
     if (updatedCol !== -1) {
       sheet.getRange(targetRow, updatedCol + 1).setValue(nowIso);
     }
-    const setCell = (name, val) => { const c = headers.indexOf(name); if (c !== -1 && !r[name]) sheet.getRange(targetRow, c + 1).setValue(val); };
-    setCell('company_id', r.company_id);
-    setCell('qualification_status', r.qualification_status);
-    setCell('proof_verified', r.proof_verified);
-    setCell('mail_domain_status', r.mail_domain_status);
-    setCell('proof_project', r.proof_project);
-    setCell('proof_url', r.proof_url);
-    setCell('last_verified_at', r.last_verified_at);
-    setCell('email_source_url', r.email_source_url);
-    setCell('observation_url', r.observation_url);
-    setCell('opportunity', r.opportunity);
-
-    // Record audit trail
     recordAuditEntry(leadId, userEmail, 'APPROVED', fingerprint);
 
     return {
@@ -916,18 +896,11 @@ function apiBatchApproveLeads(leadIds) {
         }
       }
 
-      // Ensure defaults for qualification metadata
-      if (!r.qualification_status) r.qualification_status = 'QUALIFIED';
-      if (!r.proof_verified) r.proof_verified = 'YES';
-      if (!r.mail_domain_status) r.mail_domain_status = 'MX_VALID_MAILBOX_UNCONFIRMED';
-      if (!r.proof_project) r.proof_project = 'OneFolk website';
-      if (!r.proof_url) r.proof_url = 'https://onefolk.in/work';
-      if (!r.alt_opening_1) r.alt_opening_1 = 'I noticed your website details.';
-      if (!r.alt_opening_2) r.alt_opening_2 = 'Your admissions page provides online information.';
-      if (!r.observation_url) r.observation_url = r.website;
-      if (!r.email_source_url) r.email_source_url = r.website;
-      if (!r.company_id) r.company_id = extractDomain(r.website);
-      if (!r.last_verified_at) r.last_verified_at = nowIso;
+      if (!reviewableRecord(r)) {
+        results.failedCount++;
+        results.errors.push({lead_id: rowLeadId, reason: 'Complete, fresh research evidence and genuine alternative openings are required.'});
+        continue;
+      }
 
       // Fingerprint and approval properties
       const fingerprint = draftFingerprint(r);
@@ -948,18 +921,6 @@ function apiBatchApproveLeads(leadIds) {
       if (approvalCol !== -1) rows[i][approvalCol] = 'APPROVED';
       if (notesCol !== -1) rows[i][notesCol] = sanitizeCellValue('Batch approved via OneFolk Dashboard by ' + userEmail);
       if (updatedCol !== -1) rows[i][updatedCol] = nowIso;
-      const setCol = (name, val) => { const c = headers.indexOf(name); if (c !== -1 && !rows[i][c]) rows[i][c] = val; };
-      setCol('company_id', r.company_id);
-      setCol('qualification_status', r.qualification_status);
-      setCol('proof_verified', r.proof_verified);
-      setCol('mail_domain_status', r.mail_domain_status);
-      setCol('proof_project', r.proof_project);
-      setCol('proof_url', r.proof_url);
-      setCol('last_verified_at', r.last_verified_at);
-      setCol('email_source_url', r.email_source_url);
-      setCol('observation_url', r.observation_url);
-      setCol('opportunity', r.opportunity);
-
       recordAuditEntry(rowLeadId, userEmail, 'APPROVED', fingerprint);
       results.approvedCount++;
       results.approvedIds.push(rowLeadId);

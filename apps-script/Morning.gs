@@ -1,3 +1,4 @@
+const DAILY_REVIEW_GOAL = 10;
 /** Independent timer, individual approval audit and honest internal reporting. */
 function recordsFrom(sheet) {
   if (!sheet) throw new Error('Required sheet missing');
@@ -8,23 +9,23 @@ function recordsFrom(sheet) {
 function reviewableRecord(r) {
   if (!r) return false;
   const dom = extractDomain(r.website);
-  const companyId = String(r.company_id || dom || '').trim();
-  const emailSource = String(r.email_source_url || r.website || '').trim();
-  const obsUrl = String(r.observation_url || r.website || '').trim();
-  const opp = String(r.opportunity || r.observation || 'Digital workflow improvement').trim();
-  const proofUrl = String(r.proof_url || 'https://onefolk.in/work').trim();
-  const lastVer = String(r.last_verified_at || r.updated_at || r.created_at || '').trim();
-  const alt1 = String(r.alt_opening_1 || 'I noticed your website details.').trim();
-  const alt2 = String(r.alt_opening_2 || 'Your admissions page provides online information.').trim();
+  const companyId = String(r.company_id || '').trim();
+  const emailSource = String(r.email_source_url || '').trim();
+  const obsUrl = String(r.observation_url || '').trim();
+  const opp = String(r.opportunity || '').trim();
+  const proofUrl = String(r.proof_url || '').trim();
+  const lastVer = String(r.last_verified_at || '').trim();
+  const alt1 = String(r.alt_opening_1 || '').trim();
+  const alt2 = String(r.alt_opening_2 || '').trim();
 
   const required = ['lead_id','business','industry','website','public_email',
     'observation','proof_project','proof_line','subject','email_body'];
   if (required.some(k => !String(r[k] || '').trim())) return false;
   if (!companyId || !emailSource || !obsUrl || !opp || !proofUrl || !lastVer || !alt1 || !alt2) return false;
 
-  const qStatus = String(r.qualification_status || 'QUALIFIED').trim();
-  const pVerified = String(r.proof_verified || 'YES').trim();
-  const mStatus = String(r.mail_domain_status || 'MX_VALID_MAILBOX_UNCONFIRMED').trim();
+  const qStatus = String(r.qualification_status || '').trim();
+  const pVerified = String(r.proof_verified || '').trim();
+  const mStatus = String(r.mail_domain_status || '').trim();
   if (qStatus !== 'QUALIFIED' || pVerified !== 'YES' || mStatus !== 'MX_VALID_MAILBOX_UNCONFIRMED') return false;
 
   if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(r.public_email)) return false;
@@ -119,13 +120,14 @@ function auditApprovalEdit(e) {
 function automationSnapshot() {
   const book=getSpreadsheet(), blocked=buildSuppressionSet(), seen=new Set();
   const rows=recordsFrom(book.getSheetByName(TAB_APPROVAL_QUEUE));
-  let ready=0, needs=0;
+  let ready=0, priorityReady=0, needs=0;
   for (const r of rows) {
     if (r.status==='NEEDS_RESEARCH') needs++;
     if (r.status!=='AWAITING_REVIEW' || r.approval!=='PENDING') continue;
     const domain=extractDomain(r.website), email=normalizeKey(r.public_email);
     if (!reviewableRecord(r) || blocked.has(domain) || blocked.has(email) || seen.has(domain) || seen.has(email)) { needs++; continue; }
     seen.add(domain); seen.add(email); ready++;
+    if (Number(r.priority_score || r.qualification_score || 0) >= 80) priorityReady++;
   }
   const states=recordsFrom(book.getSheetByName('Automation State'));
   const get=k=> { const row=states.find(r=>r.key===k); return row?JSON.parse(row.json):{}; };
@@ -143,7 +145,7 @@ function automationSnapshot() {
   }
 
   const runs=recordsFrom(book.getSheetByName('Campaign Runs')).filter(r=>r.campaign_date===date);
-  return {ready, needs, shortage:Math.max(0,50-ready), newly_discovered:runs.reduce((n,r)=>n+Number(r.newly_discovered_today||0),0),
+  return {ready, priority_ready:priorityReady, review_goal:DAILY_REVIEW_GOAL, needs, shortage:Math.max(0,DAILY_REVIEW_GOAL-priorityReady), newly_discovered:runs.reduce((n,r)=>n+Number(r.newly_discovered_today||0),0),
     backlog:success.drawn_from_backlog||0, last_success:success.end_time||'NONE', failures,
     quota:MailApp.getRemainingDailyQuota(), url:book.getUrl()+'#gid='+book.getSheetByName(TAB_APPROVAL_QUEUE).getSheetId(),
     sending_disabled:IMPLEMENTATION_SENDING_LOCK || getProp('ENABLE_SENDING')!=='YES'};
@@ -169,11 +171,11 @@ function sendMorningQueueDigest() {
     if (getProp(key)) return;
     let snapshot;
     try { snapshot=automationSnapshot(); }
-    catch(err) { snapshot={ready:0,failures:['Live queue unavailable: '+String(err)],shortage:50}; }
+    catch(err) { snapshot={ready:0,priority_ready:0,failures:['Live queue unavailable: '+String(err)],shortage:DAILY_REVIEW_GOAL}; }
     const recipient=getProp('NOTIFICATION_EMAIL');
     if (!recipient || recipient !== 'contact.onefolk@gmail.com') throw new Error('Authorized internal notification recipient not configured');
     if (MailApp.getRemainingDailyQuota()<1) throw new Error('Internal notification quota exhausted');
-    const subject='[OneFolk] '+snapshot.ready+'/50 eligible drafts; '+(snapshot.failures.length?'ATTENTION':'queue checked');
+    const subject='[OneFolk] '+snapshot.priority_ready+'/'+DAILY_REVIEW_GOAL+' priority drafts; '+(snapshot.failures.length?'ATTENTION':'queue checked');
     // At-most-once reservation; uncertain mail outcomes never cause automatic duplicates.
     setProp(key,'SENDING');
     try {

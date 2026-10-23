@@ -607,3 +607,18 @@ console.log('✓ Batch selection and approve-all actions passed.\n');
 console.log('====================================================');
 console.log('ALL 15 WEB DASHBOARD BACKEND ACCEPTANCE TESTS PASSED!');
 console.log('====================================================');
+
+// Regression: neither approval route may fill missing evidence or alter a rejected edit.
+qSheet.getRange(2, qStatusIdx + 1).setValue('AWAITING_REVIEW');
+qSheet.getRange(2, qApprovalIdx + 1).setValue('PENDING');
+scriptProps.delete('APPROVAL_lead_test_01');
+qSheet.getRange(2, qHeaders.indexOf('alt_opening_2') + 1).setValue('');
+const beforeInvalidApproval = JSON.stringify(qSheet.getDataRange().getValues());
+assert.throws(() => vm.runInContext("apiApproveLead('lead_test_01', 'Changed subject')", mockContext), /complete, fresh research evidence/);
+assert.equal(JSON.stringify(qSheet.getDataRange().getValues()), beforeInvalidApproval);
+const invalidBatch = vm.runInContext("apiBatchApproveLeads(['lead_test_01'])", mockContext);
+assert.equal(invalidBatch.approvedCount, 0);
+assert.equal(invalidBatch.failedCount, 1);
+assert.equal(scriptProps.get('APPROVAL_lead_test_01'), undefined);
+assert.equal(JSON.stringify(qSheet.getDataRange().getValues()), beforeInvalidApproval);
+console.log('Missing-evidence approval regressions passed.');

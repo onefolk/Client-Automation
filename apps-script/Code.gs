@@ -304,7 +304,7 @@ function enableProductionSendingNow() {
  * 1-Click Helper to disable sending directly from Apps Script Editor.
  */
 function disableProductionSendingNow() {
-  setProp('ENABLE_SENDING', 'NO');
+  emergencyStop();
   Logger.log('Sending is now DISABLED (ENABLE_SENDING = NO).');
 }
 
@@ -413,18 +413,9 @@ function approvedSender() {
     return;
   }
 
-  // When IMPLEMENTATION_SENDING_LOCK is set to false, auto-activate ENABLE_SENDING property
-  if (!IMPLEMENTATION_SENDING_LOCK && getProp('ENABLE_SENDING') !== 'YES') {
-    setProp('ENABLE_SENDING', 'YES');
-    if (!getProp('ACTIVATION_TIMESTAMP')) {
-      setProp('ACTIVATION_TIMESTAMP', new Date().toISOString());
-    }
-    Logger.log('Auto-activated ENABLE_SENDING = YES based on IMPLEMENTATION_SENDING_LOCK = false.');
-  }
-
   const isEnabled = !IMPLEMENTATION_SENDING_LOCK && getProp('ENABLE_SENDING') === 'YES';
   if (!isEnabled) {
-    Logger.log('DRY RUN: Sending is disabled. Set IMPLEMENTATION_SENDING_LOCK = false in Code.gs to activate.');
+    Logger.log('Sending is disabled. An authorized operator must explicitly resume sending.');
     return;
   }
 
@@ -501,6 +492,7 @@ function approvedSender() {
 
     for (let i = 1; i < rows.length; i++) {
       if (remainingBudget <= 0 || consecutiveErrors >= 2) break;
+      if (getProp('EMERGENCY_STOP_ACTIVE') === 'YES' || getProp('ENABLE_SENDING') !== 'YES') break;
 
       const rowIdx = i + 1;
       const v = rows[i];
@@ -703,5 +695,6 @@ function monitorRepliesLocked() {
  */
 function emergencyStop() {
   setProp('ENABLE_SENDING', 'NO');
+  setProp('EMERGENCY_STOP_ACTIVE', 'YES');
   Logger.log('EMERGENCY STOP ACTIVATED: ENABLE_SENDING set to NO.');
 }

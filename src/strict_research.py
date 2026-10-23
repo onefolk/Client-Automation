@@ -5,6 +5,30 @@ from src.research import ProspectResearcher
 from src.config import load_portfolio
 from src.open_discovery import company_id
 
+RESEARCH_VERSION = 2
+
+
+def workflow_opportunity(industry, observation_type, observation):
+    if observation_type == "TECHNICAL_DEFECT":
+        return "Modernize the web portal with mobile responsiveness and secure web architecture."
+    if observation_type not in ("MANUAL_WORKFLOW", "DIRECT_EMAIL_INTAKE"):
+        return ""
+    text = observation.lower()
+    if any(word in text for word in ("menu", "table", "catering")) or industry == "restaurant":
+        workflow = "table reservations, catering inquiries and menu access"
+    elif industry == "hospitality":
+        workflow = "guest bookings and reservation inquiries"
+    elif industry == "events":
+        workflow = "event bookings and registration inquiries"
+    elif industry in ("education", "training"):
+        workflow = "admissions and application inquiries"
+    elif industry == "retail":
+        workflow = "product and order inquiries"
+    else:
+        workflow = "customer inquiries and service requests"
+    return f"Offer an online workflow for {workflow}, based on the documented intake process."
+
+
 class StrictResearcher(ProspectResearcher):
     def __init__(self, fetcher):
         super().__init__(fetcher)
@@ -63,14 +87,9 @@ class StrictResearcher(ProspectResearcher):
         result['mail_domain_status'] = 'MX_VALID_MAILBOX_UNCONFIRMED'
         result['verification_confidence'] = 'Public website + syntax + MX; mailbox and inbox delivery unconfirmed'
         result['strict_grounding'] = True
-        if result['observation_type'] == 'MANUAL_WORKFLOW':
-            result['opportunity'] = 'Offer an online submission workflow for the explicitly documented manual form process.'
-        elif result['observation_type'] == 'DIRECT_EMAIL_INTAKE':
-            result['opportunity'] = 'Offer an automated digital admissions and inquiry portal to replace manual email routing.'
-        elif result['observation_type'] == 'TECHNICAL_DEFECT':
-            result['opportunity'] = 'Modernize the web portal with mobile responsiveness and secure web architecture.'
-        else:
-            result['opportunity'] = ''
+        result['opportunity'] = workflow_opportunity(
+            result.get('industry', candidate.get('industry', 'other')),
+            result['observation_type'], result['observation'])
         # Match workflow evidence to relevant proof, not an unrelated industry product.
         project = next((p for p in load_portfolio() if p['project']=='OneFolk website'), {})
         result['proof_project'] = project.get('project','')

@@ -69,7 +69,7 @@ def test_silent_missing_write_readback_prevents_false_count(rig,monkeypatch):
 
 def test_groq_failure_preserves_qualified_reserve(rig,monkeypatch):
     manager,store,queue=rig; r=valid_record()
-    store.put('prospect:company_1',dict(company_id='company_1',website=r['website'],name=r['business'],state='QUALIFIED',research=r))
+    store.put('prospect:company_1',dict(company_id='company_1',website=r['website'],name=r['business'],state='QUALIFIED',research=r,research_version=mq.RESEARCH_VERSION))
     monkeypatch.setattr(mq.GroqClient,'draft_outreach',lambda *a:None)
     monkeypatch.setattr(mq.GroqClient,'is_available',lambda *a:True)
     result=manager.run()
@@ -80,3 +80,47 @@ def test_publish_does_not_call_discovery(rig,monkeypatch):
     manager,store,queue=rig
     monkeypatch.setattr(mq.OpenDiscovery,'harvest',lambda _:pytest.fail('Discovery called during readback'))
     assert manager.run(publish_only=True)['shortage']==2
+
+
+@pytest.mark.parametrize('version,expected_calls', [(None, 1), (mq.RESEARCH_VERSION - 1, 1), (mq.RESEARCH_VERSION, 0)])
+def test_research_upgrade_bypasses_cooldown_and_cached_failure(rig, monkeypatch, version, expected_calls):
+    import time
+    manager, store, queue = rig
+    r = valid_record()
+    store.put('prospect:company_1', dict(company_id='company_1', website=r['website'],
+        name=r['business'], state='NEEDS_RESEARCH', last_attempt=time.time(),
+        research_version=version, research={**r, 'qualification_status':'NEEDS_RESEARCH'}))
+    investigate = MagicMock(return_value=None)
+    monkeypatch.setattr(mq.StrictResearcher, 'investigate', investigate)
+    manager.run()
+    assert investigate.call_count == expected_calls
+    if expected_calls:
+        assert store.get('prospect:company_1')['research_version'] == mq.RESEARCH_VERSION
+        investigate.reset_mock()
+        manager.run()
+        assert investigate.call_count == 0
+
+
+def test_ten_priority_drafts_meet_review_goal(rig):
+    manager, store, queue = rig
+    manager.target_queue = 10
+    queue.extend(valid_record(i) for i in range(10))
+    result = manager.run(publish_only=True)
+    assert result['status'] == 'READY'
+    assert result['shortage'] == 0
+
+
+@pytest.mark.parametrize('industry,observation,expected', [
+    ('restaurant', 'For table bookings email us', 'table reservations'),
+    ('hospitality', 'For room bookings email us', 'guest bookings'),
+    ('education', 'Email admissions to us', 'admissions'),
+    ('events', 'Email event inquiries to us', 'event bookings'),
+    ('architecture', 'Email inquiries to us', 'customer inquiries'),
+])
+def test_opportunity_matches_industry(industry, observation, expected):
+    from src.strict_research import workflow_opportunity
+    copy = workflow_opportunity(industry, 'DIRECT_EMAIL_INTAKE', observation)
+    assert expected in copy
+    if industry != 'education':
+        assert 'admissions' not in copy
+    assert 'menu access' in workflow_opportunity('hospitality', 'MANUAL_WORKFLOW', 'Download our menu')

@@ -48,3 +48,18 @@ vm.runInContext('approvedSender()',testContext);
 assert.equal(attempts,1,'One remaining recipient budget permits only one uncertain attempt');
 assert.equal(Number(props.get('SENT_2026-10-22')),50);
 console.log('Apps Script runtime: ambiguous provider outcomes respect the 50-recipient cap');
+
+// Production stop paths must stay stopped without invoking any Gmail service.
+props.set('ENABLE_SENDING', 'YES');
+context.emergencyStop();
+context.approvedSender();
+assert.equal(props.get('ENABLE_SENDING'), 'NO');
+assert.equal(props.get('EMERGENCY_STOP_ACTIVE'), 'YES');
+props.set('EMERGENCY_STOP_ACTIVE', 'NO');
+context.approvedSender();
+assert.equal(props.get('ENABLE_SENDING'), 'NO', 'Disabled sending must never auto-activate');
+for (const key of ['company_id','email_source_url','observation_url','opportunity','proof_url','last_verified_at','alt_opening_1','alt_opening_2','qualification_status','proof_verified','mail_domain_status']) {
+  const incomplete = {...r, updated_at:new Date().toISOString()};
+  delete incomplete[key];
+  assert.equal(context.reviewableRecord(incomplete), false, 'Missing evidence must fail: ' + key);
+}

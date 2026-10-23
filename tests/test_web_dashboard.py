@@ -36,7 +36,7 @@ def test_html_dashboard_integrity():
 
     # 2. Section 1: Overview
     assert "tab-overview" in content
-    assert "Morning Target: 50 Grounded Cold Email Drafts" in content
+    assert "Morning Target: 10 High-Priority Cold Email Drafts" in content
     assert "kpi-readyToReview" in content
     assert "kpi-approved" in content
     assert "kpi-sentToday" in content
