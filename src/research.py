@@ -1,6 +1,7 @@
 """Deep website investigation, verifiable signal extraction, and qualification scoring."""
 
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
@@ -27,6 +28,14 @@ NAVIGATION_KEYWORDS = (
     "team",
     "careers",
     "booking",
+    "menu",
+    "reservation",
+    "reservations",
+    "order",
+    "catering",
+    "banquet",
+    "rooms",
+    "tariff",
 )
 
 
@@ -209,7 +218,7 @@ class ProspectResearcher:
 
         from hashlib import sha256
         lead_id = f"lead_{sha256((target_domain + '|' + public_email).encode()).hexdigest()[:16]}"
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(ZoneInfo("Asia/Kolkata")).isoformat()
         priority_tier = "TOP_10_PRIORITY" if score >= 80 else ("SECONDARY_BACKLOG" if is_qualified else "NEEDS_RESEARCH")
 
         return {

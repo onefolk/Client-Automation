@@ -13,11 +13,12 @@ class StrictResearcher(ProspectResearcher):
     def _formulate_observation(self, base_url, contexts, signals):
         # 1. Manual / offline document or form workflow
         manual_pattern = re.compile(
-            r'[^.!?]{0,100}(?:download[^.!?]{0,50}(?:application|registration|booking|admission|enrollment|membership|prospectus|brochure) form|'
+            r'[^.!?]{0,100}(?:download[^.!?]{0,50}(?:application|registration|booking|admission|enrollment|membership|prospectus|brochure|menu|catalog|catalogue|rate card|tariff) form|'
             r'(?:email|send|submit|forward)[^.!?]{0,65}(?:completed|filled|duly filled)[^.!?]{0,25}form|'
             r'(?:print|collect|submit in person)[^.!?]{0,50}(?:form|application)|'
             r'submit (?:the )?(?:application|form) (?:in person|to the (?:admission|office)|by post|by courier)|'
-            r'download (?:the )?(?:admission|registration|application) (?:form|prospectus|brochure))[^.!?]{0,80}',
+            r'download (?:the )?(?:admission|registration|application|menu|tariff|brochure|catalogue) (?:form|prospectus|brochure|pdf)|'
+            r'download (?:our |the )?(?:food |dining |takeaway |room |banquet |catering )?menu(?: pdf)?)[^.!?]{0,80}',
             re.I
         )
         for text, url in contexts:
@@ -25,11 +26,12 @@ class StrictResearcher(ProspectResearcher):
             if match:
                 return 'Your site states: "' + match.group(0).strip()[:160] + '".', url, 'MANUAL_WORKFLOW'
 
-        # 2. Direct email intake for admissions or inquiries
+        # 2. Direct email intake for admissions, inquiries, orders, bookings, reservations
         intake_pattern = re.compile(
-            r'[^.!?]{0,80}(?:(?:email|send|forward|submit|mail)\s+(?:all\s+)?(?:inquir(?:y|ies)|enquir(?:y|ies)|admissions?|applications?|queries)\s+to\s+[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|'
-            r'for admissions?(?:\s+inquiries)?(?:,\s*|\s+)?(?:please\s+)?(?:contact|email|reach us at)\s+[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|'
-            r'for enquiries?(?:\s+and admissions?)?(?:,\s*|\s+)?(?:please\s+)?(?:contact|email|reach us at)\s+[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})[^.!?]{0,80}',
+            r'[^.!?]{0,80}(?:(?:email|send|forward|submit|mail)\s+(?:all\s+)?(?:inquir(?:y|ies)|enquir(?:y|ies)|admissions?|applications?|queries|orders?|reservations?|bookings?|feedback)\s+to\s+[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|'
+            r'for (?:admissions?|enquir(?:y|ies)|inquir(?:y|ies)|bookings?|reservations?|table bookings?|room bookings?|orders?|quotations?|feedback|events?|banquets?|catering)(?:\s+inquiries)?(?:,\s*|\s+)?(?:please\s+)?(?:contact|email|reach us at|mail)\s+[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|'
+            r'(?:table|room|banquet|event|hall|catering)\s+reservations?(?:\s+or\s+inquiries)?(?:,\s*|\s+)?(?:please\s+)?(?:contact|email|reach us at|mail)\s+[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|'
+            r'contact us (?:for|at)\s+[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\s+(?:for|to)\s+(?:reservations?|bookings?|orders?|inquiries|quotes?))[^.!?]{0,80}',
             re.I
         )
         for text, url in contexts:

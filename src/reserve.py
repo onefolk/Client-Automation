@@ -1,6 +1,9 @@
 """Durable Sheet checkpoints. No local cache is authoritative."""
 import json
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+IST = ZoneInfo("Asia/Kolkata")
 
 class ReserveStore:
     def __init__(self, sheets):
@@ -14,7 +17,7 @@ class ReserveStore:
         return self.data.get(key, default)
 
     def put(self, key, value):
-        row = [key, json.dumps(value, ensure_ascii=True), datetime.now(timezone.utc).isoformat()]
+        row = [key, json.dumps(value, ensure_ascii=True), datetime.now(IST).isoformat()]
         if key in self.indices:
             self.ws.update(range_name=f'A{self.indices[key]}:C{self.indices[key]}', values=[row], value_input_option='RAW')
         else:
@@ -29,7 +32,7 @@ class ReserveStore:
         rows=[]
         for key,value in records.items():
             if key not in self.data:
-                rows.append([key,json.dumps(value,ensure_ascii=True),datetime.now(timezone.utc).isoformat()])
+                rows.append([key,json.dumps(value,ensure_ascii=True),datetime.now(IST).isoformat()])
         if rows: self.ws.append_rows(rows,value_input_option='RAW')
         for key,raw,_ in rows:
             self.indices[key]=len(self.indices)+2

@@ -2030,7 +2030,7 @@
         if (elBadge) elBadge.textContent = top10;
 
         const elLastSuccess = document.getElementById('overviewLastSuccess');
-        if (elLastSuccess) elLastSuccess.textContent = sys.lastSuccess || 'None';
+        if (elLastSuccess) elLastSuccess.textContent = sys.lastSuccess ? formatIST(sys.lastSuccess) : 'None';
         const elMailQuota = document.getElementById('overviewMailQuota');
         if (elMailQuota) elMailQuota.textContent = (sys.remainingMailQuota || 0) + ' remaining';
 
@@ -2467,7 +2467,7 @@
         obsSource.href = lead.observation_url || site;
         obsSource.textContent = lead.observation_url || site;
 
-        document.getElementById('modalVerificationMeta').textContent = `Confidence: ${escapeHtml(lead.verification_confidence || 'Syntax + MX')} · Verified: ${escapeHtml(lead.last_verified_at || 'Recent')}`;
+        document.getElementById('modalVerificationMeta').textContent = `Confidence: ${escapeHtml(lead.verification_confidence || 'Syntax + MX')} · Verified: ${lead.last_verified_at ? formatIST(lead.last_verified_at) : 'Recent'}`;
 
         document.getElementById('modalAltOpening1').textContent = `"${lead.alt_opening_1 || 'No alternative opening 1'}"`;
         document.getElementById('modalAltOpening2').textContent = `"${lead.alt_opening_2 || 'No alternative opening 2'}"`;
@@ -2828,7 +2828,7 @@
         let html = '';
         state.campaigns.forEach(run => {
           const runId = escapeHtml(run.run_id || 'unknown');
-          const date = escapeHtml(run.campaign_date || 'N/A');
+          const date = escapeHtml(formatISTDate(run.campaign_date || run.start_time) || 'N/A');
           const trigger = escapeHtml(run.trigger || 'schedule');
           const disc = run.prospects_discovered || run.newly_discovered_today || 0;
           const qual = run.qualified_leads || run.qualified_overnight || 0;
@@ -2837,6 +2837,7 @@
           const fetches = run.http_fetches_used || 0;
           const st = String(run.status || 'COMPLETED').toUpperCase();
           const reasons = Array.isArray(run.shortage_reasons) ? run.shortage_reasons.join('; ') : String(run.shortage_reasons || 'None');
+          const timeStr = run.start_time ? formatISTTime(run.start_time) : '';
 
           html += `
             <tr>
@@ -2846,7 +2847,7 @@
               </td>
               <td>
                 <span class="tag-industry">${trigger}</span>
-                <div class="lead-subtext" style="margin-top:2px;">${escapeHtml(run.start_time ? run.start_time.slice(11,19) : '')} UTC</div>
+                <div class="lead-subtext" style="margin-top:2px;">${escapeHtml(timeStr)}</div>
               </td>
               <td><strong>${disc}</strong></td>
               <td><span style="color:var(--color-success);font-weight:600;">${qual}</span></td>
@@ -2878,7 +2879,7 @@
 
         let html = '';
         state.replies.forEach(r => {
-          const date = escapeHtml(r.sent_at || r.updated_at || 'N/A');
+          const date = escapeHtml(formatIST(r.sent_at || r.updated_at) || 'N/A');
           const email = escapeHtml(r.recipient_email || 'N/A');
           const subject = escapeHtml(r.subject || 'Outreach');
           const status = escapeHtml(r.status || 'SENT');
@@ -2930,7 +2931,7 @@
         const testEl = document.getElementById('healthInternalTestState');
         if (testEl) {
           if (safety.internalTestVerified) {
-            testEl.textContent = 'VERIFIED (' + (safety.internalTestTimestamp ? safety.internalTestTimestamp.slice(0, 10) : 'RECENT') + ')';
+            testEl.textContent = 'VERIFIED (' + (safety.internalTestTimestamp ? formatIST(safety.internalTestTimestamp) : 'RECENT') + ')';
             testEl.style.color = '#15803D';
           } else {
             testEl.textContent = 'PENDING TEST';
@@ -2962,6 +2963,53 @@
       }, 3500);
     }
 
+    function formatIST(dateVal, includeTime = true) {
+      if (!dateVal || dateVal === 'NONE' || dateVal === 'None' || dateVal === 'N/A' || dateVal === 'Recent' || dateVal === 'RECENT') {
+        return (dateVal === 'Recent' || dateVal === 'RECENT') ? 'Recent' : 'None';
+      }
+      try {
+        const d = new Date(dateVal);
+        if (isNaN(d.getTime())) return String(dateVal);
+        const options = {
+          timeZone: 'Asia/Kolkata',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        };
+        if (includeTime) {
+          options.hour = '2-digit';
+          options.minute = '2-digit';
+          options.second = '2-digit';
+          options.hour12 = true;
+        }
+        const formatted = new Intl.DateTimeFormat('en-IN', options).format(d);
+        return includeTime ? `${formatted} IST` : formatted;
+      } catch (e) {
+        return String(dateVal);
+      }
+    }
+
+    function formatISTTime(dateVal) {
+      if (!dateVal || dateVal === 'NONE' || dateVal === 'None' || dateVal === 'N/A') return '';
+      try {
+        const d = new Date(dateVal);
+        if (isNaN(d.getTime())) return String(dateVal);
+        return new Intl.DateTimeFormat('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true
+        }).format(d) + ' IST';
+      } catch (e) {
+        return String(dateVal);
+      }
+    }
+
+    function formatISTDate(dateVal) {
+      return formatIST(dateVal, false);
+    }
+
     function escapeHtml(str) {
       if (!str) return '';
       return String(str)
@@ -2979,7 +3027,7 @@
             resolve({
               userEmail: 'team.onefolk@gmail.com',
               metrics: { readyToReview: 10, top10Priority: 10, secondaryBacklog: 15, needsResearch: 3, approved: 0, sent: 0, bounced: 0, positiveReplies: 0, meetingsBooked: 0, proposalsRequested: 0, convertedClients: 0, targetDailyGoal: 10, targetPriorityGoal: 10, maxDailyCapacity: 50 },
-              system: { sendingLocked: true, enableSending: 'NO', lastSuccess: '2026-10-22 03:00 UTC', remainingMailQuota: 100, shortage: 0 }
+              system: { sendingLocked: true, enableSending: 'NO', lastSuccess: '2026-10-23 08:30 IST', remainingMailQuota: 100, shortage: 0 }
             });
           } else if (method === 'apiGetApprovalQueue') {
             resolve({

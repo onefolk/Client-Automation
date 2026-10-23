@@ -1,15 +1,17 @@
 """One fail-closed definition of an independently reviewable draft."""
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 import re
 from src.config import load_portfolio
 from src.network import extract_domain
 from src.verifier import is_valid_syntax
 from src.email_validator import validate_email_body
 
+IST = ZoneInfo("Asia/Kolkata")
 FRESH_DAYS = 7
 
 def validate_queued_draft(row, now=None):
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(IST)
     required = ('lead_id','company_id','business','industry','website','public_email',
                 'email_source_url','observation','observation_url','opportunity',
                 'proof_project','proof_line','proof_url','last_verified_at',

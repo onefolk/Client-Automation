@@ -1249,7 +1249,10 @@ function apiSendInternalTestEmail(recipientEmail) {
     throw new Error('Google MailApp quota exhausted for today.');
   }
 
-  const subject = '[OneFolk System Test] Live Outbound Verification ' + new Date().toISOString().slice(11, 19) + ' UTC';
+  const istTimeStr = (typeof Utilities !== 'undefined' && Utilities.formatDate)
+    ? Utilities.formatDate(new Date(), 'Asia/Kolkata', 'HH:mm:ss') + ' IST'
+    : new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }) + ' IST';
+  const subject = '[OneFolk System Test] Live Outbound Verification ' + istTimeStr;
   const bodyText = 'This is an explicitly authorized test email from OneFolk Outreach Engine.\n\nOur team designed and built the OneFolk website.\n\nDoes this confirmation reach your inbox properly?';
   const formatted = formatOneFolkEmail(bodyText, 'OneFolk Operations');
 

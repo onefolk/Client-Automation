@@ -129,14 +129,15 @@ class SuppressionManager:
             val = extract_domain(val) or val
             self.suppressed_domains.add(val)
 
-        from datetime import datetime, timezone
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
         record = {
             "suppression_id": f"sup_{abs(hash(val)) % 1000000}",
             "type": kind,
             "value": val,
             "reason": reason,
             "source": source,
-            "added_at": datetime.now(timezone.utc).isoformat(),
+            "added_at": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(),
         }
         self.suppression_records.append(record)
         return record

@@ -2,6 +2,9 @@
 
 import argparse
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+IST = ZoneInfo("Asia/Kolkata")
 import json
 import logging
 import sys
@@ -30,7 +33,7 @@ def run_pipeline(
     campaign_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Executes the full discovery, research, drafting, and sheet sync pipeline."""
-    start_time = datetime.now(timezone.utc)
+    start_time = datetime.now(IST)
     logger.info("Starting OneFolk Outreach Pipeline (target: %d leads, dry_run=%s)", target_count, dry_run)
 
     # 1. Initialize Managers
@@ -144,7 +147,7 @@ def run_pipeline(
             needs_research_count += 1
             rejected_count += 1
 
-    end_time = datetime.now(timezone.utc)
+    end_time = datetime.now(IST)
     duration = int((end_time - start_time).total_seconds())
 
     if qualified_count < target_count:

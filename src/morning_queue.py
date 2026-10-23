@@ -40,7 +40,7 @@ class MorningQueueManager:
         self.sheets.initialize_schema()
         store = ReserveStore(self.sheets)
         started_monotonic = time.monotonic()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(IST)
         day = campaign_day(now)
         run_id = os.getenv('GITHUB_RUN_ID') or 'local_' + str(int(now.timestamp()))
         summary = {'run_id':run_id, 'campaign_date':day, 'start_time':now.isoformat(),
@@ -211,7 +211,7 @@ class MorningQueueManager:
                 )
             if summary['api_failures']: summary['shortage_reasons'].append('Groq output validation or API failures')
             summary['status'] = 'READY' if summary['shortage'] == 0 and not summary['api_failures'] else 'SHORTFALL'
-            summary['end_time']=datetime.now(timezone.utc).isoformat()
+            summary['end_time']=datetime.now(IST).isoformat()
             append_records(self.sheets,'Campaign Runs',[summary],key='run_id')
             # Dedicated metrics do not overwrite or inflate the legacy Dashboard counters.
             dash=self.sheets.ensure_tab('Morning Health',['Metric','Value'])
