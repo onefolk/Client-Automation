@@ -31,7 +31,7 @@ console.log('Apps Script runtime: interlock, evidence, auditable approval and po
 // A separate sandbox lifts ONLY the compile-time lock to exercise Gmail outcomes with mocks.
 const testContext={...context,LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})},
   MailApp:{getRemainingDailyQuota:()=>20}};
-testContext.Utilities={...context.Utilities,formatDate:()=> '2026-10-22',sleep(){}};
+testContext.Utilities={...context.Utilities,formatDate:(d,tz,fmt)=> fmt==='u HH:mm' ? '3 14:00' : fmt==='HH:mm' ? '14:00' : '2026-10-22',sleep(){}};
 let attempts=0;
 testContext.GmailApp={createDraft:()=>({send:()=>{attempts++;throw Error('Ambiguous provider timeout');}})};
 vm.createContext(testContext);

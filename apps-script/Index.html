@@ -2540,7 +2540,8 @@
 
       const hasProof = paragraphs.length >= 3 && /\bonefolk\b/i.test(paragraphs[paragraphs.length - 2]) && !paragraphs.slice(0,-2).some(p => /\bonefolk\b/i.test(p));
       const lastPara = paragraphs.length ? paragraphs[paragraphs.length - 1].trim() : '';
-      const hasQuestion = (paragraphs.join(' ').match(/\?/g) || []).length === 1 && lastPara.endsWith('?') && /^(could|would|may|can)\b/i.test(lastPara);
+      const textWithoutUrls = paragraphs.join(' ').replace(/https?:\/\/\S+/g, '');
+      const hasQuestion = (textWithoutUrls.match(/\?/g) || []).length === 1 && lastPara.endsWith('?') && /^(could|would|may|can)\s+/i.test(lastPara);
 
       document.getElementById('counterWords').textContent = words;
       document.getElementById('counterParas').textContent = paragraphs.length;
@@ -2557,7 +2558,7 @@
       if (![3,4].includes(paragraphs.length)) errors.push(`Use 3 or 4 paragraphs: observation, relevance, OneFolk capability and CTA.`);
       if (words < 40 || words > 120) errors.push(`Target 50–90 body words; allowed 40–120 (currently ${words}).`);
       if (!hasProof) errors.push('Introduce OneFolk after observation and relevance, before the CTA.');
-      if (paragraphs.length === 3 && paragraphs[0].split(/[.!?][”"’]?(?:\s+|$)/).length < 3) errors.push('Include observation and relevance sentences in the opening.');
+      if (paragraphs.length === 3 && paragraphs[0].split(/[.!?][”"’']?(?:\s+|$)/).length < 3) errors.push('Include observation and relevance sentences in the opening.');
       if (!hasQuestion) errors.push('Paragraph 4 must end with a straightforward, low-pressure question (?) requesting contact or discussion.');
 
       // Brand Tone & Voice Checks

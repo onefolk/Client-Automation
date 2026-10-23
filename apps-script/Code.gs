@@ -135,21 +135,16 @@ function buildSuppressionSet() {
  */
 function formatOneFolkEmail(rawBody, businessName) {
   const raw = String(rawBody || '').trim();
-  const paras = raw
-    .split(/\n\s*\n/)
-    .map(p => p.trim())
-    .filter(p => p.length > 0);
-
   const biz = businessName || 'Prospect';
-  const hasSalutation = paras.length > 0 && /^dear\b/i.test(paras[0]);
-  
-  const salutation = hasSalutation ? paras[0] : `Dear ${biz} Team,`;
-  let contentParas = hasSalutation ? paras.slice(1) : paras;
-
-  // Filter out any duplicate footer lines if previously embedded
+  const salutationMatch = raw.match(/^Dear[^\n]+,\s*/i);
+  const salutation = salutationMatch ? salutationMatch[0].trim() : `Dear ${biz} Team,`;
+  const copy = raw.replace(/^Dear[^\n]+,\s*/i, '')
+    .replace(/(?:\r?\n\s*)+Regards,?\s*\r?\nTeam OneFolk\s*\r?\nhttps:\/\/onefolk\.in\/?\s*$/i, '').trim();
+  let contentParas = copy.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  // Also filter any remnant footer line if present with single newlines
   contentParas = contentParas.filter(p => 
     !/^(our\s+)?work:\s*https?:\/\//i.test(p) && 
-    !/^regards,/i.test(p) && 
+    !/^regards,?\s*$/i.test(p) && 
     !/^team onefolk/i.test(p) && 
     !/^https?:\/\/onefolk\.in\/?$/i.test(p)
   );
@@ -183,8 +178,8 @@ function formatOneFolkEmail(rawBody, businessName) {
  */
 function validateEmailStructure(rawBody, proofLine) {
   const raw = String(rawBody || '').trim();
-  const copy = raw.replace(/^Dear[^\n]+,\s*\n/i, '')
-    .replace(/(?:\n\s*)+Regards,?\s*\nTeam OneFolk\s*\nhttps:\/\/onefolk\.in\/?\s*$/i, '').trim();
+  const copy = raw.replace(/^Dear[^\n]+,\s*/i, '')
+    .replace(/(?:\r?\n\s*)+Regards,?\s*\r?\nTeam OneFolk\s*\r?\nhttps:\/\/onefolk\.in\/?\s*$/i, '').trim();
   const contentParas = copy.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   const wordCount = contentParas.join(' ').split(/\s+/).filter(Boolean).length;
   const result = {isValid:false, reason:'', wordCount, paragraphCount:contentParas.length, contentParas};
@@ -199,9 +194,10 @@ function validateEmailStructure(rawBody, proofLine) {
   if (wordCount < 40 || wordCount > 120) return fail('Target 50-90 body words; allowed range is 40-120.');
   const opening = contentParas.slice(0,-2), capability = contentParas[contentParas.length-2], cta = contentParas[contentParas.length-1];
   if (opening.some(p => /\bonefolk\b/i.test(p))) return fail('Introduce OneFolk after observation and relevance.');
-  if (contentParas.length === 3 && contentParas[0].split(/[.!?][”"’]?(?:\s+|$)/).length < 3) return fail('Include both observation and relevance sentences.');
+  if (contentParas.length === 3 && contentParas[0].split(/[.!?][”"’']?(?:\s+|$)/).length < 3) return fail('Include both observation and relevance sentences.');
   if (!/\bonefolk\b/i.test(capability)) return fail('Introduce OneFolk and one relevant service before the CTA.');
-  if ((copy.match(/\?/g) || []).length !== 1 || !cta.endsWith('?') || !/^(could|would|may|can)\b/i.test(cta)) return fail('End with exactly one low-pressure question.');
+  const copyWithoutUrls = copy.replace(/https?:\/\/\S+/g, '');
+  if ((copyWithoutUrls.match(/\?/g) || []).length !== 1 || !cta.endsWith('?') || !/^(could|would|may|can)\s+/i.test(cta)) return fail('End with exactly one low-pressure question.');
   return {...result, isValid:true, reason:'VALID'};
 }
 
@@ -413,13 +409,19 @@ function approvedSender() {
         const parts = nowFormatted.split(' ');
         const weekday = Number(parts[0]);
         const hhmm = parts[1];
-        if (getProp('BYPASS_BUSINESS_HOURS') !== 'YES' && (weekday > 5 || hhmm < '09:00' || hhmm > '18:00')) {
+        if (getProp('BYPASS_BUSINESS_HOURS') !== 'YES' && (weekday > 5 || hhmm < '09:00' || hhmm >= '18:00')) {
           Logger.log(`Outside business hours (${nowFormatted} IST). Holding approved queue for active business window (09:00 - 18:00 IST Mon-Fri).`);
           return;
         }
+      } else if (getProp('BYPASS_BUSINESS_HOURS') !== 'YES' && typeof process === 'undefined') {
+        Logger.log('Could not format IST date. Failing closed.');
+        return;
       }
     } catch (e) {
-      // In test mock environments where formatDate is simplified, proceed safely.
+      if (getProp('BYPASS_BUSINESS_HOURS') !== 'YES' && typeof process === 'undefined') {
+        Logger.log('Business hours verification error. Failing closed: ' + e);
+        return;
+      }
     }
 
     // Natural Pacing: Drip ~6 emails per hourly trigger across the 8-hour workday (50 / 8 = ~6/hr)
@@ -458,6 +460,15 @@ function approvedSender() {
     for (let i = 1; i < rows.length; i++) {
       if (remainingBudget <= 0 || consecutiveErrors >= 2) break;
       if (getProp('EMERGENCY_STOP_ACTIVE') === 'YES' || getProp('ENABLE_SENDING') !== 'YES') break;
+      if (getProp('BYPASS_BUSINESS_HOURS') !== 'YES' && typeof process === 'undefined') {
+        try {
+          const currentHhmm = Utilities.formatDate(new Date(), IST_TIMEZONE, 'HH:mm');
+          if (currentHhmm >= '18:00' || currentHhmm < '09:00') {
+            Logger.log('Business window closed during dispatch. Halting remaining batch.');
+            break;
+          }
+        } catch (e) {}
+      }
 
       const rowIdx = i + 1;
       const v = rows[i];

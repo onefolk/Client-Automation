@@ -31,12 +31,12 @@ def voice_error(text):
 def parse_email_paragraphs(raw_body: str) -> Tuple[Optional[str], List[str]]:
     raw = str(raw_body or "").strip()
     salutation = None
-    match = re.match(r"^(Dear[^\n]+,)\s*\n", raw, re.I)
+    match = re.match(r"^(Dear[^\n]+,)\s*\r?\n+", raw, re.I)
     if match:
-        salutation = match.group(1)
+        salutation = match.group(1).strip()
         raw = raw[match.end():].strip()
     # Strip only a trailing, recognized envelope, never arbitrary body paragraphs.
-    raw = re.sub(r"(?:\n\s*)+Regards,?\s*\nTeam OneFolk\s*\nhttps://onefolk\.in/?\s*$", "", raw, flags=re.I)
+    raw = re.sub(r"(?:\r?\n\s*)+Regards,?\s*\r?\nTeam OneFolk\s*\r?\nhttps://onefolk\.in/?\s*$", "", raw, flags=re.I)
     return salutation, [p.strip() for p in re.split(r"\n\s*\n", raw) if p.strip()]
 
 
@@ -57,12 +57,13 @@ def validate_email_body(raw_body: str, proof_line: Optional[str] = None) -> Tupl
     capability, cta = paragraphs[-2:]
     if any(re.search(r"\bonefolk\b", p, re.I) for p in opening):
         return False, "Introduce OneFolk only after the observation and relevance.", details
-    if len(paragraphs) == 3 and len(re.split(r'[.!?][”"’]?(?:\s+|$)', paragraphs[0].strip())) < 3:
+    if len(paragraphs) == 3 and len(re.split(r'[.!?][”"’\']?(?:\s+|$)', paragraphs[0].strip())) < 3:
         return False, "The combined opening needs both an observation and a relevance sentence.", details
     if not re.search(r"\bonefolk\b", capability, re.I):
         return False, "The capability paragraph must introduce OneFolk and one relevant service.", details
-    if sum(p.count('?') for p in paragraphs) != 1 or not cta.endswith('?'):
+    body_no_urls = re.sub(r'https?://\S+', '', " ".join(paragraphs))
+    if body_no_urls.count('?') != 1 or not cta.endswith('?'):
         return False, "End with exactly one low-pressure question.", details
-    if not re.match(r"^(?:could|would|may|can)\b", cta, re.I):
+    if not re.match(r"^(?:could|would|may|can)\s+", cta, re.I):
         return False, "Use a low-pressure CTA asking for the appropriate contact or a conversation.", details
     return True, "VALID", details

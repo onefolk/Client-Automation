@@ -17,7 +17,8 @@ def validate_queued_draft(row, now=None):
                 'proof_project','proof_line','proof_url','last_verified_at',
                 'subject','email_body','alt_opening_1','alt_opening_2')
     for key in required:
-        if not str(row.get(key, '')).strip():
+        val = row.get(key)
+        if val is None or not str(val).strip() or str(val).strip() == 'None':
             return False, 'Missing ' + key
     if row.get('qualification_status') != 'QUALIFIED':
         return False, 'Research incomplete'
