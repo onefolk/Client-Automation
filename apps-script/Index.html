@@ -1993,6 +1993,7 @@
         }
 
         const m = data.metrics || {};
+        const sys = data.system || {};
         const top10 = m.top10Priority !== undefined ? m.top10Priority : (m.readyToReview || 0);
         const secondary = m.secondaryBacklog || 0;
 
@@ -2028,7 +2029,6 @@
         const elBadge = document.getElementById('navQueueBadge');
         if (elBadge) elBadge.textContent = top10;
 
-        const sys = data.system || {};
         const elLastSuccess = document.getElementById('overviewLastSuccess');
         if (elLastSuccess) elLastSuccess.textContent = sys.lastSuccess || 'None';
         const elMailQuota = document.getElementById('overviewMailQuota');
