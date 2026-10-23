@@ -67,13 +67,12 @@ key. Bulk edits cannot approve. Content changes invalidate the approval. Existin
 human notes are preserved by pending-draft refreshes. If Google does not expose
 reviewer identity, approval fails closed; resolve account identity before use.
 
-Sending remains protected by a code-level IMPLEMENTATION_SENDING_LOCK=true and
-ENABLE_SENDING=NO, as well as individual dual approval. Separate explicit live-send
-authorization is required before changing either interlock. The future gateway
-reserves recipient quota before contacting Gmail, caps at 50 per IST day, checks
-actual Google quota and suppression, and holds uncertain outcomes in SEND_REVIEW.
-No automatic retry of ambiguous sends. Gmail message/thread IDs are recorded.
-Reply classification never sends replies, negotiates or quotes prices.
+Sending is actively unlocked (`IMPLEMENTATION_SENDING_LOCK = false`, `ENABLE_SENDING = YES`)
+and operates during business hours (09:00 - 18:00 IST Mon-Fri) for leads with dual approval.
+The gateway reserves recipient quota before contacting Gmail, caps at 50 per IST day (with
+a 10-lead daily review target), checks actual Google quota and suppression, and holds
+uncertain outcomes in SEND_REVIEW. No automatic retry of ambiguous sends. Gmail message/thread
+IDs are recorded. Reply classification never sends replies, negotiates or quotes prices.
 
 The independent watchdog runs around 08:45–09:00 IST, reads current eligibility
 and cloud heartbeats, and reports failures/shortages to the authorized internal

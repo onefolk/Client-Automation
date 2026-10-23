@@ -222,10 +222,13 @@ Every lead presented in the **Approval Queue** has:
    - `Suppressed or duplicate`: Filtered out automatically.
 
 ### Dual-Key Human Approval Protocol
-- **Live Gmail Sending is STRICTLY DISABLED** by default (`ENABLE_SENDING=false`).
-- In the **Approval Queue** tab:
-  - All new records arrive with `status = DRAFTED` and `approval = ""` (blank).
-  - To authorize a lead for sending, set BOTH `status = APPROVED` and `approval = APPROVED`.
-  - The scheduled Apps Script gateway strictly enforces a daily ceiling of **50 recipients per IST calendar day**.
+- **Live Gmail Sending Status**: Live sending is active (`IMPLEMENTATION_SENDING_LOCK=false`, `ENABLE_SENDING=YES`) and restricted strictly to business hours (09:00 - 18:00 IST Mon-Fri).
+- **Daily Targets**:
+  - **Operator Daily Review Goal**: 10 priority leads per morning.
+  - **Maximum Daily Pipeline Ceiling**: 50 recipients per Indian Standard Time (IST) calendar day.
+- In the **Approval Queue** tab / Web Dashboard:
+  - All new records arrive with `status = AWAITING_REVIEW` and `approval = PENDING`.
+  - To authorize a lead for sending, set BOTH `status = APPROVED` and `approval = APPROVED` (handled automatically via the Dashboard "Approve" button).
+  - Content changes automatically invalidate prior approvals and recalculate fingerprints.
   - Rejected drafts marked `REJECTED` are permanently skipped and never dispatched.
 
