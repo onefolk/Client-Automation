@@ -873,6 +873,35 @@ assert.equal(unauthVals[qHeaders.indexOf('approval')], 'PENDING');
 assert.equal(scriptProps.get('APPROVAL_' + directLeadId), '');
 assert.equal(scriptProps.get('APPROVAL_META_' + directLeadId), '');
 
+// 5. Unverified event user (e.user undefined/null) must be rejected, leave row pending, set redirect note
+mockContext.testUnverifiedEvent = {
+  range: {
+    getSheet: () => directQueueSheet,
+    getNumRows: () => 1,
+    getNumColumns: () => 1,
+    getColumn: () => approvalColIdx,
+    getRow: () => directRowIdx,
+    getLastRow: () => directRowIdx
+  },
+  value: 'APPROVED',
+  user: null
+};
+vm.runInContext('auditApprovalEdit(testUnverifiedEvent)', mockContext);
+const unverifiedVals = directQueueSheet.getDataRange().getValues()[directRowIdx - 1];
+assert.equal(unverifiedVals[qHeaders.indexOf('status')], 'AWAITING_REVIEW');
+assert.equal(unverifiedVals[qHeaders.indexOf('approval')], 'PENDING');
+assert.equal(unverifiedVals[qHeaders.indexOf('reviewer_notes')], 'Direct approval requires verified user email. Please approve via OneFolk Dashboard.');
+assert.equal(scriptProps.get('APPROVAL_' + directLeadId), '');
+assert.equal(scriptProps.get('APPROVAL_META_' + directLeadId), '');
+
+// Check audit log for UNVERIFIED_EDITOR
+const directAuditSheet = sheetStore.get('Approval Audit');
+assert.ok(directAuditSheet, 'Approval Audit sheet must exist');
+const unverifiedAuditRows = directAuditSheet.getDataRange().getValues();
+const lastAudit = unverifiedAuditRows[unverifiedAuditRows.length - 1];
+assert.equal(lastAudit[1], directLeadId);
+assert.equal(lastAudit[3], 'UNVERIFIED_EDITOR');
+
 // Clean up
 const cleanVals = directQueueSheet.getDataRange().getValues();
 cleanVals.pop();

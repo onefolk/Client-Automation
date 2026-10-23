@@ -204,10 +204,12 @@ def test_transactional_update_row_fails_closed():
     ws.row_values.return_value = ["lead_1", "AWAITING_REVIEW", "PENDING", "Acme", "Keep note", ""]
     ok = transactional_update_row(ws, 2, columns, {"status": "AWAITING_REVIEW", "approval": "PENDING"}, {"business": "Acme Updated"}, "Approval Queue")
     assert ok is True
-    ws.update.assert_called_once()
-    written_row = ws.update.call_args[1]["values"][0]
-    assert written_row[3] == "Acme Updated"
-    assert written_row[4] == "Keep note"  # Preserved reviewer notes
+    ws.batch_update.assert_called_once()
+    payload = ws.batch_update.call_args[0][0]
+    ranges = {item['range']: item['values'][0] for item in payload}
+    assert 'D2' in ranges and ranges['D2'][0] == "Acme Updated"
+    # Operator columns (B2: status, C2: approval, E2: reviewer_notes) are strictly excluded from update payload
+    assert 'B2' not in ranges and 'C2' not in ranges and 'E2' not in ranges
 
 
 def test_transactional_update_row_intervening_approval_fails_closed():
@@ -228,7 +230,90 @@ def test_transactional_update_row_intervening_approval_fails_closed():
         "Approval Queue"
     )
     assert ok is False
+    ws.batch_update.assert_not_called()
     ws.update.assert_not_called()
+
+
+def test_transactional_update_row_separates_operator_inputs_and_prevents_concurrent_overwrite():
+    from src.reserve import transactional_update_row
+
+    class ConcurrentMockWorksheet:
+        def __init__(self):
+            self.row = ["lead_1", "AWAITING_REVIEW", "PENDING", "Acme", "Operator note", "2026-10-23T00:00:00"]
+            self.batch_updates = []
+
+        def row_values(self, idx):
+            snapshot = list(self.row)
+            # Simulate human operator or Apps Script approving lead immediately after read
+            self.row[1] = "APPROVED"
+            self.row[2] = "APPROVED"
+            self.row[4] = "Approved by operator"
+            return snapshot
+
+        def batch_update(self, payload, **kwargs):
+            self.batch_updates.append(payload)
+
+    ws = ConcurrentMockWorksheet()
+    columns = ["lead_id", "status", "approval", "business", "reviewer_notes", "updated_at"]
+
+    # When compare-before-commit re-reads the row, it detects intervening approval and fails closed
+    ok = transactional_update_row(
+        ws, 2, columns,
+        {"status": "AWAITING_REVIEW", "approval": "PENDING", "business": "Acme"},
+        {"business": "Acme Concurrent Refreshed", "status": "AWAITING_REVIEW", "approval": "PENDING"},
+        "Approval Queue"
+    )
+    # 1. Pipeline fails closed because lead was approved
+    assert ok is False
+    # 2. Operator columns were preserved and NEVER overwritten with AWAITING_REVIEW / PENDING
+    assert ws.row[1] == "APPROVED"
+    assert ws.row[2] == "APPROVED"
+    assert ws.row[4] == "Approved by operator"
+    # 3. No update was executed against the approved row
+    assert len(ws.batch_updates) == 0
+
+
+def test_pipeline_update_payload_never_contains_operator_columns():
+    from src.reserve import transactional_update_row
+
+    class OperatorIsolationWorksheet:
+        def __init__(self):
+            self.row = ["lead_1", "AWAITING_REVIEW", "PENDING", "Acme", "Operator note", "2026-10-23T00:00:00"]
+            self.batch_updates = []
+
+        def row_values(self, idx):
+            return list(self.row)
+
+        def batch_update(self, payload, **kwargs):
+            self.batch_updates.append(payload)
+            for item in payload:
+                rng = item['range']
+                vals = item['values'][0]
+                if 'D' in rng:
+                    self.row[3] = vals[0]
+
+    ws = OperatorIsolationWorksheet()
+    columns = ["lead_id", "status", "approval", "business", "reviewer_notes", "updated_at"]
+
+    # Pipeline attempts to propose status and approval values in new_record
+    ok = transactional_update_row(
+        ws, 2, columns,
+        {"status": "AWAITING_REVIEW", "approval": "PENDING", "business": "Acme"},
+        {"business": "Acme Updated", "status": "AWAITING_REVIEW", "approval": "PENDING", "reviewer_notes": "Bot note"},
+        "Approval Queue"
+    )
+    assert ok is True
+    # Verify that status (B), approval (C), and reviewer_notes (E) are NEVER in any batch update range
+    assert len(ws.batch_updates) == 1
+    for item in ws.batch_updates[0]:
+        rng = item['range']
+        assert 'B' not in rng, f"Status column B leaked into update range {rng}"
+        assert 'C' not in rng, f"Approval column C leaked into update range {rng}"
+        assert 'E' not in rng, f"Reviewer notes column E leaked into update range {rng}"
+    # Business was updated
+    assert ws.row[3] == "Acme Updated"
+    # Operator note was untouched
+    assert ws.row[4] == "Operator note"
 
 
 def test_transactional_update_row_draft_edit_fails_closed():
@@ -288,7 +373,7 @@ def test_serialized_mutation_gateway_thread_safety():
         t.join()
 
     assert all(results)
-    assert ws.update.call_count == 4
+    assert ws.batch_update.call_count == 4
 
 
 def test_compute_row_version_deterministic():

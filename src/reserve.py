@@ -9,11 +9,15 @@ from zoneinfo import ZoneInfo
 IST = ZoneInfo("Asia/Kolkata")
 
 
+OPERATOR_COLUMNS = frozenset({'status', 'approval', 'reviewer_notes'})
+
+
 class SerializedMutationGateway:
     """
     Shared serialized mutation gateway for Google Sheets.
     Enforces thread-safe serialized execution, actual row-version checking,
-    and compare-before-commit verification to prevent overwriting concurrent
+    separation of operator inputs from pipeline-owned data, and
+    compare-before-commit verification to prevent overwriting concurrent
     approvals and draft edits.
     """
     def __init__(self):
@@ -41,7 +45,8 @@ class SerializedMutationGateway:
     def update_row(self, ws, row_idx: int, columns: list, expected_record: dict, new_record: dict, tab: str) -> bool:
         """
         Transactionally updates a row under serialization lock with actual
-        row-version checking and compare-before-commit verification.
+        row-version checking, separation of operator inputs from pipeline data,
+        and fail-closed terminal state protection.
         Fails closed (returns False) on read errors, concurrent approvals, or draft edits.
         """
         with self._lock:
@@ -89,17 +94,22 @@ class SerializedMutationGateway:
                             # Draft edit (subject, body, reviewer_notes, etc.) detected: fail closed
                             return False
 
-            # 4. Prepare proposed update payload
-            merged = {**live_row, **new_record}
-            if live_row.get('reviewer_notes'):
-                merged['reviewer_notes'] = live_row['reviewer_notes']
+            # 4. Prepare proposed update payload with strict separation of operator inputs
+            sanitized_new = dict(new_record)
+            if tab == 'Approval Queue':
+                # Automated pipeline never proposes or mutates operator decision columns
+                for op_col in OPERATOR_COLUMNS:
+                    sanitized_new.pop(op_col, None)
+
+            merged = {**live_row, **sanitized_new}
+            if tab == 'Approval Queue':
+                for op_col in OPERATOR_COLUMNS:
+                    merged[op_col] = live_row.get(op_col, '')
+
             if 'updated_at' in columns:
                 merged['updated_at'] = datetime.now(IST).isoformat()
 
-            row_data = [merged.get(h, '') for h in columns]
-
             # 5. Compare-before-commit verification
-            # Immediately re-read target row to guarantee no approval or draft edit arrived between read and commit
             try:
                 pre_commit_vals = ws.row_values(row_idx)
             except Exception:
@@ -124,7 +134,39 @@ class SerializedMutationGateway:
                 return False
 
             # 6. Execute atomic write
-            ws.update(range_name=f'A{row_idx}', values=[row_data], value_input_option='RAW')
+            # For Approval Queue, separate operator inputs: write only pipeline-owned columns
+            if tab == 'Approval Queue':
+                from gspread.utils import rowcol_to_a1
+                update_ranges = []
+                current_start = None
+                for i, col in enumerate(columns):
+                    if col not in OPERATOR_COLUMNS:
+                        if current_start is None:
+                            current_start = i
+                    else:
+                        if current_start is not None:
+                            update_ranges.append((current_start, i - 1))
+                            current_start = None
+                if current_start is not None:
+                    update_ranges.append((current_start, len(columns) - 1))
+
+                batch_payload = []
+                for s_idx, e_idx in update_ranges:
+                    s_a1 = rowcol_to_a1(row_idx, s_idx + 1)
+                    e_a1 = rowcol_to_a1(row_idx, e_idx + 1)
+                    rng = f"{s_a1}:{e_a1}" if s_idx != e_idx else s_a1
+                    vals = [merged.get(columns[k], '') for k in range(s_idx, e_idx + 1)]
+                    batch_payload.append({'range': rng, 'values': [vals]})
+
+                if hasattr(ws, 'batch_update') and callable(getattr(ws, 'batch_update')):
+                    ws.batch_update(batch_payload, value_input_option='RAW')
+                else:
+                    for item in batch_payload:
+                        ws.update(range_name=item['range'], values=item['values'], value_input_option='RAW')
+            else:
+                row_data = [merged.get(h, '') for h in columns]
+                ws.update(range_name=f'A{row_idx}', values=[row_data], value_input_option='RAW')
+
             return True
 
 

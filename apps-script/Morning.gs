@@ -109,9 +109,18 @@ function auditApprovalEdit(e) {
       setProp('APPROVAL_'+r.lead_id,'');
       setProp('APPROVAL_META_'+r.lead_id,'');
       const individual=e.range.getNumRows()===1 && e.range.getNumColumns()===1 && e.range.getColumn()===approvalCol;
-      const reviewer=(e.user && typeof e.user.getEmail === 'function') ? e.user.getEmail() :
-                     (e && typeof e.user === 'string' && e.user) ? e.user :
-                     (typeof getAuthenticatedUserEmail === 'function' ? getAuthenticatedUserEmail() : '');
+
+      // Require verified event-user identity directly from the onEdit event.
+      // Never fall back to Session or effective user, which can misattribute approvals.
+      let reviewer = '';
+      if (e && e.user) {
+        if (typeof e.user.getEmail === 'function') {
+          reviewer = e.user.getEmail();
+        } else if (typeof e.user === 'string') {
+          reviewer = e.user;
+        }
+      }
+      reviewer = reviewer ? normalizeKey(reviewer) : '';
       const isAuthorized = reviewer && typeof isAuthorizedAdmin === 'function' && isAuthorizedAdmin(reviewer);
       const blocked=buildSuppressionSet();
       const isReviewable = reviewableRecord(r);
@@ -133,10 +142,16 @@ function auditApprovalEdit(e) {
           source: 'sheet_edit'
         };
         setProp('APPROVAL_META_'+r.lead_id, JSON.stringify(meta));
+      } else if (individual && e.value==='APPROVED' && !isAuthorized) {
+        const notesCol = headers.indexOf('reviewer_notes') + 1;
+        if (notesCol > 0) {
+          sheet.getRange(row, notesCol).setValue('Direct approval requires verified user email. Please approve via OneFolk Dashboard.');
+        }
       }
       let audit=getSpreadsheet().getSheetByName('Approval Audit');
       if (!audit) { audit=getSpreadsheet().insertSheet('Approval Audit'); audit.appendRow(['timestamp','lead_id','reviewer','action','fingerprint']); }
-      audit.appendRow([new Date().toISOString(),r.lead_id,reviewer||'UNIDENTIFIED',rejected?'REJECTED':approved?'APPROVED':'INVALIDATED',draftFingerprint(r)]);
+      const actionName = rejected ? 'REJECTED' : approved ? 'APPROVED' : (individual && e.value === 'APPROVED' && !isAuthorized) ? 'UNVERIFIED_EDITOR' : 'INVALIDATED';
+      audit.appendRow([new Date().toISOString(),r.lead_id,reviewer||'UNIDENTIFIED',actionName,draftFingerprint(r)]);
     }
   } finally { lock.releaseLock(); }
 }
