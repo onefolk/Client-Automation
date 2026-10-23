@@ -298,7 +298,7 @@ assert.equal(queueResult.leads.length, 1);
 const lead = queueResult.leads[0];
 assert.equal(lead.lead_id, 'lead_test_01');
 assert.equal(lead.business, 'Stella Maris College');
-assert.equal(lead.is_compliant, true, 'Lead with valid 4-para 70-120 words should be marked compliant');
+assert.equal(lead.is_compliant, true, 'Lead with valid 4-para 50-90 words should be marked compliant');
 
 // Filter by AWAITING_REVIEW
 const awaitingFilter = vm.runInContext("apiGetApprovalQueue({ status: 'AWAITING_REVIEW', page: 1, pageSize: 25 })", mockContext);
@@ -330,21 +330,21 @@ assert.equal(leadDetails.validationErrors.length, 0);
 // Test saving invalid body (only 2 paragraphs)
 assert.throws(() => {
   vm.runInContext("apiSaveDraft('lead_test_01', 'Subject', 'Paragraph 1\\n\\nOur team designed and built the OneFolk website.')", mockContext);
-}, /Draft must contain exactly 4 content paragraphs/, 'Must reject email with 2 paragraphs');
+}, /Use observation, relevance|allowed range/, 'Must reject email with 2 paragraphs');
 
 // Test saving invalid body (only 3 paragraphs)
 assert.throws(() => {
   vm.runInContext("apiSaveDraft('lead_test_01', 'Subject', 'Para 1 observation.\\n\\nPara 2 recommendation.\\n\\nPara 3 OneFolk capabilities.')", mockContext);
-}, /Draft must contain exactly 4 content paragraphs/, 'Must reject email with 3 paragraphs');
+}, /Use observation, relevance|allowed range/, 'Must reject email with 3 paragraphs');
 
-// Test saving invalid body (exceeding 150 words)
+// Test saving invalid body (exceeding 120 words)
 const longBody = 'Para 1 observation.\n\n' + new Array(140).fill('word').join(' ') + '\n\nAt OneFolk we build modern web applications.\n\nCould you direct us to the right person?';
 mockContext.longBody = longBody;
 assert.throws(() => {
   vm.runInContext("apiSaveDraft('lead_test_01', 'Subject', longBody)", mockContext);
-}, /Draft word count .* out of range/, 'Must reject email exceeding word limits');
+}, /allowed range/, 'Must reject email exceeding word limits');
 
-console.log('✓ Strict 4-paragraph, 70-120 words, and proof line validation passed.\n');
+console.log('✓ Strict 4-paragraph, 50-90 words, and proof line validation passed.\n');
 
 // -----------------------------------------------------------------------------
 // TEST 6: Atomic Approval, SHA-256 Fingerprint & Audit Trail
@@ -622,3 +622,18 @@ assert.equal(invalidBatch.failedCount, 1);
 assert.equal(scriptProps.get('APPROVAL_lead_test_01'), undefined);
 assert.equal(JSON.stringify(qSheet.getDataRange().getValues()), beforeInvalidApproval);
 console.log('Missing-evidence approval regressions passed.');
+
+// Official sample passes both the gateway and review validator with envelope excluded.
+const officialBody = 'Dear Swarnandhra College Team,\n\nYour BCA course outcomes page displays “Website Under Construction.” Adding the relevant programme outcomes and syllabus information could help prospective students access essential course details more easily.\n\nAt OneFolk, we help institutions improve website content and structure.\n\nCould you direct us to the person responsible for website updates?\n\nRegards,\nTeam OneFolk\nhttps://onefolk.in/';
+mockContext.officialBody = officialBody;
+const officialValidation = vm.runInContext('validateEmailStructure(officialBody)', mockContext);
+assert.equal(officialValidation.isValid, true, officialValidation.reason);
+assert.equal(officialValidation.wordCount, 48);
+assert.equal(officialValidation.paragraphCount, 3);
+for (const phrase of ["I noticed", "I've noticed", 'my team', 'Unlock your business potential', 'Enhance your digital ecosystem', 'Optimise the customer journey', 'Reduce enquiry friction', 'Transform your digital presence', 'Drive exponential growth', 'Take your business to the next level', 'We have some exciting ideas']) {
+  mockContext.badCopy = officialBody.replace('Adding the relevant', phrase + ' adding the relevant');
+  assert.equal(vm.runInContext('validateEmailStructure(badCopy).isValid', mockContext), false, phrase);
+}
+const rendered = vm.runInContext("formatOneFolkEmail(officialBody, 'Swarnandhra College')", mockContext);
+assert.equal(rendered.plainText, officialBody);
+console.log('Official Team OneFolk writing-standard regression tests passed.');

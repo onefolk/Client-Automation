@@ -159,8 +159,6 @@ function formatOneFolkEmail(rawBody, businessName) {
     '',
     contentParas.join('\n\n'),
     '',
-    'Our work: https://onefolk.in/work',
-    '',
     'Regards,',
     'Team OneFolk',
     'https://onefolk.in/'
@@ -172,7 +170,6 @@ function formatOneFolkEmail(rawBody, businessName) {
     '<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; font-size: 14.5px; line-height: 1.65; color: #1C1B18; max-width: 600px;">',
     `  <p style="margin: 0 0 16px 0; font-weight: 500;">${escapeHtml(salutation)}</p>`,
     contentParas.map(p => `  <p style="margin: 0 0 16px 0; line-height: 1.65;">${escapeHtml(p)}</p>`).join('\n'),
-    '  <p style="margin: 20px 0 14px 0; color: #4A4843;">Our work: <a href="https://onefolk.in/work" style="color: #1C1B18; text-decoration: underline;">https://onefolk.in/work</a></p>',
     '  <p style="margin: 14px 0 0 0; line-height: 1.5; color: #1C1B18;">Regards,<br><strong>Team OneFolk</strong><br><a href="https://onefolk.in/" style="color: #1C1B18; text-decoration: underline;">https://onefolk.in/</a></p>',
     '</div>'
   ].join('\n');
@@ -182,62 +179,30 @@ function formatOneFolkEmail(rawBody, businessName) {
 
 /**
  * Single Authoritative Email Structure Validator for OneFolk Apps Script layer.
- * Validates the approved 4-paragraph structure (target 70-120 words).
+ * Validates the Team OneFolk structure (target 50-90 body words).
  */
 function validateEmailStructure(rawBody, proofLine) {
   const raw = String(rawBody || '').trim();
-  if (!raw) return { isValid: false, reason: 'Empty email body', wordCount: 0, paragraphCount: 0 };
-
-  const rawParas = raw.split(/\n\s*\n/).map(p => p.trim()).filter(p => p.length > 0);
-  const hasSalutation = rawParas.length > 0 && /^dear\b/i.test(rawParas[0]);
-  const paras = hasSalutation ? rawParas.slice(1) : rawParas;
-
-  // Filter out any trailing signatures if pasted in editor
-  const contentParas = paras.filter(p =>
-    !/^(our\s+)?work:\s*https?:\/\//i.test(p) &&
-    !/^regards,/i.test(p) &&
-    !/^team onefolk/i.test(p) &&
-    !/^https?:\/\/onefolk\.in\/?$/i.test(p)
-  );
-
-  const wordCount = contentParas.join(' ').split(/\s+/).filter(w => w.length > 0).length;
-
-  if (contentParas.length !== 4) {
-    return {
-      isValid: false,
-      reason: 'Draft must contain exactly 4 content paragraphs (found ' + contentParas.length + '). Structure: 1) Observation, 2) Recommendation, 3) OneFolk capability, 4) CTA question.',
-      wordCount: wordCount,
-      paragraphCount: contentParas.length
-    };
-  }
-
-  if (wordCount < 50 || wordCount > 150) {
-    return {
-      isValid: false,
-      reason: 'Draft word count (' + wordCount + ' words) out of range. Target is 70-120 words.',
-      wordCount: wordCount,
-      paragraphCount: contentParas.length
-    };
-  }
-
-  const para4 = contentParas[3].trim();
-  const hasCta = para4.endsWith('?') || /\b(open|speak|connect|chat|discuss|who|person|direct)\b/i.test(para4);
-  if (!hasCta) {
-    return {
-      isValid: false,
-      reason: 'Paragraph 4 must be a straightforward, low-pressure question requesting discussion or contact.',
-      wordCount: wordCount,
-      paragraphCount: contentParas.length
-    };
-  }
-
-  return {
-    isValid: true,
-    reason: 'VALID',
-    wordCount: wordCount,
-    paragraphCount: contentParas.length,
-    contentParas: contentParas
-  };
+  const copy = raw.replace(/^Dear[^\n]+,\s*\n/i, '')
+    .replace(/(?:\n\s*)+Regards,?\s*\nTeam OneFolk\s*\nhttps:\/\/onefolk\.in\/?\s*$/i, '').trim();
+  const contentParas = copy.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  const wordCount = contentParas.join(' ').split(/\s+/).filter(Boolean).length;
+  const result = {isValid:false, reason:'', wordCount, paragraphCount:contentParas.length, contentParas};
+  const fail = reason => ({...result, reason});
+  if (/\b(?:i(?:['’](?:m|ve|d|ll))?|my|mine|myself)\b/i.test(raw)) return fail('First-person singular is forbidden; use Team OneFolk voice.');
+  const banned = ['unlock your business potential','enhance your digital ecosystem','optimise the customer journey',
+    'optimize the customer journey','reduce enquiry friction','transform your digital presence','drive exponential growth',
+    'take your business to the next level','we have some exciting ideas','enquiry friction','opportunity worth exploring',
+    'guaranteed','urgent','limited time'];
+  if (banned.some(p => new RegExp('\\b' + p + '\\b', 'i').test(raw.replace(/\s+/g, ' ')))) return fail('Prohibited jargon or sales pressure.');
+  if (![3,4].includes(contentParas.length)) return fail('Use observation, relevance, OneFolk capability and CTA in 3 or 4 paragraphs.');
+  if (wordCount < 40 || wordCount > 120) return fail('Target 50-90 body words; allowed range is 40-120.');
+  const opening = contentParas.slice(0,-2), capability = contentParas[contentParas.length-2], cta = contentParas[contentParas.length-1];
+  if (opening.some(p => /\bonefolk\b/i.test(p))) return fail('Introduce OneFolk after observation and relevance.');
+  if (contentParas.length === 3 && contentParas[0].split(/[.!?][”"’]?(?:\s+|$)/).length < 3) return fail('Include both observation and relevance sentences.');
+  if (!/\bonefolk\b/i.test(capability)) return fail('Introduce OneFolk and one relevant service before the CTA.');
+  if ((copy.match(/\?/g) || []).length !== 1 || !cta.endsWith('?') || !/^(could|would|may|can)\b/i.test(cta)) return fail('End with exactly one low-pressure question.');
+  return {...result, isValid:true, reason:'VALID'};
 }
 
 /**
@@ -260,7 +225,7 @@ function isValidApprovedDraft(v, headerMap) {
   // Content requirements
   if (!subject || !body || !proofLine) return false;
 
-  // Validate approved 4-paragraph structure and word count (target 70-120 words)
+  // Validate Team OneFolk structure and word count (target 50-90 body words)
   const val = validateEmailStructure(body, proofLine);
   if (!val.isValid) return false;
 

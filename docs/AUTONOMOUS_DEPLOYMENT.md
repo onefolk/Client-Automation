@@ -107,3 +107,13 @@ WebApp.gs and Index.html together to activate Apps Script changes. Preserve live
 Script Properties; do not run installTriggers as a routine code update because
 that installer deliberately stops sending. A Git push alone does not deploy the
 bound Apps Script or update its versioned web app.
+
+## Team OneFolk Cold Email Writing Standard
+
+Outreach drafts now strictly adhere to the Team OneFolk natural writing standard:
+- Body length targets 50–90 words; enforced hard bounds are 40–120 words excluding salutation (`Dear <Business> Team,`) and sign-off (`Regards, / Team OneFolk / https://onefolk.in/`).
+- Tone requires authentic agency voice (`we`, `our`, `Team OneFolk`). First-person singular (`I`, `my`, `myself`) and 13 marketing buzzwords are banned.
+- Structure enforces 3 or 4 paragraphs: verified observation, practical relevance, OneFolk capability intro, and exactly one low-pressure CTA question (`could|would|may|can`).
+- Subject lines are restricted to 3–7 words; two distinct, non-question alternative openings and an opportunity recommendation are generated per lead.
+- Python (`src/email_validator.py`, `src/groq_client.py`) and Google Apps Script (`Code.gs`, `WebApp.gs`, `Index.html`) validation logic are fully synchronized.
+

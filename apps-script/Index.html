@@ -1817,7 +1817,7 @@
           <div class="compliance-ribbon">
             <div class="compliance-metric" id="pillWords">
               <span>Words:</span>
-              <strong id="counterWords">0</strong> (70–120 target)
+              <strong id="counterWords">0</strong> (50–90 target)
             </div>
             <div class="compliance-metric" id="pillParas">
               <span>Paragraphs:</span>
@@ -2135,7 +2135,7 @@
         const paras = lead.computed_paragraphs || 0;
         const isComp = lead.is_compliant;
         const compHtml = isComp
-          ? `<span style="color:var(--color-success);font-weight:600;font-size:12px;">✓ 4p / ${words}w</span>`
+          ? `<span style="color:var(--color-success);font-weight:600;font-size:12px;">✓ ${paras}p / ${words}w</span>`
           : `<span style="color:var(--color-warning);font-size:12px;">${paras}p / ${words}w</span>`;
 
         const canSelect = (st === 'AWAITING_REVIEW' || st === 'DRAFTED' || st === 'NEEDS_RESEARCH' || st === 'NEEDS_REVIEW');
@@ -2522,9 +2522,6 @@
       }
 
       const footerHtml = `
-        <p style="margin: 20px 0 14px 0; color: inherit;">
-          Our work: <a href="https://onefolk.in/work" target="_blank" style="color: inherit; text-decoration: underline;">https://onefolk.in/work</a>
-        </p>
         <p style="margin: 14px 0 0 0; line-height: 1.5; color: inherit;">
           Regards,<br>
           <strong>Team OneFolk</strong><br>
@@ -2536,38 +2533,39 @@
 
       const paragraphs = contentParas;
 
-      const words = body ? body.split(/\s+/).length : 0;
+      const words = contentParas.join(' ').split(/\s+/).filter(Boolean).length;
       const proofLine = (state.queue.selectedLead && state.queue.selectedLead.proof_line)
         ? state.queue.selectedLead.proof_line.trim()
         : 'Our team designed and built the OneFolk website.';
 
-      const hasProof = body.toLowerCase().includes('onefolk') || body.includes(proofLine);
-      const lastPara = paragraphs.length === 4 ? paragraphs[3].trim() : '';
-      const hasQuestion = lastPara.includes('?') || /\b(open|speak|connect|chat|discuss|who|person|direct)\b/i.test(lastPara);
+      const hasProof = paragraphs.length >= 3 && /\bonefolk\b/i.test(paragraphs[paragraphs.length - 2]) && !paragraphs.slice(0,-2).some(p => /\bonefolk\b/i.test(p));
+      const lastPara = paragraphs.length ? paragraphs[paragraphs.length - 1].trim() : '';
+      const hasQuestion = (paragraphs.join(' ').match(/\?/g) || []).length === 1 && lastPara.endsWith('?') && /^(could|would|may|can)\b/i.test(lastPara);
 
       document.getElementById('counterWords').textContent = words;
       document.getElementById('counterParas').textContent = paragraphs.length;
       document.getElementById('counterProof').textContent = hasProof ? 'Valid' : 'Missing';
       document.getElementById('counterQuestion').textContent = hasQuestion ? 'Valid' : 'Missing';
 
-      setMetricPill('pillWords', words >= 50 && words <= 150);
-      setMetricPill('pillParas', paragraphs.length === 4);
+      setMetricPill('pillWords', words >= 40 && words <= 120);
+      setMetricPill('pillParas', [3,4].includes(paragraphs.length));
       setMetricPill('pillProof', hasProof);
       setMetricPill('pillQuestion', hasQuestion);
 
       const errors = [];
-      if (!subject) errors.push('Subject line cannot be empty.');
-      if (paragraphs.length !== 4) errors.push(`Email body must contain exactly 4 content paragraphs (currently ${paragraphs.length}). Structure: 1) Observation, 2) Recommendation, 3) OneFolk capability, 4) CTA question.`);
-      if (words < 50 || words > 150) errors.push(`Email body should target 70–120 words (currently ${words}).`);
-      if (!hasProof) errors.push('Paragraph 3 must introduce OneFolk or reference relevant service/portfolio capabilities.');
+      if (subject.split(/\s+/).filter(Boolean).length < 3 || subject.split(/\s+/).length > 7) errors.push('Subject must contain 3–7 words.');
+      if (![3,4].includes(paragraphs.length)) errors.push(`Use 3 or 4 paragraphs: observation, relevance, OneFolk capability and CTA.`);
+      if (words < 40 || words > 120) errors.push(`Target 50–90 body words; allowed 40–120 (currently ${words}).`);
+      if (!hasProof) errors.push('Introduce OneFolk after observation and relevance, before the CTA.');
+      if (paragraphs.length === 3 && paragraphs[0].split(/[.!?][”"’]?(?:\s+|$)/).length < 3) errors.push('Include observation and relevance sentences in the opening.');
       if (!hasQuestion) errors.push('Paragraph 4 must end with a straightforward, low-pressure question (?) requesting contact or discussion.');
 
       // Brand Tone & Voice Checks
       const toneWarnings = [];
-      if (/\b(I|I'm|I've|my|I noticed|I came across|I found)\b/i.test(body)) {
+      if (/\b(?:i(?:['’](?:m|ve|d|ll))?|my|mine|myself)\b/i.test(body)) {
         toneWarnings.push("Contains first-person singular ('I'). Company voice requires writing from team perspective ('we', 'our', 'Team OneFolk').");
       }
-      if (/enquiry friction|opportunity worth exploring|move easily from treatment pages|treatments across spine|with a way to request appointments/i.test(body)) {
+      if (/unlock your business potential|enhance your digital ecosystem|optimi[sz]e the customer journey|enquiry friction|transform your digital presence|drive exponential growth|take your business to the next level|we have some exciting ideas|opportunity worth exploring|guaranteed|urgent|limited time/i.test(body)) {
         toneWarnings.push("Contains UX jargon or awkward phrasing. Use patient-friendly, natural plain language.");
       }
 
@@ -2575,6 +2573,7 @@
       const approveBtn = document.getElementById('btnModalApprove');
 
       let bannerHtml = '';
+      errors.push(...toneWarnings);
       if (errors.length > 0) {
         bannerHtml += '<strong>Validation Requirements:</strong><br>• ' + errors.join('<br>• ');
         approveBtn.disabled = true;

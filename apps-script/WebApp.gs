@@ -564,7 +564,7 @@ function apiSaveDraft(leadId, subject, emailBody) {
 
   if (!subject) throw new Error('Subject line cannot be empty.');
   if (!emailBody) throw new Error('Email body cannot be empty.');
-  const words = emailBody.split(/\s+/).filter(w => w.length > 0).length;
+  const words = validateEmailStructure(emailBody).wordCount;
 
   // Validate strict requirements using single authoritative validator
   if (typeof validateEmailStructure === 'function') {
@@ -686,7 +686,7 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
     }
     if (editedBody && editedBody.trim()) {
       r.email_body = editedBody.trim();
-      const w = r.email_body.split(/\s+/).length;
+      const w = validateEmailStructure(r.email_body).wordCount;
       r.word_count = w;
     }
 
@@ -730,7 +730,7 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
     // Persist only after the entire proposed record passes validation.
     if (subjectCol !== -1) sheet.getRange(targetRow, subjectCol + 1).setValue(sanitizeCellValue(r.subject));
     if (bodyCol !== -1) sheet.getRange(targetRow, bodyCol + 1).setValue(sanitizeCellValue(r.email_body));
-    if (wordCountCol !== -1) sheet.getRange(targetRow, wordCountCol + 1).setValue(String(r.email_body).split(/\s+/).length);
+    if (wordCountCol !== -1) sheet.getRange(targetRow, wordCountCol + 1).setValue(validateEmailStructure(r.email_body).wordCount);
 
     // Compute fingerprint
     const fingerprint = draftFingerprint(r);
