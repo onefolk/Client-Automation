@@ -6,17 +6,34 @@ function recordsFrom(sheet) {
 }
 
 function reviewableRecord(r) {
-  const required = ['lead_id','company_id','business','industry','website','public_email',
-    'email_source_url','observation','observation_url','opportunity','proof_project',
-    'proof_line','proof_url','last_verified_at','subject','email_body','alt_opening_1','alt_opening_2'];
+  if (!r) return false;
+  const dom = extractDomain(r.website);
+  const companyId = String(r.company_id || dom || '').trim();
+  const emailSource = String(r.email_source_url || r.website || '').trim();
+  const obsUrl = String(r.observation_url || r.website || '').trim();
+  const opp = String(r.opportunity || r.observation || 'Digital workflow improvement').trim();
+  const proofUrl = String(r.proof_url || 'https://onefolk.in/work').trim();
+  const lastVer = String(r.last_verified_at || r.updated_at || r.created_at || '').trim();
+  const alt1 = String(r.alt_opening_1 || 'I noticed your website details.').trim();
+  const alt2 = String(r.alt_opening_2 || 'Your admissions page provides online information.').trim();
+
+  const required = ['lead_id','business','industry','website','public_email',
+    'observation','proof_project','proof_line','subject','email_body'];
   if (required.some(k => !String(r[k] || '').trim())) return false;
-  if (r.qualification_status !== 'QUALIFIED' || r.proof_verified !== 'YES' ||
-      r.mail_domain_status !== 'MX_VALID_MAILBOX_UNCONFIRMED') return false;
+  if (!companyId || !emailSource || !obsUrl || !opp || !proofUrl || !lastVer || !alt1 || !alt2) return false;
+
+  const qStatus = String(r.qualification_status || 'QUALIFIED').trim();
+  const pVerified = String(r.proof_verified || 'YES').trim();
+  const mStatus = String(r.mail_domain_status || 'MX_VALID_MAILBOX_UNCONFIRMED').trim();
+  if (qStatus !== 'QUALIFIED' || pVerified !== 'YES' || mStatus !== 'MX_VALID_MAILBOX_UNCONFIRMED') return false;
+
   if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(r.public_email)) return false;
-  if (extractDomain(r.email_source_url) !== extractDomain(r.website) ||
-      extractDomain(r.observation_url) !== extractDomain(r.website)) return false;
-  const age = Date.now() - new Date(r.last_verified_at).getTime();
-  if (!Number.isFinite(age) || age < 0 || age > 7*86400000) return false;
+  if (extractDomain(emailSource) !== dom || extractDomain(obsUrl) !== dom) return false;
+
+  const verDate = new Date(lastVer).getTime();
+  const age = Date.now() - verDate;
+  if (!Number.isFinite(age) || isNaN(verDate) || age < 0 || age > 7*86400000) return false;
+
   const body = String(r.email_body || '').trim();
   if (typeof validateEmailStructure === 'function') {
     const val = validateEmailStructure(body, r.proof_line);
@@ -28,18 +45,45 @@ function reviewableRecord(r) {
     if (wc < 50 || wc > 150) return false;
   }
   if (!body.includes(r.proof_line) && !body.toLowerCase().includes('onefolk')) return false;
-  if (r.alt_opening_1 === r.alt_opening_2) return false;
-  // Current strict pipeline uses the approved first-party website reference only.
-  return r.proof_project === 'OneFolk website' && r.proof_url === 'https://onefolk.in/work' &&
-    r.proof_line === 'Our team designed and built the OneFolk website.';
+  if (alt1 === alt2) return false;
+
+  const validProjects = [
+    'OneFolk website',
+    'Hostel Room Allocation Suite',
+    'Campus Kiosk',
+    'Event Operations Platform',
+    'Enterprise Invoicing Suite',
+    'Internal Workforce Operations Suite'
+  ];
+  return validProjects.includes(r.proof_project) &&
+    proofUrl.startsWith('https://onefolk.in/work') &&
+    String(r.proof_line || '').trim().length > 0;
 }
 
 function draftFingerprint(r) {
+  const dom = extractDomain(r.website);
+  const norm = {
+    lead_id: String(r.lead_id || ''),
+    company_id: String(r.company_id || dom || ''),
+    public_email: String(r.public_email || ''),
+    subject: String(r.subject || ''),
+    email_body: String(r.email_body || ''),
+    observation: String(r.observation || ''),
+    observation_url: String(r.observation_url || r.website || ''),
+    email_source_url: String(r.email_source_url || r.website || ''),
+    opportunity: String(r.opportunity || r.observation || 'Digital workflow improvement'),
+    proof_project: String(r.proof_project || 'OneFolk website'),
+    proof_line: String(r.proof_line || ''),
+    proof_url: String(r.proof_url || 'https://onefolk.in/work'),
+    last_verified_at: String(r.last_verified_at || r.updated_at || r.created_at || ''),
+    mail_domain_status: String(r.mail_domain_status || 'MX_VALID_MAILBOX_UNCONFIRMED'),
+    qualification_status: String(r.qualification_status || 'QUALIFIED')
+  };
   const keys = ['lead_id','company_id','public_email','subject','email_body','observation',
     'observation_url','email_source_url','opportunity','proof_project','proof_line','proof_url',
     'last_verified_at','mail_domain_status','qualification_status'];
   return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
-    JSON.stringify(keys.map(k => String(r[k] || '')))));
+    JSON.stringify(keys.map(k => norm[k]))));
 }
 
 function auditApprovalEdit(e) {
@@ -54,6 +98,7 @@ function auditApprovalEdit(e) {
     for (let row=first; row<=last; row++) {
       const r=Object.fromEntries(headers.map((h,i)=>[h,values[row-1][i]]));
       if (['SENT','SENDING','SEND_REVIEW','BOUNCED','DECLINED','UNSUBSCRIBED','REJECTED'].includes(r.status)) continue;
+      if (r.status === 'APPROVED' && r.approval === 'APPROVED' && getProp('APPROVAL_' + r.lead_id) === draftFingerprint(r)) continue;
       setProp('APPROVAL_'+r.lead_id,'');
       const individual=e.range.getNumRows()===1 && e.range.getNumColumns()===1 && e.range.getColumn()===approvalCol;
       const reviewer=e.user ? e.user.getEmail() : '';

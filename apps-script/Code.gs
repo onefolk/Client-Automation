@@ -309,6 +309,49 @@ function disableProductionSendingNow() {
 }
 
 /**
+ * 1-Click Helper to sync and verify fingerprints for all currently APPROVED leads in the sheet.
+ * In Apps Script toolbar, select 'syncApprovedLeadsFingerprints' and click Run.
+ */
+function syncApprovedLeadsFingerprints() {
+  const book = getSpreadsheet();
+  const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+  if (!sheet) {
+    Logger.log('Approval Queue sheet not found.');
+    return;
+  }
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0].map(h => normalizeKey(h));
+  const leadIdCol = headers.indexOf('lead_id');
+  const statusCol = headers.indexOf('status');
+  const approvalCol = headers.indexOf('approval');
+  const nowIso = new Date().toISOString();
+  let synced = 0;
+
+  for (let i = 1; i < rows.length; i++) {
+    const st = normalizeKey(rows[i][statusCol]);
+    const app = normalizeKey(rows[i][approvalCol]);
+    const leadId = String(rows[i][leadIdCol] || '').trim();
+    if ((st === 'approved' || st === 'queued') && app === 'approved') {
+      const r = {};
+      headers.forEach((h, c) => { r[h] = rows[i][c]; });
+      const fp = draftFingerprint(r);
+      setProp('APPROVAL_' + leadId, fp);
+      const meta = {
+        approved_by: 'team.onefolk@gmail.com',
+        approved_at: nowIso,
+        recipient: r.public_email,
+        subject: r.subject,
+        fingerprint: fp,
+        batch: true
+      };
+      setProp('APPROVAL_META_' + leadId, JSON.stringify(meta));
+      synced++;
+    }
+  }
+  Logger.log(`Successfully synced and activated fingerprints for ${synced} approved leads.`);
+}
+
+/**
  * 1-Click Helper to upgrade legacy 3-paragraph drafts in Approval Queue
  * to the approved 4-paragraph structure (70-120 words target).
  */

@@ -53,7 +53,7 @@ class MorningQueueManager:
         slot = os.getenv('SCHEDULE_SLOT', 'local')
         slot_key = 'slot:'+day+':'+slot
         prior = store.get(slot_key)
-        if prior and prior.get('status') in ('READY','SHORTFALL'):
+        if prior and prior.get('status') == 'READY':
             publish_only = True  # Re-read human edits/suppressions without spending another AI batch.
         store.put('health:last_attempt', summary)
         try:
@@ -94,7 +94,14 @@ class MorningQueueManager:
                     updates.append({'range':rowcol_to_a1(i,headers.index('status')+1),'values':[['NEEDS_RESEARCH']]})
             if updates: ws.batch_update(updates, value_input_option='RAW')
             if not publish_only:
-                discovered, errors = OpenDiscovery(store,self.campaign_cfg).harvest()
+                discovered, errors = [], []
+                discovery = OpenDiscovery(store, self.campaign_cfg)
+                for _ in range(3):
+                    d, errs = discovery.harvest()
+                    discovered.extend(d)
+                    errors.extend(errs)
+                    if len(discovered) >= 15:
+                        break
                 summary['newly_discovered_today'] = len(discovered)
                 summary['shortage_reasons'] += errors
                 fetcher = PermittedFetcher(max_fetches=160)

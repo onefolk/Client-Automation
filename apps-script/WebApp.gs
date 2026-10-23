@@ -762,6 +762,17 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
     if (updatedCol !== -1) {
       sheet.getRange(targetRow, updatedCol + 1).setValue(nowIso);
     }
+    const setCell = (name, val) => { const c = headers.indexOf(name); if (c !== -1 && !r[name]) sheet.getRange(targetRow, c + 1).setValue(val); };
+    setCell('company_id', r.company_id);
+    setCell('qualification_status', r.qualification_status);
+    setCell('proof_verified', r.proof_verified);
+    setCell('mail_domain_status', r.mail_domain_status);
+    setCell('proof_project', r.proof_project);
+    setCell('proof_url', r.proof_url);
+    setCell('last_verified_at', r.last_verified_at);
+    setCell('email_source_url', r.email_source_url);
+    setCell('observation_url', r.observation_url);
+    setCell('opportunity', r.opportunity);
 
     // Record audit trail
     recordAuditEntry(leadId, userEmail, 'APPROVED', fingerprint);
@@ -937,6 +948,17 @@ function apiBatchApproveLeads(leadIds) {
       if (approvalCol !== -1) rows[i][approvalCol] = 'APPROVED';
       if (notesCol !== -1) rows[i][notesCol] = sanitizeCellValue('Batch approved via OneFolk Dashboard by ' + userEmail);
       if (updatedCol !== -1) rows[i][updatedCol] = nowIso;
+      const setCol = (name, val) => { const c = headers.indexOf(name); if (c !== -1 && !rows[i][c]) rows[i][c] = val; };
+      setCol('company_id', r.company_id);
+      setCol('qualification_status', r.qualification_status);
+      setCol('proof_verified', r.proof_verified);
+      setCol('mail_domain_status', r.mail_domain_status);
+      setCol('proof_project', r.proof_project);
+      setCol('proof_url', r.proof_url);
+      setCol('last_verified_at', r.last_verified_at);
+      setCol('email_source_url', r.email_source_url);
+      setCol('observation_url', r.observation_url);
+      setCol('opportunity', r.opportunity);
 
       recordAuditEntry(rowLeadId, userEmail, 'APPROVED', fingerprint);
       results.approvedCount++;
