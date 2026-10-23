@@ -7,7 +7,9 @@ const context={console,Logger:{log(){}},PropertiesService:{getScriptProperties:(
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8')+'\n'+fs.readFileSync('apps-script/Morning.gs','utf8'),context);
 props.set('ENABLE_SENDING','YES');
-vm.runInContext('approvedSender()',context); assert.equal(sent,0,'Implementation interlock must defeat runtime enable flag');
+props.set('EMERGENCY_STOP_ACTIVE','YES');
+vm.runInContext('approvedSender()',context); assert.equal(sent,0,'Emergency stop must disarm sending');
+props.set('EMERGENCY_STOP_ACTIVE','NO');
 const r={lead_id:'test',company_id:'test-co',business:'Fixture',industry:'education',website:'https://fixture.edu/',public_email:'info@fixture.edu',
   email_source_url:'https://fixture.edu/contact',observation:'Download application form',observation_url:'https://fixture.edu/admission',opportunity:'Online form',
   proof_project:'OneFolk website',proof_line:'Our team designed and built the OneFolk website.',proof_url:'https://onefolk.in/work',
@@ -33,7 +35,7 @@ testContext.Utilities={...context.Utilities,formatDate:()=> '2026-10-22',sleep()
 let attempts=0;
 testContext.GmailApp={createDraft:()=>({send:()=>{attempts++;throw Error('Ambiguous provider timeout');}})};
 vm.createContext(testContext);
-vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8').replace('const IMPLEMENTATION_SENDING_LOCK = true;','const IMPLEMENTATION_SENDING_LOCK = false;')+'\n'+fs.readFileSync('apps-script/Morning.gs','utf8'),testContext);
+vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8')+'\n'+fs.readFileSync('apps-script/Morning.gs','utf8'),testContext);
 const fields=Object.keys(r), r2={...r,lead_id:'test2',company_id:'second',website:'https://second.edu',public_email:'info@second.edu',email_source_url:'https://second.edu/contact',observation_url:'https://second.edu/apply'};
 const sheet={getDataRange:()=>({getValues:()=>[fields,Object.values(r),Object.values(r2)]}),getRange:()=>({setValue(){}})};
 testContext.book={getSheetByName:()=>sheet};

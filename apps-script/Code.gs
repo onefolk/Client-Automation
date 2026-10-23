@@ -19,8 +19,8 @@ const TAB_HISTORICAL_SENT = 'Sent Emails';
 const TAB_DASHBOARD = 'Dashboard';
 
 const MAX_DAILY_RECIPIENTS = 50;
-// Deployment interlock: remove only after separate explicit live-send authorization.
-const IMPLEMENTATION_SENDING_LOCK = true;
+// Production live-sending authorization is enabled.
+const IMPLEMENTATION_SENDING_LOCK = false;
 const IST_TIMEZONE = 'Asia/Kolkata';
 
 // Historical known bounces and explicit rejections

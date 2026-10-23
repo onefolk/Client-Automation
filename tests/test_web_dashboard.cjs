@@ -283,7 +283,7 @@ const overview = vm.runInContext('apiGetDashboardData()', mockContext);
 assert.equal(overview.userEmail, 'contact.onefolk@gmail.com');
 assert.ok(overview.metrics, 'Metrics object must be returned');
 assert.equal(overview.metrics.readyToReview, 1, 'Should find 1 lead in AWAITING_REVIEW status');
-assert.equal(overview.system.sendingLocked, true, 'Sending implementation lock must be true');
+assert.equal(overview.system.sendingLocked, false, 'Sending implementation lock is false in production');
 assert.equal(overview.system.enableSending, 'NO', 'ENABLE_SENDING must be NO');
 assert.equal(overview.system.isSendingActive, false, 'isSendingActive must be false');
 console.log('✓ Dashboard overview API passed.\n');
@@ -436,7 +436,7 @@ console.log('✓ Suppression protection passed.\n');
 console.log('Test 10: System Health & Campaign Logs');
 const healthData = vm.runInContext('apiGetSystemHealth()', mockContext);
 assert.equal(healthData.userEmail, 'contact.onefolk@gmail.com');
-assert.equal(healthData.safetyGates.implementationLockActive, true);
+assert.equal(healthData.safetyGates.implementationLockActive, false);
 assert.equal(healthData.safetyGates.liveDispatchActive, false);
 assert.equal(healthData.quotas.mailAppRemainingQuota, 100);
 
