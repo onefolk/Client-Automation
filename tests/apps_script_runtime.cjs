@@ -5,9 +5,10 @@ const context={console,Logger:{log(){}},PropertiesService:{getScriptProperties:(
   Utilities:{DigestAlgorithm:{SHA_256:'sha256'},computeDigest:(_,s)=>crypto.createHash('sha256').update(s).digest(),base64Encode:b=>Buffer.from(b).toString('base64')},
   GmailApp:{sendEmail(){sent++},createDraft(){sent++;throw Error('Must not reach Gmail')}},Date};
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8')+'\n'+fs.readFileSync('apps-script/Morning.gs','utf8'),context);
+vm.runInContext(fs.readFileSync('apps-script/Security.gs','utf8')+'\n'+fs.readFileSync('apps-script/Code.gs','utf8')+'\n'+fs.readFileSync('apps-script/Morning.gs','utf8'),context);
 props.set('ENABLE_SENDING','YES');
 props.set('EMERGENCY_STOP_ACTIVE','YES');
+props.set('AUTHORIZED_ADMINS', 'team.onefolk@gmail.com,contact.onefolk@gmail.com');
 vm.runInContext('approvedSender()',context); assert.equal(sent,0,'Emergency stop must disarm sending');
 props.set('EMERGENCY_STOP_ACTIVE','NO');
 const r={lead_id:'test',company_id:'test-co',business:'Fixture',industry:'education',website:'https://fixture.edu/',public_email:'info@fixture.edu',
@@ -21,6 +22,14 @@ assert.equal(vm.runInContext('reviewableRecord(record)',context),true);
 context.headers=Object.fromEntries(Object.keys(r).map((k,i)=>[k,i]));context.row=Object.values(r);
 assert.equal(vm.runInContext('isValidApprovedDraft(row,headers)',context),false,'Dual keys without durable audit cannot send');
 props.set('APPROVAL_test',vm.runInContext('draftFingerprint(record)',context));
+assert.equal(vm.runInContext('isValidApprovedDraft(row,headers)',context),false,'Fingerprint without approval metadata cannot send');
+props.set('APPROVAL_META_test', JSON.stringify({
+  approved_by: 'team.onefolk@gmail.com',
+  approved_at: new Date().toISOString(),
+  recipient: r.public_email,
+  subject: r.subject,
+  fingerprint: props.get('APPROVAL_test')
+}));
 assert.equal(vm.runInContext('isValidApprovedDraft(row,headers)',context),true);
 context.row[context.headers.subject]='Changed after approval';
 assert.equal(vm.runInContext('isValidApprovedDraft(row,headers)',context),false,'Edits invalidate approval');
@@ -35,7 +44,7 @@ testContext.Utilities={...context.Utilities,formatDate:(d,tz,fmt)=> fmt==='u HH:
 let attempts=0;
 testContext.GmailApp={createDraft:()=>({send:()=>{attempts++;throw Error('Ambiguous provider timeout');}})};
 vm.createContext(testContext);
-vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8')+'\n'+fs.readFileSync('apps-script/Morning.gs','utf8'),testContext);
+vm.runInContext(fs.readFileSync('apps-script/Security.gs','utf8')+'\n'+fs.readFileSync('apps-script/Code.gs','utf8')+'\n'+fs.readFileSync('apps-script/Morning.gs','utf8'),testContext);
 const fields=Object.keys(r), r2={...r,lead_id:'test2',company_id:'second',website:'https://second.edu',public_email:'info@second.edu',email_source_url:'https://second.edu/contact',observation_url:'https://second.edu/apply'};
 const queueRows = [fields, Object.values(r), Object.values(r2)];
 const queueSheet = {
@@ -49,7 +58,21 @@ testContext.book = {
 testContext.SpreadsheetApp = { flush() {} };
 vm.runInContext('getSpreadsheet=()=>book;', testContext);
 props.set('APPROVAL_test',context.draftFingerprint(r));
+props.set('APPROVAL_META_test', JSON.stringify({
+  approved_by: 'team.onefolk@gmail.com',
+  approved_at: new Date().toISOString(),
+  recipient: r.public_email,
+  subject: r.subject,
+  fingerprint: context.draftFingerprint(r)
+}));
 props.set('APPROVAL_test2',context.draftFingerprint(r2));
+props.set('APPROVAL_META_test2', JSON.stringify({
+  approved_by: 'team.onefolk@gmail.com',
+  approved_at: new Date().toISOString(),
+  recipient: r2.public_email,
+  subject: r2.subject,
+  fingerprint: context.draftFingerprint(r2)
+}));
 props.set('SENT_2026-10-22','49');
 vm.runInContext('approvedSender()',testContext);
 assert.equal(attempts,1,'One remaining recipient budget permits only one uncertain attempt');

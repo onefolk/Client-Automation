@@ -14,10 +14,17 @@ class PermittedFetcher(SafeFetcher):
     def fetch_html(self, url, max_redirects=3):
         origin = '{0.scheme}://{0.netloc}'.format(urlsplit(url))
         if origin not in self.robots:
-            if not is_safe_url(origin) or self.count >= self.limit: return None
+            robots_url = origin + '/robots.txt'
+            ip_holder = []
+            if not is_safe_url(robots_url, pinned_ip_holder=ip_holder) or self.count >= self.limit:
+                return None
+            host = (urlsplit(origin).hostname or "").lower()
+            if not host or not ip_holder:
+                return None
+            self.dns_map[host] = ip_holder[0]
             self.count += 1
             try:
-                with self.session.get(origin+'/robots.txt', timeout=self.timeout, allow_redirects=False) as response:
+                with self.session.get(robots_url, timeout=self.timeout, allow_redirects=False) as response:
                     parser = RobotFileParser()
                     if response.status_code == 404: parser.parse([])
                     elif response.status_code == 200: parser.parse(response.text[:100000].splitlines())

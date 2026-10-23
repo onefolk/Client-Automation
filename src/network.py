@@ -72,15 +72,19 @@ from urllib3.util import connection as urllib3_conn
 
 
 class PinnedHTTPConnection(HTTPConnection):
-    dns_map = {}
+    dns_map = None
 
     def _new_conn(self):
+        host_key = self.host.lower()
+        dns = self.dns_map or {}
+        if host_key not in dns:
+            raise OSError(f"Connection rejected: unpinned host {self.host}")
+        target_host = dns[host_key]
         extra_kw = {}
         if self.source_address:
             extra_kw["source_address"] = self.source_address
         if self.socket_options:
             extra_kw["socket_options"] = self.socket_options
-        target_host = self.dns_map.get(self.host.lower(), self.host)
         return urllib3_conn.create_connection(
             (target_host, self.port),
             self.timeout,
@@ -89,15 +93,19 @@ class PinnedHTTPConnection(HTTPConnection):
 
 
 class PinnedHTTPSConnection(HTTPSConnection):
-    dns_map = {}
+    dns_map = None
 
     def _new_conn(self):
+        host_key = self.host.lower()
+        dns = self.dns_map or {}
+        if host_key not in dns:
+            raise OSError(f"Connection rejected: unpinned host {self.host}")
+        target_host = dns[host_key]
         extra_kw = {}
         if self.source_address:
             extra_kw["source_address"] = self.source_address
         if self.socket_options:
             extra_kw["socket_options"] = self.socket_options
-        target_host = self.dns_map.get(self.host.lower(), self.host)
         return urllib3_conn.create_connection(
             (target_host, self.port),
             self.timeout,
@@ -107,19 +115,37 @@ class PinnedHTTPSConnection(HTTPSConnection):
 
 class PinnedHTTPConnectionPool(HTTPConnectionPool):
     ConnectionCls = PinnedHTTPConnection
+    dns_map = None
+
+    def _new_conn(self):
+        conn = super()._new_conn()
+        conn.dns_map = self.dns_map
+        return conn
 
 
 class PinnedHTTPSConnectionPool(HTTPSConnectionPool):
     ConnectionCls = PinnedHTTPSConnection
+    dns_map = None
+
+    def _new_conn(self):
+        conn = super()._new_conn()
+        conn.dns_map = self.dns_map
+        return conn
 
 
 class PinnedPoolManager(PoolManager):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, dns_map=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.dns_map = dns_map if dns_map is not None else {}
         self.pool_classes_by_scheme = {
             "http": PinnedHTTPConnectionPool,
             "https": PinnedHTTPSConnectionPool,
         }
+
+    def _new_pool(self, scheme, host, port, request_context=None):
+        pool = super()._new_pool(scheme, host, port, request_context=request_context)
+        pool.dns_map = self.dns_map
+        return pool
 
 
 class PinnedAdapter(HTTPAdapter):
@@ -128,9 +154,7 @@ class PinnedAdapter(HTTPAdapter):
         super().__init__(*args, **kwargs)
 
     def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
-        PinnedHTTPConnection.dns_map = self.dns_map
-        PinnedHTTPSConnection.dns_map = self.dns_map
-        self.poolmanager = PinnedPoolManager(num_pools=connections, maxsize=maxsize, block=block, **pool_kwargs)
+        self.poolmanager = PinnedPoolManager(dns_map=self.dns_map, num_pools=connections, maxsize=maxsize, block=block, **pool_kwargs)
 
 
 def is_safe_url(url: str, pinned_ip_holder: Optional[list] = None) -> bool:

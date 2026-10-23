@@ -245,21 +245,37 @@ function isValidApprovedDraft(v, headerMap) {
 
   const record = Object.fromEntries(Object.keys(headerMap).map(k => [k, v[headerMap[k]]]));
   if (!reviewableRecord(record)) return false;
-  if (getProp('APPROVAL_' + record.lead_id) !== draftFingerprint(record)) return false;
+  const expectedFp = draftFingerprint(record);
+  if (getProp('APPROVAL_' + record.lead_id) !== expectedFp) return false;
 
-  // Backlog safeguard: ensure explicit approval metadata exists and is fresh
-  const activationTimeStr = getProp('ACTIVATION_TIMESTAMP');
-  if (activationTimeStr) {
-    const metaRaw = getProp('APPROVAL_META_' + record.lead_id);
-    if (!metaRaw) return false; // Metadata verification required when activation is set
-    try {
-      const meta = JSON.parse(metaRaw);
-      if (!meta.approved_at || new Date(meta.approved_at).getTime() < new Date(activationTimeStr).getTime()) {
+  // Explicit approval metadata is consistently mandatory
+  const metaRaw = getProp('APPROVAL_META_' + record.lead_id);
+  if (!metaRaw) return false;
+
+  try {
+    const meta = JSON.parse(metaRaw);
+    if (!meta || typeof meta !== 'object') return false;
+
+    // Validate finite approval timestamp
+    const approvedTime = new Date(meta.approved_at).getTime();
+    if (!Number.isFinite(approvedTime)) return false;
+
+    // Validate authorized reviewer identity
+    if (!meta.approved_by || !isAuthorizedAdmin(meta.approved_by)) return false;
+
+    // Validate fingerprint agreement
+    if (meta.fingerprint !== expectedFp) return false;
+
+    // Activation timestamp safeguard (backlog exclusion)
+    const activationTimeStr = getProp('ACTIVATION_TIMESTAMP');
+    if (activationTimeStr) {
+      const activationTime = new Date(activationTimeStr).getTime();
+      if (!Number.isFinite(activationTime) || approvedTime < activationTime) {
         return false; // Historical approval from before activation; requires fresh human approval
       }
-    } catch (e) {
-      return false;
     }
+  } catch (e) {
+    return false;
   }
 
   return true;

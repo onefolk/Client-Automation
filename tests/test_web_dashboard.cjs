@@ -542,22 +542,60 @@ mockContext.headerMap = headerMap;
 // Without ScriptProperty APPROVAL_legacy_backlog_lead, it must fail validation
 assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Legacy approved row without fingerprint must be rejected');
 
-// If fingerprint is set but metadata is completely missing, it must fail validation
+// If fingerprint is set but metadata is completely missing, it must fail validation even without activation timestamp
 const recordMock = Object.fromEntries(Object.keys(headerMap).map(k => [k, legacyRow[headerMap[k]]]));
 mockContext.recordMock = recordMock;
-scriptProps.set('APPROVAL_legacy_backlog_lead', vm.runInContext('draftFingerprint(recordMock)', mockContext));
-scriptProps.delete('APPROVAL_META_legacy_backlog_lead');
-assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Missing approval metadata when activation is set must be rejected');
+const mockFp = vm.runInContext('draftFingerprint(recordMock)', mockContext);
+scriptProps.set('APPROVAL_legacy_backlog_lead', mockFp);
 
-// Even if someone manually sets the fingerprint but with an old approval timestamp < activationTime
+scriptProps.delete('ACTIVATION_TIMESTAMP');
+scriptProps.delete('APPROVAL_META_legacy_backlog_lead');
+assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Missing approval metadata must be rejected even when activation timestamp is unset');
+
+// Invalid date string producing NaN must be rejected
 scriptProps.set('APPROVAL_META_legacy_backlog_lead', JSON.stringify({
-  approved_by: 'old_admin@onefolk.in',
+  approved_by: 'team.onefolk@gmail.com',
+  approved_at: 'invalid-date-string-produces-nan',
+  fingerprint: mockFp
+}));
+assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Invalid approval date producing NaN must be rejected');
+
+// Unauthorized reviewer must be rejected
+scriptProps.set('APPROVAL_META_legacy_backlog_lead', JSON.stringify({
+  approved_by: 'stranger@external.com',
+  approved_at: new Date().toISOString(),
+  fingerprint: mockFp
+}));
+assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Unauthorized reviewer must be rejected');
+
+// Mismatched metadata fingerprint must be rejected
+scriptProps.set('APPROVAL_META_legacy_backlog_lead', JSON.stringify({
+  approved_by: 'team.onefolk@gmail.com',
+  approved_at: new Date().toISOString(),
+  fingerprint: 'forged_fingerprint_mismatch'
+}));
+assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Mismatched metadata fingerprint must be rejected');
+
+// Restore activation timestamp and verify historical approval < activationTime is blocked
+scriptProps.set('ACTIVATION_TIMESTAMP', activationTime);
+scriptProps.set('APPROVAL_META_legacy_backlog_lead', JSON.stringify({
+  approved_by: 'team.onefolk@gmail.com',
   approved_at: '2026-10-20T00:00:00.000Z', // Before activation
   recipient: legacyRow[headerMap['public_email']],
-  subject: legacyRow[headerMap['subject']]
+  subject: legacyRow[headerMap['subject']],
+  fingerprint: mockFp
 }));
-
 assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Pre-activation historical approval must be blocked from automatic dispatch');
+
+// Valid fresh approval metadata passes
+scriptProps.set('APPROVAL_META_legacy_backlog_lead', JSON.stringify({
+  approved_by: 'team.onefolk@gmail.com',
+  approved_at: new Date(Date.now() + 1000).toISOString(),
+  recipient: legacyRow[headerMap['public_email']],
+  subject: legacyRow[headerMap['subject']],
+  fingerprint: mockFp
+}));
+assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), true, 'Valid fresh metadata with authorized admin and matching fingerprint must pass');
 
 // Re-set ENABLE_SENDING to NO for safety during testing
 scriptProps.set('ENABLE_SENDING', 'NO');
