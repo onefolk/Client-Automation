@@ -57,3 +57,65 @@ def test_safe_url_blocking():
     with patch("socket.getaddrinfo", return_value=[(2,1,6,"",("8.8.8.8",443))]):
         assert is_safe_url("https://onefolk.in/work")
         assert is_safe_url("https://pes.edu")
+
+
+def test_safe_fetcher_pins_dns_ip():
+    from unittest.mock import patch, MagicMock
+    from src.network import SafeFetcher
+
+    fetcher = SafeFetcher()
+    fake_addr_info = [(2, 1, 6, "", ("93.184.215.14", 443))]
+    with patch("socket.getaddrinfo", return_value=fake_addr_info):
+        with patch.object(fetcher.session, "get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.headers = {"Content-Type": "text/html"}
+            mock_resp.raw.read1.side_effect = [b"<html>OK</html>", b""]
+            mock_get.return_value = mock_resp
+
+            res = fetcher.fetch_html("https://example.com/test")
+            assert res == "<html>OK</html>"
+            assert fetcher.dns_map.get("example.com") == "93.184.215.14"
+
+
+def test_fetcher_isolation_and_unpinned_host_rejection():
+    from src.network import SafeFetcher
+    import pytest
+
+    f1 = SafeFetcher()
+    f1.dns_map["site1.com"] = "1.1.1.1"
+
+    f2 = SafeFetcher()
+    f2.dns_map["site2.com"] = "2.2.2.2"
+
+    # Creating f2 must not clear or alter f1's pins
+    assert f1.dns_map.get("site1.com") == "1.1.1.1"
+    assert "site2.com" not in f1.dns_map
+    assert f2.dns_map.get("site2.com") == "2.2.2.2"
+    assert "site1.com" not in f2.dns_map
+
+    # Connection to an unpinned host must be rejected
+    with pytest.raises(Exception, match="Connection rejected: unpinned host"):
+        f1.session.get("http://unpinned-domain.com", timeout=1)
+
+
+def test_permitted_fetcher_pins_robots_dns():
+    from unittest.mock import patch, MagicMock
+    from src.permitted_fetcher import PermittedFetcher
+
+    fetcher = PermittedFetcher()
+    fake_addr = [(2, 1, 6, "", ("93.184.215.14", 443))]
+    with patch("socket.getaddrinfo", return_value=fake_addr):
+        with patch.object(fetcher.session, "get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.raw.read1.side_effect = [b"User-agent: *\nAllow: /", b"", b"<html>OK</html>", b""]
+            mock_resp.headers = {"Content-Type": "text/html"}
+            mock_resp.__enter__.return_value = mock_resp
+            mock_get.return_value = mock_resp
+
+            fetcher.fetch_html("https://example.com/page")
+            # robots.txt must have caused example.com to be pinned
+            assert fetcher.dns_map.get("example.com") == "93.184.215.14"
+
+

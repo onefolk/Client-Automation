@@ -36,7 +36,7 @@ def test_html_dashboard_integrity():
 
     # 2. Section 1: Overview
     assert "tab-overview" in content
-    assert "Morning Target: 50 Grounded Cold Email Drafts" in content
+    assert "Morning Target: 10 High-Priority Cold Email Drafts" in content
     assert "kpi-readyToReview" in content
     assert "kpi-approved" in content
     assert "kpi-sentToday" in content
@@ -87,6 +87,7 @@ def test_html_dashboard_integrity():
     assert "Acme Corp" not in content
 
 
+@pytest.mark.skipif(os.getenv("RUN_LIVE_SHEET_READ_TESTS") != "YES", reason="Live Sheet reads require explicit opt-in")
 def test_real_google_sheet_read_connection():
     """Verify live read connection to the existing master spreadsheet."""
     sm = SheetsManager()
@@ -119,6 +120,7 @@ def test_real_google_sheet_read_connection():
         assert col in headers, f"Approval Queue missing expected column '{col}'"
 
 
+@pytest.mark.skipif(os.getenv("RUN_LIVE_SHEET_WRITE_TESTS") != "YES", reason="Live Sheet writes require explicit opt-in")
 def test_safe_reversible_sheet_write_and_cleanup():
     """Perform a safe, reversible write test on an explicitly designated isolated test record,
     then clean it up completely, ensuring zero corruption to real outreach records."""

@@ -1348,7 +1348,7 @@
       <!-- Target Banner -->
       <div class="target-banner">
         <div class="target-info">
-          <h3>Morning Target: 50 Grounded Cold Email Drafts</h3>
+          <h3>Morning Target: 10 High-Priority Cold Email Drafts</h3>
           <p id="targetSubtext">Operational Target: 10+ High-Priority Leads (Score ≥ 80) · Scalable up to 50/day</p>
         </div>
         <div class="target-progress-box">
@@ -1817,7 +1817,7 @@
           <div class="compliance-ribbon">
             <div class="compliance-metric" id="pillWords">
               <span>Words:</span>
-              <strong id="counterWords">0</strong> (70–120 target)
+              <strong id="counterWords">0</strong> (45–70 target)
             </div>
             <div class="compliance-metric" id="pillParas">
               <span>Paragraphs:</span>
@@ -1983,11 +1983,17 @@
     async function loadOverviewData() {
       try {
         const data = await api.call('apiGetDashboardData');
+        if (!data) {
+          console.warn('[OneFolk Dashboard] apiGetDashboardData returned empty payload');
+          return;
+        }
+
         if (data.userEmail) {
           document.getElementById('headerUserEmail').textContent = data.userEmail;
         }
 
         const m = data.metrics || {};
+        const sys = data.system || {};
         const top10 = m.top10Priority !== undefined ? m.top10Priority : (m.readyToReview || 0);
         const secondary = m.secondaryBacklog || 0;
 
@@ -1996,43 +2002,62 @@
         const elBacklog = document.getElementById('kpi-secondaryBacklog');
         if (elBacklog) elBacklog.textContent = secondary;
 
-        document.getElementById('kpi-readyToReview').textContent = m.readyToReview || 0;
-        document.getElementById('kpi-needsResearch').textContent = m.needsResearch || 0;
-        document.getElementById('kpi-approved').textContent = m.approved || 0;
-        document.getElementById('kpi-sentToday').innerHTML = (m.sent || 0) + ' <span style="font-size:14px;color:var(--text-tertiary);font-family:var(--font-sans);">/ 50 cap</span>';
-        document.getElementById('kpi-bounced').textContent = m.bounced || 0;
-        document.getElementById('kpi-positiveReplies').textContent = m.positiveReplies || 0;
-        document.getElementById('kpi-meetingsBooked').textContent = m.meetingsBooked || 0;
-        document.getElementById('kpi-convertedClients').textContent = m.convertedClients || 0;
+        const elReady = document.getElementById('kpi-readyToReview');
+        if (elReady) elReady.textContent = m.readyToReview || 0;
+        const elNeeds = document.getElementById('kpi-needsResearch');
+        if (elNeeds) elNeeds.textContent = m.needsResearch || 0;
+        const elApproved = document.getElementById('kpi-approved');
+        if (elApproved) elApproved.textContent = m.approved || 0;
+        const elSentToday = document.getElementById('kpi-sentToday');
+        const sentNum = (sys && sys.dailySentToday > 0) ? sys.dailySentToday : (m.sent || 0);
+        if (elSentToday) elSentToday.innerHTML = sentNum + ' <span style="font-size:14px;color:var(--text-tertiary);font-family:var(--font-sans);">/ 50 cap</span>';
+        const elBounced = document.getElementById('kpi-bounced');
+        if (elBounced) elBounced.textContent = m.bounced || 0;
+        const elReplies = document.getElementById('kpi-positiveReplies');
+        if (elReplies) elReplies.textContent = m.positiveReplies || 0;
+        const elCalls = document.getElementById('kpi-meetingsBooked');
+        if (elCalls) elCalls.textContent = m.meetingsBooked || 0;
+        const elConverted = document.getElementById('kpi-convertedClients');
+        if (elConverted) elConverted.textContent = m.convertedClients || 0;
 
         const target = m.targetDailyGoal || 10;
         const pct = Math.min(100, Math.round((top10 / target) * 100));
-        document.getElementById('targetRatio').textContent = top10 + ' / ' + target;
-        document.getElementById('targetProgressBar').style.width = pct + '%';
-        document.getElementById('navQueueBadge').textContent = top10;
+        const elRatio = document.getElementById('targetRatio');
+        if (elRatio) elRatio.textContent = top10 + ' / ' + target;
+        const elBar = document.getElementById('targetProgressBar');
+        if (elBar) elBar.style.width = pct + '%';
+        const elBadge = document.getElementById('navQueueBadge');
+        if (elBadge) elBadge.textContent = top10;
 
-        const sys = data.system || {};
-        document.getElementById('overviewLastSuccess').textContent = sys.lastSuccess || 'None';
-        document.getElementById('overviewMailQuota').textContent = (sys.remainingMailQuota || 0) + ' remaining';
+        const elLastSuccess = document.getElementById('overviewLastSuccess');
+        if (elLastSuccess) elLastSuccess.textContent = sys.lastSuccess ? formatIST(sys.lastSuccess) : 'None';
+        const elMailQuota = document.getElementById('overviewMailQuota');
+        if (elMailQuota) elMailQuota.textContent = (sys.remainingMailQuota || 0) + ' remaining';
 
         const shortageCount = top10 < 10 ? (10 - top10) : 0;
-        if (shortageCount > 0) {
-          document.getElementById('overviewShortage').innerHTML = `<span style="color:var(--color-warning);">${shortageCount} leads needed for morning target</span>`;
-        } else {
-          document.getElementById('overviewShortage').innerHTML = `<span style="color:var(--color-success);">Target met (≥10 qualified)</span>`;
+        const elShortage = document.getElementById('overviewShortage');
+        if (elShortage) {
+          if (shortageCount > 0) {
+            elShortage.innerHTML = `<span style="color:var(--color-warning);">${shortageCount} leads needed for morning target</span>`;
+          } else {
+            elShortage.innerHTML = `<span style="color:var(--color-success);">Target met (≥10 qualified)</span>`;
+          }
         }
 
+        const elSendStatus = document.getElementById('headerSendingStatus');
+        const elLockDot = document.querySelector('.status-lock-dot');
         if (sys.emergencyStopActive) {
-          document.getElementById('headerSendingStatus').textContent = 'EMERGENCY STOP (HALTED)';
-          document.querySelector('.status-lock-dot').style.background = '#DC2626';
+          if (elSendStatus) elSendStatus.textContent = 'EMERGENCY STOP (HALTED)';
+          if (elLockDot) elLockDot.style.background = '#DC2626';
         } else if (!sys.sendingLocked && sys.enableSending === 'YES') {
-          document.getElementById('headerSendingStatus').textContent = 'SENDING ACTIVE';
-          document.querySelector('.status-lock-dot').style.background = '#15803D';
+          if (elSendStatus) elSendStatus.textContent = 'SENDING ACTIVE';
+          if (elLockDot) elLockDot.style.background = '#15803D';
         } else {
-          document.getElementById('headerSendingStatus').textContent = 'SENDING LOCKED (OFF)';
-          document.querySelector('.status-lock-dot').style.background = '#D97706';
+          if (elSendStatus) elSendStatus.textContent = 'SENDING LOCKED (OFF)';
+          if (elLockDot) elLockDot.style.background = '#D97706';
         }
       } catch (err) {
+        console.error('Error loading overview:', err);
         showToast('Error loading overview: ' + err, 'error');
       }
     }
@@ -2042,7 +2067,9 @@
     // -------------------------------------------------------------------------
     async function loadQueueData() {
       const tbody = document.getElementById('leadsTableBody');
-      tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><div class="spinner"></div><div style="margin-top:10px;">Loading approval queue...</div></td></tr>';
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><div class="spinner"></div><div style="margin-top:10px;">Loading approval queue...</div></td></tr>';
+      }
 
       try {
         const res = await api.call('apiGetApprovalQueue', {
@@ -2052,14 +2079,24 @@
           pageSize: state.queue.pageSize
         });
 
-        state.queue.leads = res.leads || [];
-        state.queue.total = res.total || 0;
+        if (!res) {
+          state.queue.leads = [];
+          state.queue.total = 0;
+          renderQueueTable();
+          renderQueuePagination({ total: 0, page: 1, pageSize: state.queue.pageSize, totalPages: 1 });
+          return;
+        }
+
+        state.queue.leads = Array.isArray(res.leads) ? res.leads : [];
+        state.queue.total = Number(res.total || 0);
         state.queue.selectedLeadIds.clear();
 
         renderQueueTable();
         renderQueuePagination(res);
       } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state" style="color:var(--color-danger);">' + escapeHtml(String(err)) + '</td></tr>';
+        if (tbody) {
+          tbody.innerHTML = '<tr><td colspan="9" class="empty-state" style="color:var(--color-danger);">' + escapeHtml(String(err)) + '</td></tr>';
+        }
         showToast('Error: ' + err, 'error');
       }
     }
@@ -2098,7 +2135,7 @@
         const paras = lead.computed_paragraphs || 0;
         const isComp = lead.is_compliant;
         const compHtml = isComp
-          ? `<span style="color:var(--color-success);font-weight:600;font-size:12px;">✓ 4p / ${words}w</span>`
+          ? `<span style="color:var(--color-success);font-weight:600;font-size:12px;">✓ ${paras}p / ${words}w</span>`
           : `<span style="color:var(--color-warning);font-size:12px;">${paras}p / ${words}w</span>`;
 
         const canSelect = (st === 'AWAITING_REVIEW' || st === 'DRAFTED' || st === 'NEEDS_RESEARCH' || st === 'NEEDS_REVIEW');
@@ -2290,11 +2327,19 @@
     }
 
     function renderQueuePagination(res) {
-      const start = res.total === 0 ? 0 : (res.page - 1) * res.pageSize + 1;
-      const end = Math.min(res.total, res.page * res.pageSize);
-      document.getElementById('queuePaginationInfo').textContent = `Showing ${start}–${end} of ${res.total} records`;
-      document.getElementById('btnPrevPage').disabled = (res.page <= 1);
-      document.getElementById('btnNextPage').disabled = (res.page >= res.totalPages);
+      if (!res) return;
+      const total = Number(res.total || 0);
+      const page = Math.max(1, Number(res.page || 1));
+      const pageSize = Math.max(1, Number(res.pageSize || 25));
+      const totalPages = Math.max(1, Number(res.totalPages || 1));
+      const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+      const end = Math.min(total, page * pageSize);
+      const infoEl = document.getElementById('queuePaginationInfo');
+      if (infoEl) infoEl.textContent = `Showing ${start}–${end} of ${total} records`;
+      const prevBtn = document.getElementById('btnPrevPage');
+      if (prevBtn) prevBtn.disabled = (page <= 1);
+      const nextBtn = document.getElementById('btnNextPage');
+      if (nextBtn) nextBtn.disabled = (page >= totalPages);
     }
 
     function changeQueuePage(delta) {
@@ -2422,7 +2467,7 @@
         obsSource.href = lead.observation_url || site;
         obsSource.textContent = lead.observation_url || site;
 
-        document.getElementById('modalVerificationMeta').textContent = `Confidence: ${escapeHtml(lead.verification_confidence || 'Syntax + MX')} · Verified: ${escapeHtml(lead.last_verified_at || 'Recent')}`;
+        document.getElementById('modalVerificationMeta').textContent = `Confidence: ${escapeHtml(lead.verification_confidence || 'Syntax + MX')} · Verified: ${lead.last_verified_at ? formatIST(lead.last_verified_at) : 'Recent'}`;
 
         document.getElementById('modalAltOpening1').textContent = `"${lead.alt_opening_1 || 'No alternative opening 1'}"`;
         document.getElementById('modalAltOpening2').textContent = `"${lead.alt_opening_2 || 'No alternative opening 2'}"`;
@@ -2445,27 +2490,22 @@
       state.queue.selectedLead = null;
     }
 
+    <?!= clientValidationSource() ?>
+
     function onDraftChange() {
       const subject = document.getElementById('editorSubject').value.trim();
-      const body = document.getElementById('editorBody').value.trim();
+      const body = normalizeWhitespace(document.getElementById('editorBody').value).trim();
+      const validation = validateEmailStructure(body);
 
       document.getElementById('subjectCharCount').textContent = subject.length + ' chars';
 
       // Update Live Email Preview matching Gmail app layout
       document.getElementById('previewSubject').textContent = subject || '(No subject entered)';
       const previewBodyEl = document.getElementById('previewBody');
-      const rawParas = body ? body.split(/\n\s*\n/).map(p => p.trim()).filter(p => p.length > 0) : [];
-
       const businessName = (state.queue.selectedLead && (state.queue.selectedLead.business || state.queue.selectedLead.name)) || 'Prospect';
-      const hasSalutation = rawParas.length > 0 && /^dear\b/i.test(rawParas[0]);
-
-      const salutationText = hasSalutation ? rawParas[0] : `Dear ${businessName} Team,`;
-      const contentParas = (hasSalutation ? rawParas.slice(1) : rawParas).filter(p =>
-        !/^(our\s+)?work:\s*https?:\/\//i.test(p) &&
-        !/^regards,/i.test(p) &&
-        !/^team onefolk/i.test(p) &&
-        !/^https?:\/\/onefolk\.in\/?$/i.test(p)
-      );
+      const greeting = body.match(/^Dear[^\n]+,\s*\n+/i);
+      const salutationText = greeting ? greeting[0].trim() : `Dear ${businessName} Team,`;
+      const contentParas = validation.contentParas;
 
       const salutationHtml = `<p style="margin: 0 0 16px 0; font-weight: 500;">${escapeHtml(salutationText)}</p>`;
 
@@ -2477,9 +2517,6 @@
       }
 
       const footerHtml = `
-        <p style="margin: 20px 0 14px 0; color: inherit;">
-          Our work: <a href="https://onefolk.in/work" target="_blank" style="color: inherit; text-decoration: underline;">https://onefolk.in/work</a>
-        </p>
         <p style="margin: 14px 0 0 0; line-height: 1.5; color: inherit;">
           Regards,<br>
           <strong>Team OneFolk</strong><br>
@@ -2491,40 +2528,28 @@
 
       const paragraphs = contentParas;
 
-      const words = body ? body.split(/\s+/).length : 0;
+      const words = contentParas.join(' ').split(/\s+/).filter(Boolean).length;
       const proofLine = (state.queue.selectedLead && state.queue.selectedLead.proof_line)
         ? state.queue.selectedLead.proof_line.trim()
         : 'Our team designed and built the OneFolk website.';
 
-      const hasProof = body.toLowerCase().includes('onefolk') || body.includes(proofLine);
-      const lastPara = paragraphs.length === 4 ? paragraphs[3].trim() : '';
-      const hasQuestion = lastPara.includes('?') || /\b(open|speak|connect|chat|discuss|who|person|direct)\b/i.test(lastPara);
+      const hasProof = paragraphs.length >= 3 && /\bonefolk\b/i.test(paragraphs[paragraphs.length - 2]) && !paragraphs.slice(0,-2).some(p => /\bonefolk\b/i.test(p));
+      const lastPara = paragraphs.length ? paragraphs[paragraphs.length - 1].trim() : '';
+      const bodyCopy = paragraphs.join(' ');
+      const hasQuestion = (bodyCopy.match(/\?/g) || []).length === 1 && lastPara.endsWith('?') && splitSentences(lastPara).length === 1 && /^(could|would|may|can)\s+/i.test(lastPara);
 
       document.getElementById('counterWords').textContent = words;
       document.getElementById('counterParas').textContent = paragraphs.length;
       document.getElementById('counterProof').textContent = hasProof ? 'Valid' : 'Missing';
       document.getElementById('counterQuestion').textContent = hasQuestion ? 'Valid' : 'Missing';
 
-      setMetricPill('pillWords', words >= 50 && words <= 150);
-      setMetricPill('pillParas', paragraphs.length === 4);
+      setMetricPill('pillWords', words >= 40 && words <= 120);
+      setMetricPill('pillParas', [3,4].includes(paragraphs.length));
       setMetricPill('pillProof', hasProof);
       setMetricPill('pillQuestion', hasQuestion);
 
-      const errors = [];
-      if (!subject) errors.push('Subject line cannot be empty.');
-      if (paragraphs.length !== 4) errors.push(`Email body must contain exactly 4 content paragraphs (currently ${paragraphs.length}). Structure: 1) Observation, 2) Recommendation, 3) OneFolk capability, 4) CTA question.`);
-      if (words < 50 || words > 150) errors.push(`Email body should target 70–120 words (currently ${words}).`);
-      if (!hasProof) errors.push('Paragraph 3 must introduce OneFolk or reference relevant service/portfolio capabilities.');
-      if (!hasQuestion) errors.push('Paragraph 4 must end with a straightforward, low-pressure question (?) requesting contact or discussion.');
-
-      // Brand Tone & Voice Checks
-      const toneWarnings = [];
-      if (/\b(I|I'm|I've|my|I noticed|I came across|I found)\b/i.test(body)) {
-        toneWarnings.push("Contains first-person singular ('I'). Company voice requires writing from team perspective ('we', 'our', 'Team OneFolk').");
-      }
-      if (/enquiry friction|opportunity worth exploring|move easily from treatment pages|treatments across spine|with a way to request appointments/i.test(body)) {
-        toneWarnings.push("Contains UX jargon or awkward phrasing. Use patient-friendly, natural plain language.");
-      }
+      const errors = validation.isValid ? [] : [validation.reason];
+      if (subject.split(/\s+/).filter(Boolean).length < 3 || subject.split(/\s+/).length > 7) errors.push('Subject must contain 3–7 words.');
 
       const errBox = document.getElementById('editorValidationError');
       const approveBtn = document.getElementById('btnModalApprove');
@@ -2535,11 +2560,6 @@
         approveBtn.disabled = true;
       } else {
         approveBtn.disabled = false;
-      }
-
-      if (toneWarnings.length > 0) {
-        if (bannerHtml) bannerHtml += '<br><br>';
-        bannerHtml += '<strong>⚠️ Voice & Tone Warning:</strong><br>• ' + toneWarnings.join('<br>• ');
       }
 
       if (bannerHtml) {
@@ -2566,15 +2586,21 @@
       const alt = (index === 1) ? state.queue.selectedLead.alt_opening_1 : state.queue.selectedLead.alt_opening_2;
       if (!alt) return;
 
-      const body = document.getElementById('editorBody').value;
-      const paras = body.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-
-      if (paras.length >= 1) {
-        paras[0] = alt.trim();
-        document.getElementById('editorBody').value = paras.join('\n\n');
+      const body = normalizeWhitespace(document.getElementById('editorBody').value);
+      const parsed = validateEmailStructure(body);
+      const paras = parsed.contentParas.slice();
+      if (!paras.length) return;
+      const opening = /[.!?]$/.test(alt.trim()) ? alt.trim() : alt.trim() + '.';
+      if (paras.length === 3) {
+        const remainder = splitSentences(paras[0]).slice(1);
+        if (!remainder.length) { showToast('Add verified relevance before applying an opening.', 'error'); return; }
+        paras[0] = opening + ' ' + remainder.join('. ') + '.';
       } else {
-        document.getElementById('editorBody').value = alt.trim();
+        paras[0] = opening;
       }
+      const greeting = body.match(/^Dear[^\n]+,\s*\n+/i);
+      const copy = (greeting ? greeting[0].trim() + '\n\n' : '') + paras.join('\n\n');
+      document.getElementById('editorBody').value = formatOneFolkEmail(copy, state.queue.selectedLead.business).plainText;
 
       onDraftChange();
       showToast(`Applied Opening ${index} — updated Live Preview!`, 'info');
@@ -2584,7 +2610,8 @@
       if (!state.queue.selectedLead) return;
       const leadId = state.queue.selectedLead.lead_id;
       const subject = document.getElementById('editorSubject').value.trim();
-      const body = document.getElementById('editorBody').value.trim();
+      const body = normalizeWhitespace(document.getElementById('editorBody').value).trim();
+      const validation = validateEmailStructure(body);
 
       const btn = document.getElementById('btnModalSave');
       btn.disabled = true;
@@ -2628,7 +2655,8 @@
       if (!state.queue.selectedLead) return;
       const leadId = state.queue.selectedLead.lead_id;
       const subject = document.getElementById('editorSubject').value.trim();
-      const body = document.getElementById('editorBody').value.trim();
+      const body = normalizeWhitespace(document.getElementById('editorBody').value).trim();
+      const validation = validateEmailStructure(body);
 
       const btn = document.getElementById('btnModalApprove');
       btn.disabled = true;
@@ -2783,7 +2811,7 @@
         let html = '';
         state.campaigns.forEach(run => {
           const runId = escapeHtml(run.run_id || 'unknown');
-          const date = escapeHtml(run.campaign_date || 'N/A');
+          const date = escapeHtml(formatISTDate(run.campaign_date || run.start_time) || 'N/A');
           const trigger = escapeHtml(run.trigger || 'schedule');
           const disc = run.prospects_discovered || run.newly_discovered_today || 0;
           const qual = run.qualified_leads || run.qualified_overnight || 0;
@@ -2792,6 +2820,7 @@
           const fetches = run.http_fetches_used || 0;
           const st = String(run.status || 'COMPLETED').toUpperCase();
           const reasons = Array.isArray(run.shortage_reasons) ? run.shortage_reasons.join('; ') : String(run.shortage_reasons || 'None');
+          const timeStr = run.start_time ? formatISTTime(run.start_time) : '';
 
           html += `
             <tr>
@@ -2801,7 +2830,7 @@
               </td>
               <td>
                 <span class="tag-industry">${trigger}</span>
-                <div class="lead-subtext" style="margin-top:2px;">${escapeHtml(run.start_time ? run.start_time.slice(11,19) : '')} UTC</div>
+                <div class="lead-subtext" style="margin-top:2px;">${escapeHtml(timeStr)}</div>
               </td>
               <td><strong>${disc}</strong></td>
               <td><span style="color:var(--color-success);font-weight:600;">${qual}</span></td>
@@ -2833,7 +2862,7 @@
 
         let html = '';
         state.replies.forEach(r => {
-          const date = escapeHtml(r.sent_at || r.updated_at || 'N/A');
+          const date = escapeHtml(formatIST(r.sent_at || r.updated_at) || 'N/A');
           const email = escapeHtml(r.recipient_email || 'N/A');
           const subject = escapeHtml(r.subject || 'Outreach');
           const status = escapeHtml(r.status || 'SENT');
@@ -2885,7 +2914,7 @@
         const testEl = document.getElementById('healthInternalTestState');
         if (testEl) {
           if (safety.internalTestVerified) {
-            testEl.textContent = 'VERIFIED (' + (safety.internalTestTimestamp ? safety.internalTestTimestamp.slice(0, 10) : 'RECENT') + ')';
+            testEl.textContent = 'VERIFIED (' + (safety.internalTestTimestamp ? formatIST(safety.internalTestTimestamp) : 'RECENT') + ')';
             testEl.style.color = '#15803D';
           } else {
             testEl.textContent = 'PENDING TEST';
@@ -2917,6 +2946,53 @@
       }, 3500);
     }
 
+    function formatIST(dateVal, includeTime = true) {
+      if (!dateVal || dateVal === 'NONE' || dateVal === 'None' || dateVal === 'N/A' || dateVal === 'Recent' || dateVal === 'RECENT') {
+        return (dateVal === 'Recent' || dateVal === 'RECENT') ? 'Recent' : 'None';
+      }
+      try {
+        const d = new Date(dateVal);
+        if (isNaN(d.getTime())) return String(dateVal);
+        const options = {
+          timeZone: 'Asia/Kolkata',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        };
+        if (includeTime) {
+          options.hour = '2-digit';
+          options.minute = '2-digit';
+          options.second = '2-digit';
+          options.hour12 = true;
+        }
+        const formatted = new Intl.DateTimeFormat('en-IN', options).format(d);
+        return includeTime ? `${formatted} IST` : formatted;
+      } catch (e) {
+        return String(dateVal);
+      }
+    }
+
+    function formatISTTime(dateVal) {
+      if (!dateVal || dateVal === 'NONE' || dateVal === 'None' || dateVal === 'N/A') return '';
+      try {
+        const d = new Date(dateVal);
+        if (isNaN(d.getTime())) return String(dateVal);
+        return new Intl.DateTimeFormat('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true
+        }).format(d) + ' IST';
+      } catch (e) {
+        return String(dateVal);
+      }
+    }
+
+    function formatISTDate(dateVal) {
+      return formatIST(dateVal, false);
+    }
+
     function escapeHtml(str) {
       if (!str) return '';
       return String(str)
@@ -2934,7 +3010,7 @@
             resolve({
               userEmail: 'team.onefolk@gmail.com',
               metrics: { readyToReview: 10, top10Priority: 10, secondaryBacklog: 15, needsResearch: 3, approved: 0, sent: 0, bounced: 0, positiveReplies: 0, meetingsBooked: 0, proposalsRequested: 0, convertedClients: 0, targetDailyGoal: 10, targetPriorityGoal: 10, maxDailyCapacity: 50 },
-              system: { sendingLocked: true, enableSending: 'NO', lastSuccess: '2026-10-22 03:00 UTC', remainingMailQuota: 100, shortage: 0 }
+              system: { sendingLocked: true, enableSending: 'NO', lastSuccess: '2026-10-23 08:30 IST', remainingMailQuota: 100, shortage: 0 }
             });
           } else if (method === 'apiGetApprovalQueue') {
             resolve({

@@ -1,21 +1,26 @@
 """One fail-closed definition of an independently reviewable draft."""
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 import re
 from src.config import load_portfolio
 from src.network import extract_domain
 from src.verifier import is_valid_syntax
 from src.email_validator import validate_email_body
 
+IST = ZoneInfo("Asia/Kolkata")
 FRESH_DAYS = 7
 
 def validate_queued_draft(row, now=None):
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(IST)
+    if not isinstance(row, dict):
+        return False, 'Invalid row type'
     required = ('lead_id','company_id','business','industry','website','public_email',
                 'email_source_url','observation','observation_url','opportunity',
                 'proof_project','proof_line','proof_url','last_verified_at',
                 'subject','email_body','alt_opening_1','alt_opening_2')
     for key in required:
-        if not str(row.get(key, '')).strip():
+        val = row.get(key)
+        if not isinstance(val, str) or not val.strip() or val.strip() == 'None':
             return False, 'Missing ' + key
     if row.get('qualification_status') != 'QUALIFIED':
         return False, 'Research incomplete'
@@ -53,6 +58,9 @@ def eligible_queue(rows, suppression, now=None):
         if row.get('status') != 'AWAITING_REVIEW' or row.get('approval') != 'PENDING':
             continue
         ok, reason = validate_queued_draft(row, now)
+        if not ok:
+            issues.append((row, reason))
+            continue
         blocked, why = suppression.is_suppressed(row.get('public_email',''), row.get('website',''))
         domain = extract_domain(row.get('website',''))
         email = str(row.get('public_email','')).lower()

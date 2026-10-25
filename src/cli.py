@@ -2,6 +2,9 @@
 
 import argparse
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+IST = ZoneInfo("Asia/Kolkata")
 import json
 import logging
 import sys
@@ -30,7 +33,10 @@ def run_pipeline(
     campaign_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Executes the full discovery, research, drafting, and sheet sync pipeline."""
-    start_time = datetime.now(timezone.utc)
+    if not dry_run:
+        from src.morning_queue import MorningQueueManager
+        return MorningQueueManager(target_queue=target_count).run()
+    start_time = datetime.now(IST)
     logger.info("Starting OneFolk Outreach Pipeline (target: %d leads, dry_run=%s)", target_count, dry_run)
 
     # 1. Initialize Managers
@@ -144,7 +150,7 @@ def run_pipeline(
             needs_research_count += 1
             rejected_count += 1
 
-    end_time = datetime.now(timezone.utc)
+    end_time = datetime.now(IST)
     duration = int((end_time - start_time).total_seconds())
 
     if qualified_count < target_count:
@@ -260,6 +266,8 @@ def preflight_check(require_groq: bool = True) -> bool:
 
 def seed_candidates_from_csv(csv_path: str) -> int:
     """Imports candidate institutions from a CSV file into the durable reserve store."""
+    from src.writer_policy import require_production_writer
+    require_production_writer()
     import csv
     from pathlib import Path
     from src.open_discovery import company_id
@@ -346,11 +354,15 @@ def main():
         run_pipeline(target_count=target, dry_run=True)
     elif args.command == "morning-queue":
         from src.morning_queue import MorningQueueManager
-        print(json.dumps(MorningQueueManager(args.target).run(publish_only=args.publish_only), indent=2))
+        result = MorningQueueManager(args.target).run(publish_only=args.publish_only)
+        print(json.dumps(result, indent=2))
+        sys.exit(0 if result['status'] == 'READY' else 2)
     elif args.command == "seed-csv":
         seeded = seed_candidates_from_csv(args.csv_path)
         print(f"Seeded {seeded} candidates from {args.csv_path}")
     elif args.command == "reconcile":
+        from src.writer_policy import require_production_writer
+        require_production_writer()
         sheets = SheetsManager()
         if sheets.connect():
             sheets.update_dashboard()

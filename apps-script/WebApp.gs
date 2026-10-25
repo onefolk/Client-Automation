@@ -9,6 +9,20 @@ const TAB_APPROVAL_AUDIT = 'Approval Audit';
 const TAB_LEAD_DATABASE = 'Lead Database';
 const TAB_SETTINGS = 'Settings';
 const TAB_AUTOMATION_STATE = 'Automation State';
+const TAB_DASHBOARD_NAME = typeof TAB_DASHBOARD !== 'undefined' ? TAB_DASHBOARD : 'Dashboard';
+const TAB_EMAIL_ACTIVITY_NAME = typeof TAB_EMAIL_ACTIVITY !== 'undefined' ? TAB_EMAIL_ACTIVITY : 'Email Activity';
+const TAB_HISTORICAL_SENT_NAME = typeof TAB_HISTORICAL_SENT !== 'undefined' ? TAB_HISTORICAL_SENT : 'Sent Emails';
+const TAB_SUPPRESSION_LIST_NAME = typeof TAB_SUPPRESSION_LIST !== 'undefined' ? TAB_SUPPRESSION_LIST : 'Suppression List';
+
+/**
+ * Resolves the primary queue worksheet, supporting both 'Approval Queue' and legacy 'Lead Queue'.
+ */
+function getQueueSheet(book) {
+  if (!book) return null;
+  const primary = typeof TAB_APPROVAL_QUEUE !== 'undefined' ? TAB_APPROVAL_QUEUE : 'Approval Queue';
+  const legacy = typeof TAB_LEGACY_QUEUE !== 'undefined' ? TAB_LEGACY_QUEUE : 'Lead Queue';
+  return book.getSheetByName(primary) || book.getSheetByName(legacy);
+}
 
 /**
  * Entry point for Google Apps Script HTMLService Web App.
@@ -204,7 +218,7 @@ function apiGetDashboardData() {
   const book = getSpreadsheet();
   
   // 1. Live count from Approval Queue
-  const queueSheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+  const queueSheet = getQueueSheet(book);
   let readyToReview = 0;
   let awaitingApproval = 0;
   let needsResearch = 0;
@@ -231,61 +245,89 @@ function apiGetDashboardData() {
         const app = approvalCol !== -1 ? normalizeKey(rows[i][approvalCol]) : '';
         const sc = scoreCol !== -1 ? Number(rows[i][scoreCol] || 0) : 80;
         
-        if (st === 'awaiting_review' && app === 'pending') {
+        if (st === 'sent') {
+          sentCount++;
+        } else if (st === 'bounced') {
+          bouncedCount++;
+        } else if (st === 'positive_reply') {
+          positiveReplyCount++;
+        } else if (st === 'rejected' || app === 'rejected') {
+          rejectedCount++;
+        } else if (st === 'awaiting_review' && app === 'pending') {
           readyToReview++;
           awaitingApproval++;
           if (sc >= 80) top10Priority++;
           else secondaryBacklog++;
         } else if (st === 'needs_research') {
           needsResearch++;
-        } else if (st === 'approved' || app === 'approved') {
+        } else if (st === 'approved' || st === 'queued' || (app === 'approved' && !['sent', 'sending', 'bounced', 'positive_reply', 'declined'].includes(st))) {
           approvedCount++;
-        } else if (st === 'rejected' || app === 'rejected') {
-          rejectedCount++;
-        } else if (st === 'sent') {
-          sentCount++;
-        } else if (st === 'bounced') {
-          bouncedCount++;
-        } else if (st === 'positive_reply') {
-          positiveReplyCount++;
         }
       }
     }
   }
 
   // 2. Metrics from Dashboard sheet
-  const dashSheet = book.getSheetByName(TAB_DASHBOARD);
+  const dashSheet = book ? book.getSheetByName(TAB_DASHBOARD_NAME) : null;
   const sheetKpis = {};
   if (dashSheet) {
-    const dRows = dashSheet.getDataRange().getValues();
-    for (let i = 1; i < dRows.length; i++) {
-      const metric = String(dRows[i][0] || '').trim();
-      const val = String(dRows[i][1] || '').trim();
-      if (metric) {
-        sheetKpis[metric] = val;
+    try {
+      const dRows = dashSheet.getDataRange().getValues();
+      for (let i = 1; i < dRows.length; i++) {
+        const metric = String(dRows[i][0] || '').trim();
+        const val = String(dRows[i][1] || '').trim();
+        if (metric) {
+          sheetKpis[metric] = val;
+        }
       }
+    } catch (e) {
+      Logger.log('Dashboard read error: ' + e);
     }
   }
 
   // 3. Automation & health snapshot
   let healthInfo = {};
   try {
-    healthInfo = automationSnapshot();
+    if (typeof automationSnapshot === 'function') {
+      healthInfo = automationSnapshot();
+    } else {
+      healthInfo = {
+        ready: readyToReview,
+        needs: needsResearch,
+        shortage: Math.max(0, DAILY_REVIEW_GOAL - top10Priority),
+        failures: [],
+        last_success: 'NONE'
+      };
+    }
   } catch (err) {
     healthInfo = {
       ready: readyToReview,
       needs: needsResearch,
-      shortage: Math.max(0, 50 - readyToReview),
+      shortage: Math.max(0, DAILY_REVIEW_GOAL - top10Priority),
       failures: ['Snapshot error: ' + String(err)],
       last_success: 'NONE'
     };
   }
 
   // 4. Quotas & limits
-  const mailQuota = MailApp.getRemainingDailyQuota();
-  const dailySentToday = getDailySendCount();
-  const maxDaily = MAX_DAILY_RECIPIENTS;
-  const isSendingActive = !IMPLEMENTATION_SENDING_LOCK && getProp('ENABLE_SENDING') === 'YES';
+  let mailQuota = 100;
+  try {
+    mailQuota = MailApp.getRemainingDailyQuota();
+  } catch (e) {
+    Logger.log('Quota error: ' + e);
+  }
+
+  let dailySentToday = 0;
+  try {
+    dailySentToday = typeof getDailySendCount === 'function' ? getDailySendCount() : 0;
+  } catch (e) {
+    Logger.log('Daily send count error: ' + e);
+  }
+
+  const maxDaily = typeof MAX_DAILY_RECIPIENTS !== 'undefined' ? MAX_DAILY_RECIPIENTS : 50;
+  const sendingLock = typeof IMPLEMENTATION_SENDING_LOCK !== 'undefined' ? IMPLEMENTATION_SENDING_LOCK : false;
+  const enableSendingFlag = typeof getProp === 'function' ? (getProp('ENABLE_SENDING') || 'NO') : 'NO';
+  const isSendingActive = !sendingLock && enableSendingFlag === 'YES';
 
   return {
     userEmail: userEmail,
@@ -310,8 +352,8 @@ function apiGetDashboardData() {
       maxDailyCapacity: 50
     },
     system: {
-      sendingLocked: IMPLEMENTATION_SENDING_LOCK,
-      enableSending: getProp('ENABLE_SENDING') || 'NO',
+      sendingLocked: sendingLock,
+      enableSending: enableSendingFlag,
       isSendingActive: isSendingActive,
       remainingMailQuota: mailQuota,
       dailySentToday: dailySentToday,
@@ -335,14 +377,14 @@ function apiGetApprovalQueue(params) {
   const pageSize = Math.min(100, Math.max(5, Number(params.pageSize || 25)));
 
   const book = getSpreadsheet();
-  const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+  const sheet = getQueueSheet(book);
   if (!sheet) {
-    return { leads: [], total: 0, page: 1, pageSize: pageSize, statuses: {} };
+    return { leads: [], total: 0, page: 1, pageSize: pageSize, totalPages: 1, statuses: {} };
   }
 
   const rows = sheet.getDataRange().getValues();
   if (rows.length <= 1) {
-    return { leads: [], total: 0, page: 1, pageSize: pageSize, statuses: {} };
+    return { leads: [], total: 0, page: 1, pageSize: pageSize, totalPages: 1, statuses: {} };
   }
 
   const headers = rows[0].map(h => normalizeKey(h));
@@ -353,7 +395,13 @@ function apiGetApprovalQueue(params) {
     const row = rows[i];
     const item = {};
     headers.forEach((h, colIdx) => {
-      item[h] = row[colIdx];
+      let val = row[colIdx];
+      if (val instanceof Date) {
+        val = val.toISOString();
+      } else if (val === null || val === undefined) {
+        val = '';
+      }
+      item[h] = val;
     });
 
     const st = normalizeKey(item.status);
@@ -368,7 +416,7 @@ function apiGetApprovalQueue(params) {
       else statusCounts.BACKLOG++;
     } else if (st === 'needs_research') {
       statusCounts.NEEDS_RESEARCH++;
-    } else if (st === 'approved' || app === 'approved' || st === 'queued') {
+    } else if (st === 'approved' || st === 'queued') {
       statusCounts.APPROVED++;
     } else if (st === 'sending') {
       statusCounts.SENDING = (statusCounts.SENDING || 0) + 1;
@@ -458,7 +506,7 @@ function apiGetLeadDetails(leadId) {
   if (!leadId) throw new Error('lead_id is required');
 
   const book = getSpreadsheet();
-  const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+  const sheet = getQueueSheet(book);
   if (!sheet) throw new Error('Approval Queue sheet missing');
 
   const rows = sheet.getDataRange().getValues();
@@ -469,7 +517,10 @@ function apiGetLeadDetails(leadId) {
     if (String(rows[i][leadIdCol]).trim() === String(leadId).trim()) {
       const record = {};
       headers.forEach((h, col) => {
-        record[h] = rows[i][col];
+        let val = rows[i][col];
+        if (val instanceof Date) val = val.toISOString();
+        else if (val === null || val === undefined) val = '';
+        record[h] = val;
       });
       
       // Calculate validation errors using single authoritative validator
@@ -513,7 +564,7 @@ function apiSaveDraft(leadId, subject, emailBody) {
 
   if (!subject) throw new Error('Subject line cannot be empty.');
   if (!emailBody) throw new Error('Email body cannot be empty.');
-  const words = emailBody.split(/\s+/).filter(w => w.length > 0).length;
+  const words = validateEmailStructure(emailBody).wordCount;
 
   // Validate strict requirements using single authoritative validator
   if (typeof validateEmailStructure === 'function') {
@@ -535,7 +586,7 @@ function apiSaveDraft(leadId, subject, emailBody) {
   lock.waitLock(15000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -603,7 +654,7 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
   lock.waitLock(15000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -632,14 +683,11 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
     // Apply edits if provided
     if (editedSubject && editedSubject.trim()) {
       r.subject = editedSubject.trim();
-      if (subjectCol !== -1) sheet.getRange(targetRow, subjectCol + 1).setValue(sanitizeCellValue(r.subject));
     }
     if (editedBody && editedBody.trim()) {
       r.email_body = editedBody.trim();
-      if (bodyCol !== -1) sheet.getRange(targetRow, bodyCol + 1).setValue(sanitizeCellValue(r.email_body));
-      const w = r.email_body.split(/\s+/).length;
+      const w = validateEmailStructure(r.email_body).wordCount;
       r.word_count = w;
-      if (wordCountCol !== -1) sheet.getRange(targetRow, wordCountCol + 1).setValue(w);
     }
 
     // Check current status
@@ -675,18 +723,14 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
       }
     }
 
-    // Set qualification requirements for reviewableRecord check
-    if (!r.qualification_status) r.qualification_status = 'QUALIFIED';
-    if (!r.proof_verified) r.proof_verified = 'YES';
-    if (!r.mail_domain_status) r.mail_domain_status = 'MX_VALID_MAILBOX_UNCONFIRMED';
-    if (!r.proof_project) r.proof_project = 'OneFolk website';
-    if (!r.proof_url) r.proof_url = 'https://onefolk.in/work';
-    if (!r.alt_opening_1) r.alt_opening_1 = 'I noticed your website details.';
-    if (!r.alt_opening_2) r.alt_opening_2 = 'Your admissions page provides online information.';
-    if (!r.observation_url) r.observation_url = r.website;
-    if (!r.email_source_url) r.email_source_url = r.website;
-    if (!r.company_id) r.company_id = extractDomain(r.website);
-    if (!r.last_verified_at) r.last_verified_at = new Date().toISOString();
+    if (!reviewableRecord(r)) {
+      throw new Error('Approval blocked: complete, fresh research evidence and genuine alternative openings are required.');
+    }
+
+    // Persist only after the entire proposed record passes validation.
+    if (subjectCol !== -1) sheet.getRange(targetRow, subjectCol + 1).setValue(sanitizeCellValue(r.subject));
+    if (bodyCol !== -1) sheet.getRange(targetRow, bodyCol + 1).setValue(sanitizeCellValue(r.email_body));
+    if (wordCountCol !== -1) sheet.getRange(targetRow, wordCountCol + 1).setValue(validateEmailStructure(r.email_body).wordCount);
 
     // Compute fingerprint
     const fingerprint = draftFingerprint(r);
@@ -711,8 +755,6 @@ function apiApproveLead(leadId, editedSubject, editedBody) {
     if (updatedCol !== -1) {
       sheet.getRange(targetRow, updatedCol + 1).setValue(nowIso);
     }
-
-    // Record audit trail
     recordAuditEntry(leadId, userEmail, 'APPROVED', fingerprint);
 
     return {
@@ -739,7 +781,7 @@ function apiRejectLead(leadId, reason) {
   lock.waitLock(15000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -795,7 +837,7 @@ function apiBatchApproveLeads(leadIds) {
   lock.waitLock(30000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -854,18 +896,11 @@ function apiBatchApproveLeads(leadIds) {
         }
       }
 
-      // Ensure defaults for qualification metadata
-      if (!r.qualification_status) r.qualification_status = 'QUALIFIED';
-      if (!r.proof_verified) r.proof_verified = 'YES';
-      if (!r.mail_domain_status) r.mail_domain_status = 'MX_VALID_MAILBOX_UNCONFIRMED';
-      if (!r.proof_project) r.proof_project = 'OneFolk website';
-      if (!r.proof_url) r.proof_url = 'https://onefolk.in/work';
-      if (!r.alt_opening_1) r.alt_opening_1 = 'I noticed your website details.';
-      if (!r.alt_opening_2) r.alt_opening_2 = 'Your admissions page provides online information.';
-      if (!r.observation_url) r.observation_url = r.website;
-      if (!r.email_source_url) r.email_source_url = r.website;
-      if (!r.company_id) r.company_id = extractDomain(r.website);
-      if (!r.last_verified_at) r.last_verified_at = nowIso;
+      if (!reviewableRecord(r)) {
+        results.failedCount++;
+        results.errors.push({lead_id: rowLeadId, reason: 'Complete, fresh research evidence and genuine alternative openings are required.'});
+        continue;
+      }
 
       // Fingerprint and approval properties
       const fingerprint = draftFingerprint(r);
@@ -886,16 +921,15 @@ function apiBatchApproveLeads(leadIds) {
       if (approvalCol !== -1) rows[i][approvalCol] = 'APPROVED';
       if (notesCol !== -1) rows[i][notesCol] = sanitizeCellValue('Batch approved via OneFolk Dashboard by ' + userEmail);
       if (updatedCol !== -1) rows[i][updatedCol] = nowIso;
-
+      [statusCol, approvalCol, notesCol, updatedCol].filter(c => c >= 0).forEach(c =>
+        sheet.getRange(i + 1, c + 1).setValue(sanitizeCellValue(rows[i][c])));
       recordAuditEntry(rowLeadId, userEmail, 'APPROVED', fingerprint);
       results.approvedCount++;
       results.approvedIds.push(rowLeadId);
     }
 
-    // Single atomic batch write to Google Sheets for all approved leads
-    if (results.approvedCount > 0) {
-      sheet.getDataRange().setValues(rows);
-    }
+
+
 
     return {
       success: true,
@@ -913,7 +947,7 @@ function apiBatchApproveLeads(leadIds) {
 function apiApproveAllCompliantLeads() {
   const userEmail = assertAuthorizedAdmin();
   const book = getSpreadsheet();
-  const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+  const sheet = getQueueSheet(book);
   if (!sheet) throw new Error('Approval Queue sheet missing');
 
   const rows = sheet.getDataRange().getValues();
@@ -970,7 +1004,7 @@ function apiBatchRejectLeads(leadIds, reason) {
   lock.waitLock(30000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -989,6 +1023,7 @@ function apiBatchRejectLeads(leadIds, reason) {
       const rowLeadId = String(rows[i][leadIdCol]).trim();
       if (!targetSet.has(rowLeadId)) continue;
 
+      if (['sent','sending','send_review','bounced','declined','unsubscribed','positive_reply'].includes(normalizeKey(rows[i][statusCol]))) continue;
       setProp('APPROVAL_' + rowLeadId, '');
 
       // In-memory update
@@ -997,13 +1032,14 @@ function apiBatchRejectLeads(leadIds, reason) {
       if (notesCol !== -1) rows[i][notesCol] = sanitizeCellValue(rejReason + ' by ' + userEmail);
       if (updatedCol !== -1) rows[i][updatedCol] = new Date().toISOString();
 
+      [statusCol, approvalCol, notesCol, updatedCol].filter(c => c >= 0).forEach(c =>
+        sheet.getRange(i + 1, c + 1).setValue(sanitizeCellValue(rows[i][c])));
+      setProp('APPROVAL_META_' + rowLeadId, '');
       recordAuditEntry(rowLeadId, userEmail, 'REJECTED', '');
       rejectedCount++;
     }
 
-    if (rejectedCount > 0) {
-      sheet.getDataRange().setValues(rows);
-    }
+
 
     return {
       success: true,
@@ -1026,7 +1062,7 @@ function apiMarkNeedsResearch(leadId, note) {
   lock.waitLock(15000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -1078,7 +1114,7 @@ function apiCancelApproval(leadId) {
   lock.waitLock(15000);
   try {
     const book = getSpreadsheet();
-    const sheet = book.getSheetByName(TAB_APPROVAL_QUEUE);
+    const sheet = getQueueSheet(book);
     if (!sheet) throw new Error('Approval Queue sheet missing');
 
     const rows = sheet.getDataRange().getValues();
@@ -1176,7 +1212,10 @@ function apiSendInternalTestEmail(recipientEmail) {
     throw new Error('Google MailApp quota exhausted for today.');
   }
 
-  const subject = '[OneFolk System Test] Live Outbound Verification ' + new Date().toISOString().slice(11, 19) + ' UTC';
+  const istTimeStr = (typeof Utilities !== 'undefined' && Utilities.formatDate)
+    ? Utilities.formatDate(new Date(), 'Asia/Kolkata', 'HH:mm:ss') + ' IST'
+    : new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }) + ' IST';
+  const subject = '[OneFolk System Test] Live Outbound Verification ' + istTimeStr;
   const bodyText = 'This is an explicitly authorized test email from OneFolk Outreach Engine.\n\nOur team designed and built the OneFolk website.\n\nDoes this confirmation reach your inbox properly?';
   const formatted = formatOneFolkEmail(bodyText, 'OneFolk Operations');
 
@@ -1191,7 +1230,7 @@ function apiSendInternalTestEmail(recipientEmail) {
 
   // Synchronize to Email Activity
   const book = getSpreadsheet();
-  const activitySheet = book.getSheetByName(TAB_EMAIL_ACTIVITY);
+  const activitySheet = book ? book.getSheetByName(TAB_EMAIL_ACTIVITY_NAME) : null;
   if (activitySheet) {
     const actId = 'test_' + Math.floor(Math.random() * 1000000);
     activitySheet.appendRow([
@@ -1244,7 +1283,10 @@ function apiGetCampaignRuns() {
   for (let i = rows.length - 1; i >= 1; i--) {
     const item = {};
     headers.forEach((h, col) => {
-      item[h] = rows[i][col];
+      let val = rows[i][col];
+      if (val instanceof Date) val = val.toISOString();
+      else if (val === null || val === undefined) val = '';
+      item[h] = val;
     });
     // Parse JSON fields if present
     if (item.shortage_reasons && typeof item.shortage_reasons === 'string') {
@@ -1261,8 +1303,8 @@ function apiGetCampaignRuns() {
 function apiGetSentAndReplies() {
   assertAuthorizedAdmin();
   const book = getSpreadsheet();
-  const activitySheet = book.getSheetByName(TAB_EMAIL_ACTIVITY);
-  const sentSheet = book.getSheetByName(TAB_HISTORICAL_SENT);
+  const activitySheet = book ? book.getSheetByName(TAB_EMAIL_ACTIVITY_NAME) : null;
+  const sentSheet = book ? book.getSheetByName(TAB_HISTORICAL_SENT_NAME) : null;
 
   const activities = [];
 
@@ -1273,7 +1315,12 @@ function apiGetSentAndReplies() {
       const headers = rows[0].map(h => normalizeKey(h));
       for (let i = rows.length - 1; i >= 1; i--) {
         const item = {};
-        headers.forEach((h, col) => { item[h] = rows[i][col]; });
+        headers.forEach((h, col) => {
+          let val = rows[i][col];
+          if (val instanceof Date) val = val.toISOString();
+          else if (val === null || val === undefined) val = '';
+          item[h] = val;
+        });
         item.source_tab = 'Email Activity';
         activities.push(item);
       }
@@ -1284,16 +1331,15 @@ function apiGetSentAndReplies() {
   if (sentSheet) {
     const rows = sentSheet.getDataRange().getValues();
     if (rows.length > 1) {
-      const headers = rows[0].map(h => normalizeKey(h));
       for (let i = rows.length - 1; i >= 1; i--) {
         const item = {
-          sent_at: rows[i][0],
-          recipient_email: rows[i][1],
-          subject: rows[i][2],
-          campaign: rows[i][3],
-          status: rows[i][4],
-          reply_status: rows[i][5],
-          gmail_thread_id: rows[i][6],
+          sent_at: rows[i][0] instanceof Date ? rows[i][0].toISOString() : String(rows[i][0] || ''),
+          recipient_email: String(rows[i][1] || ''),
+          subject: String(rows[i][2] || ''),
+          campaign: String(rows[i][3] || ''),
+          status: String(rows[i][4] || ''),
+          reply_status: String(rows[i][5] || ''),
+          gmail_thread_id: String(rows[i][6] || ''),
           source_tab: 'Historical Sent'
         };
         activities.push(item);
@@ -1309,30 +1355,48 @@ function apiGetSentAndReplies() {
  */
 function apiGetSystemHealth() {
   const userEmail = assertAuthorizedAdmin();
-  const mailQuota = MailApp.getRemainingDailyQuota();
-  const dailySentToday = getDailySendCount();
-  const sendingLock = IMPLEMENTATION_SENDING_LOCK;
-  const enableSending = getProp('ENABLE_SENDING') || 'NO';
+  let mailQuota = 100;
+  try {
+    mailQuota = MailApp.getRemainingDailyQuota();
+  } catch (e) {
+    Logger.log('Quota error: ' + e);
+  }
+
+  let dailySentToday = 0;
+  try {
+    dailySentToday = typeof getDailySendCount === 'function' ? getDailySendCount() : 0;
+  } catch (e) {
+    Logger.log('Daily send count error: ' + e);
+  }
+
+  const sendingLock = typeof IMPLEMENTATION_SENDING_LOCK !== 'undefined' ? IMPLEMENTATION_SENDING_LOCK : false;
+  const enableSending = typeof getProp === 'function' ? (getProp('ENABLE_SENDING') || 'NO') : 'NO';
+  const maxDaily = typeof MAX_DAILY_RECIPIENTS !== 'undefined' ? MAX_DAILY_RECIPIENTS : 50;
 
   let snapshot = {};
   try {
-    snapshot = automationSnapshot();
+    snapshot = typeof automationSnapshot === 'function' ? automationSnapshot() : {};
   } catch (err) {
     snapshot = { error: String(err) };
   }
 
-  const triggers = ScriptApp.getProjectTriggers().map(t => ({
-    handler: t.getHandlerFunction(),
-    type: t.getEventType().toString()
-  }));
+  let triggers = [];
+  try {
+    triggers = ScriptApp.getProjectTriggers().map(t => ({
+      handler: t.getHandlerFunction(),
+      type: t.getEventType().toString()
+    }));
+  } catch (e) {
+    Logger.log('Triggers error: ' + e);
+  }
 
   return {
     userEmail: userEmail,
-    authorizedAdmins: getAuthorizedAdmins(),
+    authorizedAdmins: typeof getAuthorizedAdmins === 'function' ? getAuthorizedAdmins() : [],
     quotas: {
       mailAppRemainingQuota: mailQuota,
       dailySendsToday: dailySentToday,
-      maxDailyRecipients: MAX_DAILY_RECIPIENTS,
+      maxDailyRecipients: maxDaily,
       groqTier: 'Groq Free Tier (llama-3.3-70b-versatile / 30 requests per batch)',
       runnerMinutesLimit: '1,500 mins/mo free tier (Soft limit 1,200 mins)'
     },
@@ -1372,4 +1436,9 @@ function recordAuditEntry(leadId, reviewer, action, fingerprint) {
   } catch (err) {
     Logger.log('Failed to write audit entry: ' + err);
   }
+}
+
+
+function clientValidationSource() {
+  return [normalizeWhitespace, splitSentences, validateEmailStructure, formatOneFolkEmail].map(fn => fn.toString()).join('\n');
 }

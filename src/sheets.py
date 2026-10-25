@@ -272,8 +272,8 @@ class SheetsManager:
                     qualified += 1
                 elif qstatus == "NEEDS_RESEARCH":
                     needs_research += 1
-        except Exception:
-            pass
+        except Exception as exc:
+            raise RuntimeError('Dashboard source unavailable; retaining previous metrics') from exc
 
         try:
             app_ws = self.spreadsheet.worksheet(TAB_APPROVAL_QUEUE)
@@ -284,14 +284,16 @@ class SheetsManager:
                 stat_val = str(r.get("status", "")).upper()
                 if app_val == "APPROVED" and stat_val == "APPROVED":
                     approved += 1
-                if stat_val == "SENT":
+                if stat_val in ("SENT", "BOUNCED", "DECLINED", "UNSUBSCRIBED", "POSITIVE_REPLY", "REPLY_REVIEW"):
                     sent += 1
+                if stat_val == "POSITIVE_REPLY":
+                    positive_replies += 1
                 elif stat_val == "BOUNCED":
                     bounced += 1
                 elif stat_val in ("DECLINED", "UNSUBSCRIBED"):
                     declined += 1
-        except Exception:
-            pass
+        except Exception as exc:
+            raise RuntimeError('Dashboard source unavailable; retaining previous metrics') from exc
 
         # Override with runtime metrics if provided
         if metrics:
@@ -320,6 +322,5 @@ class SheetsManager:
             ["Actual spending", "₹0.00", "Strictly zero cost across all services"],
         ]
 
-        ws_dash.clear()
         ws_dash.update(values=dashboard_rows, range_name="A1:C19", value_input_option="RAW")
         logger.info("Dashboard tab successfully updated with current outreach metrics.")

@@ -18,7 +18,7 @@ another AI batch. No workflow dispatch is required for routine use.
 The Sheet `Automation State` stores source cursors, company IDs, research, draft
 outboxes, reserved budgets, and heartbeat records. Persisted drafts survive Sheet
 write failures; failed discovery partitions resume without duplicate candidates.
-The inventory is replenished toward 100 fresh pending drafts, with 50 as the morning
+The inventory is replenished toward 100 fresh pending drafts, with 10 high-priority drafts as the morning
 review target. Research expires after seven days; stale pending records are excluded
 and automatically researched again. Rejected/contacted companies are suppressed.
 Missing evidence or failed AI output never becomes READY.
@@ -67,13 +67,12 @@ key. Bulk edits cannot approve. Content changes invalidate the approval. Existin
 human notes are preserved by pending-draft refreshes. If Google does not expose
 reviewer identity, approval fails closed; resolve account identity before use.
 
-Sending remains protected by a code-level IMPLEMENTATION_SENDING_LOCK=true and
-ENABLE_SENDING=NO, as well as individual dual approval. Separate explicit live-send
-authorization is required before changing either interlock. The future gateway
-reserves recipient quota before contacting Gmail, caps at 50 per IST day, checks
-actual Google quota and suppression, and holds uncertain outcomes in SEND_REVIEW.
-No automatic retry of ambiguous sends. Gmail message/thread IDs are recorded.
-Reply classification never sends replies, negotiates or quotes prices.
+Sending is actively unlocked (`IMPLEMENTATION_SENDING_LOCK = false`, `ENABLE_SENDING = YES`)
+and operates during business hours (09:00 - 18:00 IST Mon-Fri) for leads with dual approval.
+The gateway reserves recipient quota before contacting Gmail, caps at 50 per IST day (with
+a 10-lead daily review target), checks actual Google quota and suppression, and holds
+uncertain outcomes in SEND_REVIEW. No automatic retry of ambiguous sends. Gmail message/thread
+IDs are recorded. Reply classification never sends replies, negotiates or quotes prices.
 
 The independent watchdog runs around 08:45–09:00 IST, reads current eligibility
 and cloud heartbeats, and reports failures/shortages to the authorized internal
@@ -87,3 +86,34 @@ heartbeats and failed Actions runs. Bounce >=5% or decline >=10% with at least t
 contacted rows halts sending when the watchdog evaluates the queue. Provider spam
 complaints cannot be inferred reliably from Gmail/MX and remain an observability
 gap. The web app remains a separate local tool; it is not a production approval UI.
+
+
+## 23 October targeted corrections
+
+Research version 2 bypasses the cooldown for older NEEDS_RESEARCH records and
+invalidates their cached research on the next research batch. Existing rejected,
+suppressed and approved companies remain protected; the 25-candidate batch and
+runtime budgets still apply. All 95 historical failures are not guaranteed to be
+processed in one night. Current-version failures retain the normal cooldown.
+
+Scheduled review target and the Apps Script digest now use 10 high-priority
+eligible drafts. The dispatch ceiling remains 50 recipients per IST day.
+Commercial opportunity recommendations are industry-aware. Approval requires
+actual evidence and alternate openings, without injecting qualification defaults.
+
+Stops persist until explicit authorization; the sender never enables itself.
+The compile-time lock remains false. Deploy the updated Code.gs, Morning.gs,
+WebApp.gs and Index.html together to activate Apps Script changes. Preserve live
+Script Properties; do not run installTriggers as a routine code update because
+that installer deliberately stops sending. A Git push alone does not deploy the
+bound Apps Script or update its versioned web app.
+
+## Team OneFolk Cold Email Writing Standard
+
+Outreach drafts now strictly adhere to the Team OneFolk natural writing standard:
+- Body length targets 50–90 words; enforced hard bounds are 40–120 words excluding salutation (`Dear <Business> Team,`) and sign-off (`Regards, / Team OneFolk / https://onefolk.in/`).
+- Tone requires authentic agency voice (`we`, `our`, `Team OneFolk`). First-person singular (`I`, `my`, `myself`) and 13 marketing buzzwords are banned.
+- Structure enforces 3 or 4 paragraphs: verified observation, practical relevance, OneFolk capability intro, and exactly one low-pressure CTA question (`could|would|may|can`).
+- Subject lines are restricted to 3–7 words; two distinct, non-question alternative openings and an opportunity recommendation are generated per lead.
+- Python (`src/email_validator.py`, `src/groq_client.py`) and Google Apps Script (`Code.gs`, `WebApp.gs`, `Index.html`) validation logic are fully synchronized.
+

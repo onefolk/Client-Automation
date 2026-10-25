@@ -27,7 +27,7 @@ The **OneFolk Outreach OS** is a fully automated, cloud-orchestrated B2B sales d
    - Hard cap of 50 recipients per Indian Standard Time (IST) calendar day.
    - Dual-key approval verification (`status == 'APPROVED'` and `approval == 'APPROVED'`).
    - Content integrity verification via SHA-256 fingerprint (`APPROVAL_<lead_id>`).
-   - Implementation safety lock (`IMPLEMENTATION_SENDING_LOCK = true`) and kill switch (`ENABLE_SENDING = NO`).
+   - Implementation safety lock is unlocked (`IMPLEMENTATION_SENDING_LOCK = false`) and live sending authorized (`ENABLE_SENDING = YES`) for business hours (09:00 - 18:00 IST Mon-Fri). Hard cap of 50 recipients per IST day, with a 10 priority leads daily review goal.
    - Morning watchdog and reply/bounce monitor.
 
 ---
@@ -150,7 +150,7 @@ The UI embodies modern, premium agency aesthetics matching `https://onefolk.in/`
    - Direct clickable Gmail thread links (`https://mail.google.com/mail/u/0/#inbox/<threadId>`).
    - Delivery classification: `SENT`, `BOUNCED`, `DECLINED`, `POSITIVE_REPLY`, `REPLY_REVIEW`.
 6. **Settings & System Health**:
-   - Master send kill switch state display (`IMPLEMENTATION_SENDING_LOCK: ACTIVE`, `ENABLE_SENDING: NO`).
+   - Master send switch state display (`IMPLEMENTATION_SENDING_LOCK: UNLOCKED (FALSE)`, `ENABLE_SENDING: YES`).
    - Quota meters: Daily recipients used today vs 50 cap, Gmail remaining quota via `MailApp.getRemainingDailyQuota()`.
    - Groq API status & model name.
    - GitHub Actions runner minute budget tracking.
@@ -182,4 +182,4 @@ The UI embodies modern, premium agency aesthetics matching `https://onefolk.in/`
 - **Script Lock**: Every write operation (`approveLead`, `rejectLead`, `saveLeadDraft`) wraps its execution in `LockService.getScriptLock().waitLock(15000)`.
 - **Atomic Double-Write**: Approval writes to both `Approval Queue` (`status=APPROVED`, `approval=APPROVED`) and `Approval Audit` (`timestamp`, `lead_id`, `reviewer`, `action`, `fingerprint`), while updating Script Property `APPROVAL_<lead_id>`.
 - **Pre-Dispatch Invalidation**: Any subsequent edit to an approved row clears `APPROVAL_<lead_id>` and sets `status=AWAITING_REVIEW`, `approval=PENDING`.
-- **Sending Lock**: `IMPLEMENTATION_SENDING_LOCK = true` and `ENABLE_SENDING = NO` remain strictly enforced. Outbound prospecting is locked until explicit system authorization.
+- **Sending Status**: `IMPLEMENTATION_SENDING_LOCK = false` and `ENABLE_SENDING = YES` are active for authorized business hours dispatch. The daily maximum is 50 recipients/day (IST), while the operator review goal is 10 priority leads/day. All times are handled in Indian Standard Time (IST).

@@ -70,7 +70,7 @@ sheetStore.set('Approval Queue', createMockSheet('Approval Queue', [
   [
     'lead_test_01', 'Stella Maris College', 'education', 'https://stellamariscollege.edu.in/',
     'principal@stellamariscollege.edu.in', 'Simplify your application process',
-    'We noticed that your admissions page directs applicants to submit forms physically at the campus office.\n\nAn online application portal could streamline student submissions and simplify review for your administrative staff.\n\nAt OneFolk, we design and build modern digital portals and web applications for institutions.\n\nCould you direct us to the person who manages your website and digital workflows?',
+    'We noticed that your admissions page directs applicants to submit forms physically at the campus office.\n\nAn online application portal could simplify student submissions and simplify review for your administrative staff.\n\nAt OneFolk, we design and build modern digital portals and web applications for institutions.\n\nCould you direct us to the person who manages your website and digital workflows?',
     'I noticed your admissions page answers physical submission.', 'Your prospectus details hardcopy form collection.',
     'Site states: "Where do I submit completed forms"', 'https://stellamariscollege.edu.in/',
     'OneFolk website', 'Our team designed and built the OneFolk website.', 100,
@@ -283,7 +283,7 @@ const overview = vm.runInContext('apiGetDashboardData()', mockContext);
 assert.equal(overview.userEmail, 'contact.onefolk@gmail.com');
 assert.ok(overview.metrics, 'Metrics object must be returned');
 assert.equal(overview.metrics.readyToReview, 1, 'Should find 1 lead in AWAITING_REVIEW status');
-assert.equal(overview.system.sendingLocked, true, 'Sending implementation lock must be true');
+assert.equal(overview.system.sendingLocked, false, 'Sending implementation lock is false in production');
 assert.equal(overview.system.enableSending, 'NO', 'ENABLE_SENDING must be NO');
 assert.equal(overview.system.isSendingActive, false, 'isSendingActive must be false');
 console.log('✓ Dashboard overview API passed.\n');
@@ -298,7 +298,7 @@ assert.equal(queueResult.leads.length, 1);
 const lead = queueResult.leads[0];
 assert.equal(lead.lead_id, 'lead_test_01');
 assert.equal(lead.business, 'Stella Maris College');
-assert.equal(lead.is_compliant, true, 'Lead with valid 4-para 70-120 words should be marked compliant');
+assert.equal(lead.is_compliant, true, 'Lead with valid 4-para 50-90 words should be marked compliant');
 
 // Filter by AWAITING_REVIEW
 const awaitingFilter = vm.runInContext("apiGetApprovalQueue({ status: 'AWAITING_REVIEW', page: 1, pageSize: 25 })", mockContext);
@@ -330,21 +330,21 @@ assert.equal(leadDetails.validationErrors.length, 0);
 // Test saving invalid body (only 2 paragraphs)
 assert.throws(() => {
   vm.runInContext("apiSaveDraft('lead_test_01', 'Subject', 'Paragraph 1\\n\\nOur team designed and built the OneFolk website.')", mockContext);
-}, /Draft must contain exactly 4 content paragraphs/, 'Must reject email with 2 paragraphs');
+}, /Use observation, relevance|allowed range/, 'Must reject email with 2 paragraphs');
 
 // Test saving invalid body (only 3 paragraphs)
 assert.throws(() => {
   vm.runInContext("apiSaveDraft('lead_test_01', 'Subject', 'Para 1 observation.\\n\\nPara 2 recommendation.\\n\\nPara 3 OneFolk capabilities.')", mockContext);
-}, /Draft must contain exactly 4 content paragraphs/, 'Must reject email with 3 paragraphs');
+}, /Use observation, relevance|allowed range/, 'Must reject email with 3 paragraphs');
 
-// Test saving invalid body (exceeding 150 words)
+// Test saving invalid body (exceeding 120 words)
 const longBody = 'Para 1 observation.\n\n' + new Array(140).fill('word').join(' ') + '\n\nAt OneFolk we build modern web applications.\n\nCould you direct us to the right person?';
 mockContext.longBody = longBody;
 assert.throws(() => {
   vm.runInContext("apiSaveDraft('lead_test_01', 'Subject', longBody)", mockContext);
-}, /Draft word count .* out of range/, 'Must reject email exceeding word limits');
+}, /allowed range/, 'Must reject email exceeding word limits');
 
-console.log('✓ Strict 4-paragraph, 70-120 words, and proof line validation passed.\n');
+console.log('✓ Strict 4-paragraph, 50-90 words, and proof line validation passed.\n');
 
 // -----------------------------------------------------------------------------
 // TEST 6: Atomic Approval, SHA-256 Fingerprint & Audit Trail
@@ -381,7 +381,7 @@ console.log('✓ Dual-key approval and audit logging passed.\n');
 // TEST 7: Post-Approval Edit Invalidates Approval
 // -----------------------------------------------------------------------------
 console.log('Test 7: Post-Approval Edit Invalidation');
-const newValidBody = 'We noticed that your admissions page directs applicants to submit forms physically at the campus office.\n\nAn online application portal could streamline student submissions and simplify review for your administrative staff.\n\nAt OneFolk, we design and build modern digital portals and web applications for institutions.\n\nCould online submission save your staff time and improve the applicant experience?';
+const newValidBody = 'We noticed that your admissions page directs applicants to submit forms physically at the campus office.\n\nAn online application portal could simplify student submissions and simplify review for your administrative staff.\n\nAt OneFolk, we design and build modern digital portals and web applications for institutions.\n\nCould online submission save your staff time and improve the applicant experience?';
 mockContext.newValidBody = newValidBody;
 vm.runInContext("apiSaveDraft('lead_test_01', 'Updated Subject', newValidBody)", mockContext);
 
@@ -436,7 +436,7 @@ console.log('✓ Suppression protection passed.\n');
 console.log('Test 10: System Health & Campaign Logs');
 const healthData = vm.runInContext('apiGetSystemHealth()', mockContext);
 assert.equal(healthData.userEmail, 'contact.onefolk@gmail.com');
-assert.equal(healthData.safetyGates.implementationLockActive, true);
+assert.equal(healthData.safetyGates.implementationLockActive, false);
 assert.equal(healthData.safetyGates.liveDispatchActive, false);
 assert.equal(healthData.quotas.mailAppRemainingQuota, 100);
 
@@ -542,18 +542,60 @@ mockContext.headerMap = headerMap;
 // Without ScriptProperty APPROVAL_legacy_backlog_lead, it must fail validation
 assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Legacy approved row without fingerprint must be rejected');
 
-// Even if someone manually sets the fingerprint but with an old approval timestamp < activationTime
+// If fingerprint is set but metadata is completely missing, it must fail validation even without activation timestamp
 const recordMock = Object.fromEntries(Object.keys(headerMap).map(k => [k, legacyRow[headerMap[k]]]));
 mockContext.recordMock = recordMock;
-scriptProps.set('APPROVAL_legacy_backlog_lead', vm.runInContext('draftFingerprint(recordMock)', mockContext));
+const mockFp = vm.runInContext('draftFingerprint(recordMock)', mockContext);
+scriptProps.set('APPROVAL_legacy_backlog_lead', mockFp);
+
+scriptProps.delete('ACTIVATION_TIMESTAMP');
+scriptProps.delete('APPROVAL_META_legacy_backlog_lead');
+assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Missing approval metadata must be rejected even when activation timestamp is unset');
+
+// Invalid date string producing NaN must be rejected
 scriptProps.set('APPROVAL_META_legacy_backlog_lead', JSON.stringify({
-  approved_by: 'old_admin@onefolk.in',
+  approved_by: 'team.onefolk@gmail.com',
+  approved_at: 'invalid-date-string-produces-nan',
+  fingerprint: mockFp
+}));
+assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Invalid approval date producing NaN must be rejected');
+
+// Unauthorized reviewer must be rejected
+scriptProps.set('APPROVAL_META_legacy_backlog_lead', JSON.stringify({
+  approved_by: 'stranger@external.com',
+  approved_at: new Date().toISOString(),
+  fingerprint: mockFp
+}));
+assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Unauthorized reviewer must be rejected');
+
+// Mismatched metadata fingerprint must be rejected
+scriptProps.set('APPROVAL_META_legacy_backlog_lead', JSON.stringify({
+  approved_by: 'team.onefolk@gmail.com',
+  approved_at: new Date().toISOString(),
+  fingerprint: 'forged_fingerprint_mismatch'
+}));
+assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Mismatched metadata fingerprint must be rejected');
+
+// Restore activation timestamp and verify historical approval < activationTime is blocked
+scriptProps.set('ACTIVATION_TIMESTAMP', activationTime);
+scriptProps.set('APPROVAL_META_legacy_backlog_lead', JSON.stringify({
+  approved_by: 'team.onefolk@gmail.com',
   approved_at: '2026-10-20T00:00:00.000Z', // Before activation
   recipient: legacyRow[headerMap['public_email']],
-  subject: legacyRow[headerMap['subject']]
+  subject: legacyRow[headerMap['subject']],
+  fingerprint: mockFp
 }));
-
 assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), false, 'Pre-activation historical approval must be blocked from automatic dispatch');
+
+// Valid fresh approval metadata passes
+scriptProps.set('APPROVAL_META_legacy_backlog_lead', JSON.stringify({
+  approved_by: 'team.onefolk@gmail.com',
+  approved_at: new Date(Date.now() + 1000).toISOString(),
+  recipient: legacyRow[headerMap['public_email']],
+  subject: legacyRow[headerMap['subject']],
+  fingerprint: mockFp
+}));
+assert.equal(vm.runInContext('isValidApprovedDraft(legacyRow, headerMap)', mockContext), true, 'Valid fresh metadata with authorized admin and matching fingerprint must pass');
 
 // Re-set ENABLE_SENDING to NO for safety during testing
 scriptProps.set('ENABLE_SENDING', 'NO');
@@ -607,3 +649,306 @@ console.log('✓ Batch selection and approve-all actions passed.\n');
 console.log('====================================================');
 console.log('ALL 15 WEB DASHBOARD BACKEND ACCEPTANCE TESTS PASSED!');
 console.log('====================================================');
+
+// Regression: neither approval route may fill missing evidence or alter a rejected edit.
+qSheet.getRange(2, qStatusIdx + 1).setValue('AWAITING_REVIEW');
+qSheet.getRange(2, qApprovalIdx + 1).setValue('PENDING');
+scriptProps.delete('APPROVAL_lead_test_01');
+qSheet.getRange(2, qHeaders.indexOf('alt_opening_2') + 1).setValue('');
+const beforeInvalidApproval = JSON.stringify(qSheet.getDataRange().getValues());
+assert.throws(() => vm.runInContext("apiApproveLead('lead_test_01', 'Changed subject')", mockContext), /complete, fresh research evidence/);
+assert.equal(JSON.stringify(qSheet.getDataRange().getValues()), beforeInvalidApproval);
+const invalidBatch = vm.runInContext("apiBatchApproveLeads(['lead_test_01'])", mockContext);
+assert.equal(invalidBatch.approvedCount, 0);
+assert.equal(invalidBatch.failedCount, 1);
+assert.equal(scriptProps.get('APPROVAL_lead_test_01'), undefined);
+assert.equal(JSON.stringify(qSheet.getDataRange().getValues()), beforeInvalidApproval);
+console.log('Missing-evidence approval regressions passed.');
+
+// Official sample passes both the gateway and review validator with envelope excluded.
+const officialBody = 'Dear Swarnandhra College Team,\n\nYour BCA course outcomes page displays “Website Under Construction.” Adding the relevant programme outcomes and syllabus information could help prospective students access essential course details more easily.\n\nAt OneFolk, we help institutions improve website content and structure.\n\nCould you direct us to the person responsible for website updates?\n\nRegards,\nTeam OneFolk\nhttps://onefolk.in/';
+mockContext.officialBody = officialBody;
+const officialValidation = vm.runInContext('validateEmailStructure(officialBody)', mockContext);
+assert.equal(officialValidation.isValid, true, officialValidation.reason);
+assert.equal(officialValidation.wordCount, 48);
+assert.equal(officialValidation.paragraphCount, 3);
+for (const phrase of ["I noticed", "I've noticed", 'my team', 'Unlock your business potential', 'Enhance your digital ecosystem', 'Optimise the customer journey', 'Reduce enquiry friction', 'Transform your digital presence', 'Drive exponential growth', 'Take your business to the next level', 'We have some exciting ideas']) {
+  mockContext.badCopy = officialBody.replace('Adding the relevant', phrase + ' adding the relevant');
+  assert.equal(vm.runInContext('validateEmailStructure(badCopy).isValid', mockContext), false, phrase);
+}
+const rendered = vm.runInContext("formatOneFolkEmail(officialBody, 'Swarnandhra College')", mockContext);
+assert.equal(rendered.plainText, officialBody);
+console.log('Official Team OneFolk writing-standard regression tests passed.');
+
+// -----------------------------------------------------------------------------
+// TEST 16: Queue Suppression Exclusion vs Independent Suppression Checks
+// -----------------------------------------------------------------------------
+console.log('Test 16: Queue Suppression Exclusion vs Independent Checks');
+const testQueueSheet = sheetStore.get('Approval Queue');
+const testQueueVals = testQueueSheet.getDataRange().getValues();
+const testEmail = 'lead.sending.test@example.com';
+const sendingRow = [...testQueueVals[1]];
+sendingRow[qHeaders.indexOf('public_email')] = testEmail;
+sendingRow[qHeaders.indexOf('status')] = 'SENDING';
+testQueueSheet.appendRow(sendingRow);
+
+// Without exclusion, buildSuppressionSet() includes the SENDING lead
+const globalBlocked = vm.runInContext('buildSuppressionSet()', mockContext);
+assert.ok(globalBlocked.has(testEmail), 'General suppression set must include queue-derived SENDING leads');
+
+// With exclusion of this current reservation, buildSuppressionSet(testEmail) excludes only this reservation from queue check
+const reservationBlocked = vm.runInContext(`buildSuppressionSet('${testEmail}')`, mockContext);
+assert.equal(reservationBlocked.has(testEmail), false, 'Current sending reservation must not suppress itself via queue check');
+
+// But independent suppression on Suppression List tab must still block it even if passed as reservation
+const testSuppSheet = sheetStore.get('Suppression List');
+testSuppSheet.appendRow(['sup_test', 'EMAIL', testEmail, 'manual entry', 'manual', new Date().toISOString()]);
+const suppBlocked = vm.runInContext(`buildSuppressionSet('${testEmail}')`, mockContext);
+assert.ok(suppBlocked.has(testEmail), 'Suppression List tab must block lead regardless of reservation exclusion');
+
+// Clean up test rows
+const queueCleanVals = testQueueSheet.getDataRange().getValues();
+queueCleanVals.pop();
+testQueueSheet.getDataRange().setValues(queueCleanVals);
+const suppCleanVals = testSuppSheet.getDataRange().getValues();
+suppCleanVals.pop();
+testSuppSheet.getDataRange().setValues(suppCleanVals);
+console.log('✓ Queue suppression exclusion and independent check preservation passed.\n');
+
+// -----------------------------------------------------------------------------
+// TEST 17: Formula Injection Sanitization in Batch Rejection
+// -----------------------------------------------------------------------------
+console.log('Test 17: Formula Injection Sanitization in Batch Rejection');
+const testInjectSheet = sheetStore.get('Approval Queue');
+const injectLeadId = 'inject_test_lead';
+const injectRow = [...testInjectSheet.getDataRange().getValues()[1]];
+injectRow[qHeaders.indexOf('lead_id')] = injectLeadId;
+injectRow[qHeaders.indexOf('reviewer_notes')] = '=cmd|\' /C calc\'!A0';
+injectRow[qHeaders.indexOf('status')] = 'AWAITING_REVIEW';
+testInjectSheet.appendRow(injectRow);
+
+// Batch reject with formula in reason
+vm.runInContext(`apiBatchRejectLeads(['${injectLeadId}'], '=HYPERLINK("http://evil.com","Click")')`, mockContext);
+const updatedInjectVals = testInjectSheet.getDataRange().getValues();
+const updatedRow = updatedInjectVals.find(r => r[qHeaders.indexOf('lead_id')] === injectLeadId);
+assert.ok(updatedRow[qHeaders.indexOf('reviewer_notes')].startsWith("'"), 'Notes with formula must be sanitized with leading apostrophe');
+
+// Clean up
+const finalQueueVals = testInjectSheet.getDataRange().getValues();
+finalQueueVals.pop();
+testInjectSheet.getDataRange().setValues(finalQueueVals);
+console.log('✓ Formula sanitization in batch rejection passed.\n');
+
+// -----------------------------------------------------------------------------
+// TEST 18: Direct Sheet Approval Metadata & Dispatch Interlock Parity
+// -----------------------------------------------------------------------------
+console.log('Test 18: Direct Sheet Approval Metadata & Dispatch Interlock Parity');
+
+// 1. Setup a valid reviewable lead in Approval Queue
+const directQueueSheet = sheetStore.get('Approval Queue');
+const directLeadId = 'direct_edit_lead_01';
+const directLeadRow = new Array(qHeaders.length).fill('');
+const setCol = (name, val) => {
+  const idx = qHeaders.indexOf(name);
+  if (idx !== -1) directLeadRow[idx] = val;
+};
+setCol('lead_id', directLeadId);
+setCol('business', 'Stella Maris College');
+setCol('industry', 'education');
+setCol('website', 'https://stellamariscollege.edu.in/');
+setCol('public_email', 'principal@stellamariscollege.edu.in');
+setCol('subject', 'Simplify your application process');
+setCol('email_body', 'We noticed that your admissions page directs applicants to submit forms physically at the campus office.\n\nAn online application portal could simplify student submissions and simplify review for your administrative staff.\n\nAt OneFolk, we design and build modern digital portals and web applications for institutions.\n\nCould you direct us to the person who manages your website and digital workflows?');
+setCol('alt_opening_1', 'I noticed your admissions page answers physical submission.');
+setCol('alt_opening_2', 'Your prospectus details hardcopy form collection.');
+setCol('observation', 'Site states: "Where do I submit completed forms"');
+setCol('observation_url', 'https://stellamariscollege.edu.in/admissions');
+setCol('email_source_url', 'https://stellamariscollege.edu.in/contact');
+setCol('opportunity', 'Online form submission workflow');
+setCol('proof_project', 'OneFolk website');
+setCol('proof_line', 'Our team designed and built the OneFolk website.');
+setCol('proof_url', 'https://onefolk.in/work');
+setCol('proof_verified', 'YES');
+setCol('qualification_score', 100);
+setCol('qualification_status', 'QUALIFIED');
+setCol('mail_domain_status', 'MX_VALID_MAILBOX_UNCONFIRMED');
+setCol('company_id', 'company_smc_01');
+setCol('last_verified_at', new Date().toISOString());
+setCol('created_at', new Date().toISOString());
+setCol('updated_at', new Date().toISOString());
+setCol('status', 'AWAITING_REVIEW');
+setCol('approval', 'PENDING');
+setCol('reviewer_notes', '');
+
+directQueueSheet.appendRow(directLeadRow);
+
+const directRowIdx = directQueueSheet.getDataRange().getValues().length; // 1-based row index
+const approvalColIdx = qHeaders.indexOf('approval') + 1; // 1-based column index
+const subjectColIdx = qHeaders.indexOf('subject') + 1;
+
+// 2. Direct Sheet approval by authorized admin via onEdit trigger (auditApprovalEdit)
+mockContext.testDirectEditEvent = {
+  range: {
+    getSheet: () => directQueueSheet,
+    getNumRows: () => 1,
+    getNumColumns: () => 1,
+    getColumn: () => approvalColIdx,
+    getRow: () => directRowIdx,
+    getLastRow: () => directRowIdx
+  },
+  value: 'APPROVED',
+  user: { getEmail: () => 'contact.onefolk@gmail.com' }
+};
+
+vm.runInContext('auditApprovalEdit(testDirectEditEvent)', mockContext);
+
+// Verify Sheet cells updated to APPROVED
+const directApprovedRow = directQueueSheet.getDataRange().getValues()[directRowIdx - 1];
+assert.equal(directApprovedRow[qHeaders.indexOf('status')], 'APPROVED', 'Status cell must be APPROVED');
+assert.equal(directApprovedRow[qHeaders.indexOf('approval')], 'APPROVED', 'Approval cell must be APPROVED');
+
+// Verify APPROVAL_<lead_id> fingerprint and APPROVAL_META_<lead_id> metadata written
+const fp = scriptProps.get('APPROVAL_' + directLeadId);
+assert.ok(fp, 'APPROVAL_<lead_id> fingerprint must be stored');
+const metaRaw = scriptProps.get('APPROVAL_META_' + directLeadId);
+assert.ok(metaRaw, 'APPROVAL_META_<lead_id> must be stored');
+const meta = JSON.parse(metaRaw);
+assert.equal(meta.approved_by, 'contact.onefolk@gmail.com', 'Reviewer email must match authorized admin');
+assert.equal(meta.fingerprint, fp, 'Metadata fingerprint must match stored approval fingerprint');
+assert.equal(meta.source, 'sheet_edit', 'Metadata source must record sheet_edit');
+assert.ok(Number.isFinite(new Date(meta.approved_at).getTime()), 'approved_at must be valid ISO timestamp');
+
+// Verify that this direct-approved draft satisfies Code.gs isValidApprovedDraft dispatch check
+const directHeaderMap = Object.fromEntries(qHeaders.map((h, i) => [h, i]));
+mockContext.testDirectRow = directApprovedRow;
+mockContext.testHeaderMap = directHeaderMap;
+const isValid = vm.runInContext('isValidApprovedDraft(testDirectRow, testHeaderMap)', mockContext);
+assert.equal(isValid, true, 'Direct Sheet approved draft must pass Code.gs isValidApprovedDraft for dispatch');
+
+// 3. Edit draft content (e.g. subject) directly in Sheet to test invalidation
+directQueueSheet.getRange(directRowIdx, subjectColIdx).setValue('Modified Subject After Direct Approval');
+mockContext.testDirectInvalidateEvent = {
+  range: {
+    getSheet: () => directQueueSheet,
+    getNumRows: () => 1,
+    getNumColumns: () => 1,
+    getColumn: () => subjectColIdx,
+    getRow: () => directRowIdx,
+    getLastRow: () => directRowIdx
+  },
+  value: 'Modified Subject After Direct Approval',
+  user: { getEmail: () => 'contact.onefolk@gmail.com' }
+};
+vm.runInContext('auditApprovalEdit(testDirectInvalidateEvent)', mockContext);
+
+// Verify status was invalidated to AWAITING_REVIEW and PENDING
+const invalidatedVals = directQueueSheet.getDataRange().getValues()[directRowIdx - 1];
+assert.equal(invalidatedVals[qHeaders.indexOf('status')], 'AWAITING_REVIEW', 'Status must revert to AWAITING_REVIEW');
+assert.equal(invalidatedVals[qHeaders.indexOf('approval')], 'PENDING', 'Approval must revert to PENDING');
+assert.equal(scriptProps.get('APPROVAL_' + directLeadId), '', 'APPROVAL_<lead_id> must be cleared on edit');
+assert.equal(scriptProps.get('APPROVAL_META_' + directLeadId), '', 'APPROVAL_META_<lead_id> must be cleared on edit');
+
+// Verify that invalidated draft is rejected by isValidApprovedDraft
+mockContext.testDirectRowInvalid = invalidatedVals;
+const isStillValid = vm.runInContext('isValidApprovedDraft(testDirectRowInvalid, testHeaderMap)', mockContext);
+assert.equal(isStillValid, false, 'Invalidated draft must fail Code.gs isValidApprovedDraft');
+
+// 4. Unauthorized user edit to APPROVED must be rejected
+mockContext.testUnauthorizedEvent = {
+  range: {
+    getSheet: () => directQueueSheet,
+    getNumRows: () => 1,
+    getNumColumns: () => 1,
+    getColumn: () => approvalColIdx,
+    getRow: () => directRowIdx,
+    getLastRow: () => directRowIdx
+  },
+  value: 'APPROVED',
+  user: { getEmail: () => 'unauthorized.user@external.com' }
+};
+vm.runInContext('auditApprovalEdit(testUnauthorizedEvent)', mockContext);
+const unauthVals = directQueueSheet.getDataRange().getValues()[directRowIdx - 1];
+assert.equal(unauthVals[qHeaders.indexOf('status')], 'AWAITING_REVIEW');
+assert.equal(unauthVals[qHeaders.indexOf('approval')], 'PENDING');
+assert.equal(scriptProps.get('APPROVAL_' + directLeadId), '');
+assert.equal(scriptProps.get('APPROVAL_META_' + directLeadId), '');
+
+// 5. Unverified event user (e.user undefined/null) must be rejected, leave row pending, set redirect note
+mockContext.testUnverifiedEvent = {
+  range: {
+    getSheet: () => directQueueSheet,
+    getNumRows: () => 1,
+    getNumColumns: () => 1,
+    getColumn: () => approvalColIdx,
+    getRow: () => directRowIdx,
+    getLastRow: () => directRowIdx
+  },
+  value: 'APPROVED',
+  user: null
+};
+vm.runInContext('auditApprovalEdit(testUnverifiedEvent)', mockContext);
+const unverifiedVals = directQueueSheet.getDataRange().getValues()[directRowIdx - 1];
+assert.equal(unverifiedVals[qHeaders.indexOf('status')], 'AWAITING_REVIEW');
+assert.equal(unverifiedVals[qHeaders.indexOf('approval')], 'PENDING');
+assert.equal(unverifiedVals[qHeaders.indexOf('reviewer_notes')], 'Direct approval requires verified user email. Please approve via OneFolk Dashboard.');
+assert.equal(scriptProps.get('APPROVAL_' + directLeadId), '');
+assert.equal(scriptProps.get('APPROVAL_META_' + directLeadId), '');
+
+// Check audit log for UNVERIFIED_EDITOR
+const directAuditSheet = sheetStore.get('Approval Audit');
+assert.ok(directAuditSheet, 'Approval Audit sheet must exist');
+const unverifiedAuditRows = directAuditSheet.getDataRange().getValues();
+const lastAudit = unverifiedAuditRows[unverifiedAuditRows.length - 1];
+assert.equal(lastAudit[1], directLeadId);
+assert.equal(lastAudit[3], 'UNVERIFIED_EDITOR');
+
+// Clean up
+const cleanVals = directQueueSheet.getDataRange().getValues();
+cleanVals.pop();
+directQueueSheet.getDataRange().setValues(cleanVals);
+console.log('✓ Direct Sheet approval metadata, dispatch readiness, and edit invalidation passed.\n');
+
+
+
+console.log('Test 19: Selected-cell batch writes preserve concurrent data');
+currentActiveUser='contact.onefolk@gmail.com'; currentEffectiveUser=currentActiveUser;
+const finalRow=directLeadRow.slice();
+finalRow[qHeaders.indexOf('lead_id')]='final_batch';
+finalRow[qHeaders.indexOf('public_email')]='info@final-fixture.edu';
+for (const field of ['website','observation_url','email_source_url']) finalRow[qHeaders.indexOf(field)]='https://final-fixture.edu/';
+finalRow[qHeaders.indexOf('status')]='AWAITING_REVIEW';finalRow[qHeaders.indexOf('approval')]='PENDING';
+const finalSheet=createMockSheet('Approval Queue',qHeaders,[finalRow]);
+const originalRange=finalSheet.getDataRange;
+let appended=false;
+finalSheet.getDataRange=()=>({getValues:()=>{
+  const snapshot=originalRange().getValues();
+  if (!appended) { appended=true;const extra=finalRow.slice();extra[0]='concurrent_append';finalSheet.appendRow(extra); }
+  return snapshot;
+},setValues:()=>{throw Error('Whole-sheet snapshot rewrite forbidden');}});
+sheetStore.set('Approval Queue',finalSheet);
+const batchResult=mockContext.apiBatchApproveLeads(['final_batch']);
+assert.equal(batchResult.approvedCount,1);
+assert.equal(originalRange().getValues().length,3);
+assert.equal(originalRange().getValues()[2][qHeaders.indexOf('status')],'AWAITING_REVIEW');
+mockContext.apiBatchRejectLeads(['final_batch'],'Review later');
+assert.equal(originalRange().getValues()[2][qHeaders.indexOf('status')],'AWAITING_REVIEW');
+finalSheet.getRange(2,qHeaders.indexOf('status')+1).setValue('SENT');
+finalSheet.getRange(2,qHeaders.indexOf('approval')+1).setValue('APPROVED');
+const counts=mockContext.apiGetApprovalQueue({}).statuses;
+assert.equal(counts.SENT,1);assert.equal(counts.APPROVED,0);
+console.log('Selected-cell writes and terminal status counters passed');
+
+console.log('Test 20: Browser editor uses the server validator');
+const html=fs.readFileSync('apps-script/Index.html','utf8');
+const clientSource=mockContext.clientValidationSource();
+const editorSource=html.slice(html.indexOf('    function onDraftChange()'),html.indexOf('    function setMetricPill('));
+const elements=new Map();
+const el=id=>{if(!elements.has(id))elements.set(id,{value:'',classList:{add(){},remove(){}},disabled:false});return elements.get(id);};
+const editor={document:{getElementById:el},state:{queue:{selectedLead:{business:'Fixture'}}},escapeHtml:s=>s,setMetricPill(){}};
+vm.createContext(editor);vm.runInContext(clientSource+'\n'+editorSource,editor);
+el('editorSubject').value='Course information update';
+el('editorBody').value=directLeadRow[qHeaders.indexOf('email_body')];
+editor.onDraftChange();assert.equal(el('btnModalApprove').disabled,false);
+el('editorBody').value=el('editorBody').value.replace('We noticed','I noticed');
+editor.onDraftChange();assert.equal(el('btnModalApprove').disabled,true);
+console.log('Browser/server validator parity passed');

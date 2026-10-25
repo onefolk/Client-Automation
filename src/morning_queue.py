@@ -4,12 +4,13 @@ from zoneinfo import ZoneInfo
 import json
 import os
 import time
+from src.writer_policy import require_production_writer
 from src.config import get_active_campaign, validate_credentials
 from src.sheets import SheetsManager
 from src.suppression import SuppressionManager
 from src.groq_client import GroqClient
 from src.permitted_fetcher import PermittedFetcher
-from src.strict_research import StrictResearcher
+from src.strict_research import StrictResearcher, RESEARCH_VERSION
 from src.open_discovery import OpenDiscovery
 from src.reserve import ReserveStore, append_records
 from src.quality import validate_queued_draft, eligible_queue
@@ -35,12 +36,13 @@ class MorningQueueManager:
     def run(self, publish_only=False):
         if self.dry_run:
             raise ValueError("Use the isolated test harness; production orchestrator never invents dry-run leads")
+        require_production_writer()
         validate_credentials(require_groq=not publish_only, require_sheets=True)
         if not self.sheets.connect(): raise RuntimeError("Sheet credentials/connectivity failed")
         self.sheets.initialize_schema()
         store = ReserveStore(self.sheets)
         started_monotonic = time.monotonic()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(IST)
         day = campaign_day(now)
         run_id = os.getenv('GITHUB_RUN_ID') or 'local_' + str(int(now.timestamp()))
         summary = {'run_id':run_id, 'campaign_date':day, 'start_time':now.isoformat(),
@@ -51,9 +53,11 @@ class MorningQueueManager:
                    'suppressed_or_duplicate':0, 'shortage_reasons':[], 'target_queue':self.target_queue}
         # Per scheduled slot, persist completion so reruns don't consume another batch budget.
         slot = os.getenv('SCHEDULE_SLOT', 'local')
+        # Unique per scheduled occurrence and stable on rerun.
+        slot += ':' + run_id
         slot_key = 'slot:'+day+':'+slot
         prior = store.get(slot_key)
-        if prior and prior.get('status') in ('READY','SHORTFALL'):
+        if prior and prior.get('status') == 'READY':
             publish_only = True  # Re-read human edits/suppressions without spending another AI batch.
         store.put('health:last_attempt', summary)
         try:
@@ -83,18 +87,18 @@ class MorningQueueManager:
                 'city':r.get('city',''), 'source_url':r.get('source_url',''), 'state':'DISCOVERED',
                 'last_attempt':0, 'reason':'Legacy evidence incomplete; automatically re-research'
             } for r in old_leads if r.get('website')})
-            # Invalid pending rows cannot continue to look reviewable in the live Sheet.
-            ws = self.sheets.spreadsheet.worksheet('Approval Queue')
-            headers = ws.row_values(1)
-            invalid_ids = {r['lead_id']:why for r,why in invalid}
-            updates=[]
-            for i,r in enumerate(queue,2):
-                if r.get('lead_id') in invalid_ids:
-                    from gspread.utils import rowcol_to_a1
-                    updates.append({'range':rowcol_to_a1(i,headers.index('status')+1),'values':[['NEEDS_RESEARCH']]})
-            if updates: ws.batch_update(updates, value_input_option='RAW')
+            # Never rewrite operator-owned queue rows from a stale pipeline snapshot.
+            # Validators exclude invalid rows; retain their original content and decisions.
+            summary['invalid_pending_rows'] = len(invalid)
             if not publish_only:
-                discovered, errors = OpenDiscovery(store,self.campaign_cfg).harvest()
+                discovered, errors = [], []
+                discovery = OpenDiscovery(store, self.campaign_cfg)
+                for _ in range(3):
+                    d, errs = discovery.harvest()
+                    discovered.extend(d)
+                    errors.extend(errs)
+                    if len(discovered) >= 15:
+                        break
                 summary['newly_discovered_today'] = len(discovered)
                 summary['shortage_reasons'] += errors
                 fetcher = PermittedFetcher(max_fetches=160)
@@ -117,7 +121,9 @@ class MorningQueueManager:
                     if prospect.get('state')=='QUEUED' and prospect['company_id'] not in existing_domains:
                         prospect['state']='DRAFTED'  # Missing/stale Sheet row: replay outbox or re-research.
                     if prospect.get('state') in ('QUEUED','SUPPRESSED','REJECTED'): continue
-                    if prospect.get('state')=='NEEDS_RESEARCH' and time.time()-prospect.get('last_attempt',0)<14*86400: continue
+                    if (prospect.get('state')=='NEEDS_RESEARCH'
+                        and prospect.get('research_version') == RESEARCH_VERSION
+                        and time.time()-prospect.get('last_attempt',0)<14*86400): continue
                     cid=prospect['company_id']
                     if cid in existing_domains: continue
                     blocked,_=suppression.is_suppressed(prospect.get('public_email',''),prospect['website'])
@@ -131,12 +137,13 @@ class MorningQueueManager:
                     if not valid:
                         research=prospect.get('research')
                         fresh=False
-                        if research:
+                        if research and prospect.get('research_version') == RESEARCH_VERSION:
                             try: fresh=(now-datetime.fromisoformat(research['last_verified_at'])).total_seconds()<7*86400
                             except (KeyError,ValueError,TypeError): pass
                         if not fresh: research=researcher.investigate(prospect)
                         prospect['last_attempt']=time.time()
                         prospect['research']=research
+                        prospect['research_version']=RESEARCH_VERSION
                         if not research or research.get('qualification_status')!='QUALIFIED':
                             prospect['state']='NEEDS_RESEARCH'; store.put('prospect:'+cid,prospect); continue
                         blocked,_=suppression.is_suppressed(research['public_email'],research['website'])
@@ -191,7 +198,7 @@ class MorningQueueManager:
             # Operational Target: 10+ High-Priority Leads (score >= 80)
             top_10 = [
                 r for r in ready
-                if int(r.get('priority_score', r.get('qualification_score', 85 if r.get('qualification_status') == 'QUALIFIED' else 0)) or 0) >= 80
+                if int(r.get('priority_score', r.get('qualification_score', 0)) or 0) >= 80
             ]
             secondary = [r for r in ready if r not in top_10]
             summary['top_10_priority'] = len(top_10)
@@ -204,7 +211,7 @@ class MorningQueueManager:
                 )
             if summary['api_failures']: summary['shortage_reasons'].append('Groq output validation or API failures')
             summary['status'] = 'READY' if summary['shortage'] == 0 and not summary['api_failures'] else 'SHORTFALL'
-            summary['end_time']=datetime.now(timezone.utc).isoformat()
+            summary['end_time']=datetime.now(IST).isoformat()
             append_records(self.sheets,'Campaign Runs',[summary],key='run_id')
             # Dedicated metrics do not overwrite or inflate the legacy Dashboard counters.
             dash=self.sheets.ensure_tab('Morning Health',['Metric','Value'])

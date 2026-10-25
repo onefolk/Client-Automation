@@ -5,13 +5,16 @@ const context={console,Logger:{log(){}},PropertiesService:{getScriptProperties:(
   Utilities:{DigestAlgorithm:{SHA_256:'sha256'},computeDigest:(_,s)=>crypto.createHash('sha256').update(s).digest(),base64Encode:b=>Buffer.from(b).toString('base64')},
   GmailApp:{sendEmail(){sent++},createDraft(){sent++;throw Error('Must not reach Gmail')}},Date};
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8')+'\n'+fs.readFileSync('apps-script/Morning.gs','utf8'),context);
+vm.runInContext(fs.readFileSync('apps-script/Security.gs','utf8')+'\n'+fs.readFileSync('apps-script/Code.gs','utf8')+'\n'+fs.readFileSync('apps-script/Morning.gs','utf8'),context);
 props.set('ENABLE_SENDING','YES');
-vm.runInContext('approvedSender()',context); assert.equal(sent,0,'Implementation interlock must defeat runtime enable flag');
+props.set('EMERGENCY_STOP_ACTIVE','YES');
+props.set('AUTHORIZED_ADMINS', 'team.onefolk@gmail.com,contact.onefolk@gmail.com');
+vm.runInContext('approvedSender()',context); assert.equal(sent,0,'Emergency stop must disarm sending');
+props.set('EMERGENCY_STOP_ACTIVE','NO');
 const r={lead_id:'test',company_id:'test-co',business:'Fixture',industry:'education',website:'https://fixture.edu/',public_email:'info@fixture.edu',
   email_source_url:'https://fixture.edu/contact',observation:'Download application form',observation_url:'https://fixture.edu/admission',opportunity:'Online form',
   proof_project:'OneFolk website',proof_line:'Our team designed and built the OneFolk website.',proof_url:'https://onefolk.in/work',
-  last_verified_at:new Date().toISOString(),subject:'Application process',email_body:'We noticed that your admissions page currently directs prospective applicants to download a static application form rather than submitting online.\n\nA dedicated interactive application portal could streamline student submissions and simplify verification for your administrative staff.\n\nAt OneFolk, our team designed and built the OneFolk website and modern digital portals for institutions.\n\nCould you direct us to the person responsible for your website updates and digital workflows?',
+  last_verified_at:new Date().toISOString(),subject:'Application process',email_body:'We noticed that your admissions page currently directs prospective applicants to download a static application form rather than submitting online.\n\nA dedicated interactive application portal could simplify student submissions and simplify verification for your administrative staff.\n\nAt OneFolk, our team designed and built the OneFolk website and modern digital portals for institutions.\n\nCould you direct us to the person responsible for your website updates and digital workflows?',
   alt_opening_1:'Your site provides an application form.',alt_opening_2:'I saw your downloadable form.',qualification_status:'QUALIFIED',
   mail_domain_status:'MX_VALID_MAILBOX_UNCONFIRMED',proof_verified:'YES',status:'APPROVED',approval:'APPROVED'};
 context.record=r;
@@ -19,6 +22,14 @@ assert.equal(vm.runInContext('reviewableRecord(record)',context),true);
 context.headers=Object.fromEntries(Object.keys(r).map((k,i)=>[k,i]));context.row=Object.values(r);
 assert.equal(vm.runInContext('isValidApprovedDraft(row,headers)',context),false,'Dual keys without durable audit cannot send');
 props.set('APPROVAL_test',vm.runInContext('draftFingerprint(record)',context));
+assert.equal(vm.runInContext('isValidApprovedDraft(row,headers)',context),false,'Fingerprint without approval metadata cannot send');
+props.set('APPROVAL_META_test', JSON.stringify({
+  approved_by: 'team.onefolk@gmail.com',
+  approved_at: new Date().toISOString(),
+  recipient: r.public_email,
+  subject: r.subject,
+  fingerprint: props.get('APPROVAL_test')
+}));
 assert.equal(vm.runInContext('isValidApprovedDraft(row,headers)',context),true);
 context.row[context.headers.subject]='Changed after approval';
 assert.equal(vm.runInContext('isValidApprovedDraft(row,headers)',context),false,'Edits invalidate approval');
@@ -29,20 +40,87 @@ console.log('Apps Script runtime: interlock, evidence, auditable approval and po
 // A separate sandbox lifts ONLY the compile-time lock to exercise Gmail outcomes with mocks.
 const testContext={...context,LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})},
   MailApp:{getRemainingDailyQuota:()=>20}};
-testContext.Utilities={...context.Utilities,formatDate:()=> '2026-10-22',sleep(){}};
+testContext.Utilities={...context.Utilities,formatDate:(d,tz,fmt)=> fmt==='u HH:mm' ? '3 14:00' : fmt==='HH:mm' ? '14:00' : '2026-10-22',sleep(){}};
 let attempts=0;
 testContext.GmailApp={createDraft:()=>({send:()=>{attempts++;throw Error('Ambiguous provider timeout');}})};
 vm.createContext(testContext);
-vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8').replace('const IMPLEMENTATION_SENDING_LOCK = true;','const IMPLEMENTATION_SENDING_LOCK = false;')+'\n'+fs.readFileSync('apps-script/Morning.gs','utf8'),testContext);
+vm.runInContext(fs.readFileSync('apps-script/Security.gs','utf8')+'\n'+fs.readFileSync('apps-script/Code.gs','utf8')+'\n'+fs.readFileSync('apps-script/Morning.gs','utf8'),testContext);
 const fields=Object.keys(r), r2={...r,lead_id:'test2',company_id:'second',website:'https://second.edu',public_email:'info@second.edu',email_source_url:'https://second.edu/contact',observation_url:'https://second.edu/apply'};
-const sheet={getDataRange:()=>({getValues:()=>[fields,Object.values(r),Object.values(r2)]}),getRange:()=>({setValue(){}})};
-testContext.book={getSheetByName:()=>sheet};
-testContext.SpreadsheetApp={flush(){}};
-vm.runInContext('getSpreadsheet=()=>book; buildSuppressionSet=()=>new Set();',testContext);
+const queueRows = [fields, Object.values(r), Object.values(r2)];
+const queueSheet = {
+  getDataRange: () => ({ getValues: () => queueRows }),
+  getRange: (row, col) => ({ setValue(val) { queueRows[row-1][col-1] = val; } })
+};
+const emptySheet = { getDataRange: () => ({ getValues: () => [['header1', 'header2', 'header3', 'header4', 'status', 'recipient_email']] }) };
+testContext.book = {
+  getSheetByName: (name) => (name === 'Approval Queue' ? queueSheet : emptySheet)
+};
+testContext.SpreadsheetApp = { flush() {} };
+vm.runInContext('getSpreadsheet=()=>book;', testContext);
 props.set('APPROVAL_test',context.draftFingerprint(r));
+props.set('APPROVAL_META_test', JSON.stringify({
+  approved_by: 'team.onefolk@gmail.com',
+  approved_at: new Date().toISOString(),
+  recipient: r.public_email,
+  subject: r.subject,
+  fingerprint: context.draftFingerprint(r)
+}));
 props.set('APPROVAL_test2',context.draftFingerprint(r2));
+props.set('APPROVAL_META_test2', JSON.stringify({
+  approved_by: 'team.onefolk@gmail.com',
+  approved_at: new Date().toISOString(),
+  recipient: r2.public_email,
+  subject: r2.subject,
+  fingerprint: context.draftFingerprint(r2)
+}));
 props.set('SENT_2026-10-22','49');
 vm.runInContext('approvedSender()',testContext);
 assert.equal(attempts,1,'One remaining recipient budget permits only one uncertain attempt');
 assert.equal(Number(props.get('SENT_2026-10-22')),50);
 console.log('Apps Script runtime: ambiguous provider outcomes respect the 50-recipient cap');
+
+// Production stop paths must stay stopped without invoking any Gmail service.
+props.set('ENABLE_SENDING', 'YES');
+context.emergencyStop();
+context.approvedSender();
+assert.equal(props.get('ENABLE_SENDING'), 'NO');
+assert.equal(props.get('EMERGENCY_STOP_ACTIVE'), 'YES');
+props.set('EMERGENCY_STOP_ACTIVE', 'NO');
+context.approvedSender();
+assert.equal(props.get('ENABLE_SENDING'), 'NO', 'Disabled sending must never auto-activate');
+for (const key of ['company_id','email_source_url','observation_url','opportunity','proof_url','last_verified_at','alt_opening_1','alt_opening_2','qualification_status','proof_verified','mail_domain_status']) {
+  const incomplete = {...r, updated_at:new Date().toISOString()};
+  delete incomplete[key];
+  assert.equal(context.reviewableRecord(incomplete), false, 'Missing evidence must fail: ' + key);
+}
+
+// Malformed quota configuration must never turn comparisons into NaN bypasses.
+for (const cap of ['invalid','0','-1','Infinity','51']) {
+  queueRows[1]=Object.values(r); queueRows[2]=Object.values(r2);
+  props.set('ENABLE_SENDING','YES'); props.set('EMERGENCY_STOP_ACTIVE','NO');
+  props.set('SENT_2026-10-22','50'); props.set('HOURLY_BATCH_CAP',cap);
+  const before=attempts;
+  testContext.approvedSender();
+  assert.equal(attempts,before,'Malformed cap must not bypass exhausted daily budget: '+cap);
+}
+props.set('HOURLY_BATCH_CAP','6'); props.set('SENT_2026-10-22','invalid');
+assert.throws(()=>testContext.approvedSender(),/Invalid daily recipient counter/);
+props.set('SENT_2026-10-22','0');
+const savedSafety=testContext.evaluateOutreachSafety;
+let safetyChecks=0;
+testContext.evaluateOutreachSafety=()=>{safetyChecks++;return [];};
+props.set('DIGEST_2026-10-22','DELIVERED');
+testContext.Utilities.formatDate=(d,tz,f)=>f==='u'?'5':f==='HH:mm'?'14:00':'2026-10-22';
+testContext.morningWatchdog(); testContext.morningWatchdog();
+assert.equal(safetyChecks,2,'Watchdog must keep checking after digest delivery');
+testContext.evaluateOutreachSafety=savedSafety;
+props.set('ENABLE_SENDING','YES');props.set('EMERGENCY_STOP_ACTIVE','NO');
+const badHistory=Array.from({length:10},(_,i)=>({status:i===0?'BOUNCED':'SENT'}));
+assert.equal(testContext.evaluateOutreachSafety(badHistory).length,1);
+assert.equal(props.get('EMERGENCY_STOP_ACTIVE'),'YES');
+assert.equal(testContext.classifyReply('Our team is unstoppable.'),'REPLY_REVIEW');
+assert.equal(testContext.classifyReply('Thanks.\nOn Monday Alice wrote:\nPlease remove me'),'REPLY_REVIEW');
+assert.equal(testContext.classifyReply('Context '.repeat(400)+'Please remove me.'),'DECLINED');
+assert.equal(testContext.classifyReply('Please share your pricing.'),'POSITIVE_REPLY');
+assert.equal(testContext.classifyReply('We are not ready for a meeting.'),'REPLY_REVIEW');
+console.log('Final audit: quota failure, continuous watchdog and reply classification regressions passed');

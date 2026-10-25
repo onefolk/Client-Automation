@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 import requests
 from src.config import CONFIG_DIR, USER_AGENT
-from src.network import canonical_url, extract_domain
+from src.network import canonical_url, extract_domain, read_bounded
 
 def company_id(website):
     return 'company_' + hashlib.sha256(extract_domain(website).encode()).hexdigest()[:20]
@@ -41,18 +41,25 @@ class OpenDiscovery:
         last_exc = None
         data = None
         for endpoint in endpoints:
+            response = None
             try:
+                deadline = time.monotonic() + 35
                 response = requests.post(endpoint, data={'data': query},
-                                         headers={'User-Agent': USER_AGENT}, timeout=35)
+                                         headers={'User-Agent': USER_AGENT, 'Accept-Encoding':'identity'}, timeout=35, stream=True, allow_redirects=False)
                 response.raise_for_status()
-                parsed = response.json()
+                parsed = json.loads(read_bounded(response, 4000000, deadline))
+                if not isinstance(parsed, dict) or not isinstance(parsed.get('elements', []), list):
+                    raise ValueError('Invalid discovery response')
                 if parsed.get('remark'):
                     raise RuntimeError('Overpass returned incomplete query: ' + str(parsed['remark'])[:200])
                 data = parsed
                 break
-            except (requests.RequestException, RuntimeError, ValueError) as exc:
+            except (requests.RequestException, RuntimeError, ValueError, TimeoutError) as exc:
                 last_exc = exc
                 continue
+            finally:
+                if response is not None:
+                    response.close()
 
         if data is None:
             if last_exc:

@@ -22,5 +22,5 @@ def test_retry_loop_cannot_exceed_reserved_budget(monkeypatch):
     post=Mock(return_value=response)
     monkeypatch.setattr('src.groq_client.requests.post',post)
     monkeypatch.setattr('src.groq_client.time.sleep',lambda _:None)
-    assert client.draft_outreach({}, {}) is None
+    assert client.draft_outreach({"name": "Fixture Business"}, {}) is None
     assert post.call_count==1
