@@ -1,12 +1,12 @@
-"""Acceptance test script: Generates and inspects 10 OneFolk cold email drafts across 10 industries.
+"""Acceptance test script: Generates and inspects 15 OneFolk cold email drafts across 15 industries.
 
-Validates that each draft adheres to:
-1. Exactly 4 content paragraphs (Observation, Recommendation, OneFolk intro, Low-pressure CTA)
-2. Target 70-120 words before signature without padding
-3. Salutation: "Dear [Business or Team Name],"
-4. Portfolio link: "Our work: https://onefolk.in/work"
-5. Signature: "Regards,\nTeam OneFolk\nhttps://onefolk.in/"
-6. Truthful grounding with verified source URLs and approved portfolio proof
+Validates that each draft adheres to the Authoritative OneFolk Cold-Email Standard:
+1. Exactly 3 content paragraphs (Observation & Recommendation, OneFolk intro, Low-pressure CTA)
+2. Target 50-90 words before signature without padding (allowed range 40-120)
+3. Salutation: "Dear [Business or Team Name] Team,"
+4. Signature: "Regards,\nTeam OneFolk\nhttps://onefolk.in/"
+5. Truthful grounding with verified source URLs and OneFolk capabilities
+6. Exactly one low-pressure question mark
 7. Passing src/email_validator.py validate_email_body
 """
 
@@ -19,143 +19,177 @@ from src.email_validator import validate_email_body, parse_email_paragraphs
 CANDIDATES = [
     {
         "industry": "Higher Education",
-        "company": "Swarnandhra College of Engineering",
+        "company": "Swarnandhra College",
         "salutation": "Dear Swarnandhra College Team,",
-        "subject": "Course outcomes portal observation",
+        "subject": "BCA Course Outcomes Page",
         "observation_url": "https://swarnandhra.ac.in/departments/bca/outcomes",
         "contact_email": "principal@swarnandhra.ac.in",
-        "proof_line": "Our team designed and built the OneFolk website.",
-        "p1": "We noticed that your BCA course outcomes page currently displays \"Website Under Construction,\" despite listing department faculty and syllabus headings.",
-        "p2": "A dedicated digital portal for programme outcomes and curriculum details could make essential academic information easier for prospective students and accreditation reviewers to access.",
-        "p3": "At OneFolk, our team designed and built the OneFolk website, helping educational institutions structure clear, accessible digital experiences.",
-        "p4": "Could you direct us to the person responsible for website updates?",
+        "p1": "Your BCA course outcomes page displays “Website Under Construction.” Adding the relevant programme outcomes and syllabus information could help prospective students access essential course details more easily.",
+        "p2": "At OneFolk, we help institutions improve website content and structure.",
+        "p3": "Could you direct us to the person responsible for website updates?",
     },
     {
         "industry": "Healthcare & Diagnostics",
         "company": "Apex Specialty Clinic",
         "salutation": "Dear Apex Specialty Clinic Team,",
-        "subject": "Patient appointment intake workflow",
+        "subject": "Patient Consultation Scheduling Flow",
         "observation_url": "https://apexspecialtyclinic.com/book-appointment",
         "contact_email": "reception@apexspecialtyclinic.com",
-        "proof_line": "Our portfolio includes an invoicing, tax computation and financial operations web application.",
-        "p1": "We noticed that your appointment scheduling page uses an unencrypted mailto link rather than a real-time booking form.",
-        "p2": "A direct patient scheduling workflow with automated slot confirmation could reduce telephone inquiries and simplify consultation tracking for your front desk.",
-        "p3": "At OneFolk, our portfolio includes an invoicing, tax computation and financial operations web application, delivering reliable, secure workflow solutions.",
-        "p4": "Could you connect us with the clinic manager responsible for patient digital services?",
+        "p1": "Your appointment booking page currently directs patients to call clinic reception or send an email during consultation hours. An interactive patient scheduling and appointment booking system could help patients reserve slots instantly and reduce phone calls for your desk team.",
+        "p2": "At OneFolk, we design custom clinic booking and appointment workflows.",
+        "p3": "Would you be open to a brief conversation about this?",
     },
     {
-        "industry": "Architecture & Urban Design",
-        "company": "Studio Praxis Architecture",
-        "salutation": "Dear Studio Praxis Architecture Team,",
-        "subject": "Project portfolio presentation review",
+        "industry": "Architecture & Interiors",
+        "company": "Studio Praxis Design",
+        "salutation": "Dear Studio Praxis Team,",
+        "subject": "Architecture Portfolio Mobile Experience",
         "observation_url": "https://studiopraxis.in/projects",
         "contact_email": "info@studiopraxis.in",
-        "proof_line": "Our team designed and built the OneFolk website.",
-        "p1": "We noticed that your project portfolio serves large uncompressed renderings that take over six seconds to load on mobile devices.",
-        "p2": "Optimizing image delivery with responsive web viewing could present your studio's architectural work crisply and reliably to prospective commercial clients on mobile browsers.",
-        "p3": "At OneFolk, our team designed and built the OneFolk website, focusing on fast-loading visual portfolios and sleek responsive interfaces.",
-        "p4": "Could you connect us with the partner responsible for your firm's digital presence?",
+        "p1": "Your residential projects gallery uses fixed-width desktop image grids that require horizontal scrolling on smartphone viewports. Implementing a modern mobile-responsive portfolio layout could present your architectural projects crisply to prospective clients browsing on mobile devices.",
+        "p2": "At OneFolk, we build mobile-responsive portfolio websites for architecture studios.",
+        "p3": "Could you point us to the person handling digital operations?",
     },
     {
-        "industry": "Legal Services",
-        "company": "Vanguard Legal Partners",
-        "salutation": "Dear Vanguard Legal Partners Team,",
-        "subject": "Client consultation inquiry workflow",
-        "observation_url": "https://vanguardlegal.in/contact",
-        "contact_email": "contact@vanguardlegal.in",
-        "proof_line": "Our portfolio includes an internal workforce operations suite with role-based project and attendance tracking.",
-        "p1": "We noticed that your contact page lists telephone numbers and a general email without an intake form for client matter inquiries.",
-        "p2": "A structured inquiry workflow with preliminary practice-area routing could help your team categorize incoming consultation requests more efficiently while maintaining client confidentiality.",
-        "p3": "At OneFolk, our portfolio includes an internal workforce operations suite with role-based project and attendance tracking, creating structured operational tools for professional firms.",
-        "p4": "Would you be open to a brief discussion about modernizing client intake?",
-    },
-    {
-        "industry": "Hospitality & Boutique Stays",
+        "industry": "Hospitality & Dining",
         "company": "Heritage Valley Retreat",
         "salutation": "Dear Heritage Valley Retreat Team,",
-        "subject": "Direct reservation portal review",
+        "subject": "Direct Table Reservations Flow",
         "observation_url": "https://heritagevalleyretreat.com/rooms",
         "contact_email": "stay@heritagevalleyretreat.com",
-        "proof_line": "Our portfolio includes a digital room allocation and accommodation management system.",
-        "p1": "We noticed that your accommodations page redirects guests to a third-party directory for availability checks rather than offering direct booking.",
-        "p2": "An integrated direct inquiry and reservation calendar could help guests secure rooms immediately on your site while reducing reliance on external booking commissions.",
-        "p3": "At OneFolk, our portfolio includes a digital room allocation and accommodation management system, streamlining lodging reservations and guest workflows.",
-        "p4": "Could you direct us to the person who manages your reservations and website?",
+        "p1": "Your dining reservations section instructs guests to call the kitchen desk or email booking details for confirmation. An interactive reservation and table enquiry system could help guests reserve tables instantly and reduce telephone coordination for your front-of-house staff.",
+        "p2": "At OneFolk, we design custom reservation workflows and guest enquiry systems.",
+        "p3": "Would you be open to a brief conversation about this?",
     },
     {
-        "industry": "Logistics & Freight Services",
-        "company": "TransContinental Logistics",
-        "salutation": "Dear TransContinental Logistics Team,",
-        "subject": "Consignment tracking web experience",
-        "observation_url": "https://transcontinentallogistics.com/services/freight",
-        "contact_email": "operations@transcontinentallogistics.com",
-        "proof_line": "Our portfolio includes an invoicing, tax computation and financial operations web application.",
-        "p1": "We noticed that your freight services page asks shippers to email manual tracking requests rather than offering an online status lookup.",
-        "p2": "A self-service consignment lookup portal could provide shippers with instant milestone updates, freeing your customer support team from repetitive status calls.",
-        "p3": "At OneFolk, our portfolio includes an invoicing, tax computation and financial operations web application, building specialized operational portals for commercial enterprises.",
-        "p4": "Could you connect us with your logistics operations coordinator for a quick chat?",
+        "industry": "Professional Legal Services",
+        "company": "Vanguard Legal Partners",
+        "salutation": "Dear Vanguard Legal Team,",
+        "subject": "Client Matter Inquiry Routing",
+        "observation_url": "https://vanguardlegal.in/contact",
+        "contact_email": "contact@vanguardlegal.in",
+        "p1": "Your contact page lists telephone numbers and a general email without a practice-area consultation intake form. A structured enquiry workflow could help your partners categorize incoming client matters efficiently while preserving confidentiality.",
+        "p2": "At OneFolk, we design secure enquiry workflows and digital portals for professional firms.",
+        "p3": "Could you direct us to the partner overseeing client intake systems?",
     },
     {
-        "industry": "Professional Accounting & Audit",
-        "company": "Sterling Chartered Accountants",
-        "salutation": "Dear Sterling Chartered Accountants Team,",
-        "subject": "Corporate tax filing resource portal",
-        "observation_url": "https://sterlingca.in/resources/tax-updates",
-        "contact_email": "desk@sterlingca.in",
-        "proof_line": "Our portfolio includes an invoicing, tax computation and financial operations web application.",
-        "p1": "We noticed that your tax updates archive links to non-downloadable scanned circulars rather than categorized compliance advisories.",
-        "p2": "A searchable compliance repository with downloadable tax schedules could help corporate clients locate statutory filing deadlines quickly and reinforce your firm's advisory standing.",
-        "p3": "At OneFolk, our portfolio includes an invoicing, tax computation and financial operations web application, engineering financial software and clean data management systems.",
-        "p4": "Could you connect us with the partner overseeing your client communication tools?",
-    },
-    {
-        "industry": "Creative Studio & Media",
-        "company": "Echo Motion Design Studio",
-        "salutation": "Dear Echo Motion Design Team,",
-        "subject": "Case study playback and inquiry workflow",
-        "observation_url": "https://echomotion.tv/showreel",
-        "contact_email": "hello@echomotion.tv",
-        "proof_line": "Our team designed and built the OneFolk website.",
-        "p1": "We noticed that your motion reel page embeds videos without an interactive project brief submission form for commercial brand inquiries.",
-        "p2": "Pairing your video showcase with an interactive scope inquiry tool could allow prospective agency partners to outline project requirements directly after viewing your reel.",
-        "p3": "At OneFolk, our team designed and built the OneFolk website, delivering high-performance media presentations and interactive interfaces.",
-        "p4": "Could you direct us to the creative producer managing incoming inquiries?",
-    },
-    {
-        "industry": "Retail & Wholesale Commercial Goods",
+        "industry": "Retail & Wholesale",
         "company": "Artisan Decor Wholesalers",
         "salutation": "Dear Artisan Decor Team,",
-        "subject": "Wholesale catalogue and dealer inquiries",
+        "subject": "Trade Catalogue Product Access",
         "observation_url": "https://artisandecor.in/trade-catalogue",
         "contact_email": "dealers@artisandecor.in",
-        "proof_line": "Our portfolio includes a multi-vendor campus ordering web application with live order status and QR pickup.",
-        "p1": "We noticed that your trade catalogue requires retail dealers to download a static sixty-megabyte PDF file to view seasonal inventory.",
-        "p2": "A fast web-based digital lookbook with structured SKU categorization could make product discovery substantially easier for trade buyers across mobile devices.",
-        "p3": "At OneFolk, our portfolio includes a multi-vendor campus ordering web application with live order status and QR pickup, delivering modern digital product experiences.",
-        "p4": "Could you connect us with your commercial sales manager for a brief discussion?",
+        "p1": "Your trade catalogue asks wholesale dealers to download a static sixty-megabyte PDF file to view seasonal inventory. A fast web lookbook with structured SKU filtering could make product discovery substantially easier for trade buyers across mobile devices.",
+        "p2": "At OneFolk, we build fast digital product lookbooks and wholesale ordering portals.",
+        "p3": "Would it be useful to discuss this specific improvement?",
     },
     {
-        "industry": "Property & Facilities Management",
+        "industry": "Event Venues & Conferences",
+        "company": "Summit Convention Centre",
+        "salutation": "Dear Summit Convention Team,",
+        "subject": "Delegate Registration and Ticketing",
+        "observation_url": "https://summitconvention.in/events",
+        "contact_email": "events@summitconvention.in",
+        "p1": "Your conference booking page asks event organizers to submit manual registration spreadsheets by email for attendee badges. An automated delegate registration and digital ticketing portal could simplify attendee check-in and reduce spreadsheet tracking for your team.",
+        "p2": "At OneFolk, we build event registration and digital ticketing platforms.",
+        "p3": "Could you direct us to the coordinator managing venue technology?",
+    },
+    {
+        "industry": "Logistics & Supply Chain",
+        "company": "TransContinental Logistics",
+        "salutation": "Dear TransContinental Logistics Team,",
+        "subject": "Consignment Tracking Self-Service",
+        "observation_url": "https://transcontinentallogistics.com/services/freight",
+        "contact_email": "operations@transcontinentallogistics.com",
+        "p1": "Your freight operations page asks shippers to email manual tracking requests rather than offering an online lookup. A self-service consignment lookup portal could provide shippers with immediate milestone updates, freeing your support team from repetitive status calls.",
+        "p2": "At OneFolk, we build commercial tracking portals and operational web tools.",
+        "p3": "Would you be open to a brief conversation about this?",
+    },
+    {
+        "industry": "Corporate Training & Education",
+        "company": "Metrix Executive Training",
+        "salutation": "Dear Metrix Training Team,",
+        "subject": "Executive Workshop Registration Portal",
+        "observation_url": "https://metrixexecutive.com/workshops",
+        "contact_email": "programs@metrixexecutive.com",
+        "p1": "Your leadership workshop calendar asks corporate HR managers to download a PDF registration form and email bank transfer slips. A unified digital registration and invoice generation flow could make programme enrollment much faster for enterprise sponsors.",
+        "p2": "At OneFolk, we design training portals and automated enrollment workflows.",
+        "p3": "Could you point us to the person handling programme operations?",
+    },
+    {
+        "industry": "Accounting & Advisory",
+        "company": "Sterling Chartered Accountants",
+        "salutation": "Dear Sterling Advisory Team,",
+        "subject": "Client Tax Filing Resource Hub",
+        "observation_url": "https://sterlingca.in/resources/tax-updates",
+        "contact_email": "desk@sterlingca.in",
+        "p1": "Your regulatory circulars archive links to non-searchable scanned documents rather than categorized compliance advisories. A searchable tax compliance repository could help corporate clients locate statutory filing requirements quickly and reinforce your firm's advisory standing.",
+        "p2": "At OneFolk, we build structured resource repositories and client web portals.",
+        "p3": "Could you direct us to the partner responsible for client communications?",
+    },
+    {
+        "industry": "Creative Media & Production",
+        "company": "Echo Motion Design",
+        "salutation": "Dear Echo Motion Team,",
+        "subject": "Commercial Project Brief Intake",
+        "observation_url": "https://echomotion.tv/showreel",
+        "contact_email": "hello@echomotion.tv",
+        "p1": "Your motion reel page embeds video work without an interactive project brief submission form for commercial brand inquiries. Pairing your video showcase with an interactive scope inquiry tool could allow prospective brand partners to outline project requirements immediately after viewing your reel.",
+        "p2": "At OneFolk, we design high-performance media presentations and interactive web interfaces.",
+        "p3": "Would you be open to a brief conversation about this?",
+    },
+    {
+        "industry": "Property & Facilities",
         "company": "Summit Commercial Assets",
-        "salutation": "Dear Summit Commercial Assets Team,",
-        "subject": "Tenant service and maintenance ticketing",
+        "salutation": "Dear Summit Commercial Team,",
+        "subject": "Tenant Maintenance Request Portal",
         "observation_url": "https://summitassets.com/tenant-portal",
         "contact_email": "management@summitassets.com",
-        "proof_line": "Our portfolio includes a digital room allocation and accommodation management system.",
-        "p1": "We noticed that your tenant portal displays a static phone directory for maintenance issues without an online ticket submission interface.",
-        "p2": "A mobile-friendly maintenance reporting interface could allow commercial tenants to log facility requests with photo attachments and receive real-time resolution updates.",
-        "p3": "At OneFolk, our portfolio includes a digital room allocation and accommodation management system, building practical property operations and facility workflows.",
-        "p4": "Could you direct us to the operations manager overseeing property systems?",
+        "p1": "Your tenant portal displays a static phone directory for maintenance issues without an online ticket submission interface. A mobile-friendly maintenance reporting interface could allow commercial tenants to log facility requests with photo attachments and track resolution in real time.",
+        "p2": "At OneFolk, we design practical property operations and facility maintenance workflows.",
+        "p3": "Could you direct us to the operations manager overseeing property systems?",
+    },
+    {
+        "industry": "Precision Engineering",
+        "company": "Kavveri Precision Engineering",
+        "salutation": "Dear Kavveri Precision Team,",
+        "subject": "Precision Engineering RFQ Submission",
+        "observation_url": "https://kavveriprecision.in/rfq",
+        "contact_email": "sales@kavveriprecision.in",
+        "p1": "Your industrial engineering catalog asks buyers to telephone the sales office for component specifications and custom quotations. An online request-for-quote workflow with technical drawing upload support could help buyers submit component requirements directly to your estimation team.",
+        "p2": "At OneFolk, we build customized RFQ and technical catalog web applications.",
+        "p3": "Could you point us to the person handling digital sales channels?",
+    },
+    {
+        "industry": "Coworking & Workspaces",
+        "company": "Verve Collaborative Spaces",
+        "salutation": "Dear Verve Spaces Team,",
+        "subject": "Desk Tour and Day Pass Booking",
+        "observation_url": "https://vervespaces.in/day-pass",
+        "contact_email": "community@vervespaces.in",
+        "p1": "Your workspace locations section lists static room rates and asks freelancers to telephone community managers to check day pass availability. An interactive day pass and meeting room booking flow could let remote professionals book desks instantly and reduce phone calls for your desk team.",
+        "p2": "At OneFolk, we design interactive reservation and workspace booking systems.",
+        "p3": "Would it be useful to discuss this specific improvement?",
+    },
+    {
+        "industry": "Event Operations & Catering",
+        "company": "Urban Gourmet Events",
+        "salutation": "Dear Urban Gourmet Team,",
+        "subject": "Event Catering Menus and Bookings",
+        "observation_url": "https://urbangourmet.in/catering",
+        "contact_email": "catering@urbangourmet.in",
+        "p1": "Your private event catering section asks hosts to email date requests and wait for a manual PDF quote. An interactive menu selector and date availability inquiry tool could help hosts design customized event menus and generate preliminary estimates on your website.",
+        "p2": "At OneFolk, we design interactive catering workflows and customer inquiry portals.",
+        "p3": "Would you be open to a brief conversation about this?",
     },
 ]
 
 def format_complete_email(candidate: dict) -> str:
-    body = f"{candidate['p1']}\n\n{candidate['p2']}\n\n{candidate['p3']}\n\n{candidate['p4']}"
+    body = f"{candidate['p1']}\n\n{candidate['p2']}\n\n{candidate['p3']}"
     return (
         f"Subject: {candidate['subject']}\n\n"
         f"{candidate['salutation']}\n\n"
         f"{body}\n\n"
-        "Our work: https://onefolk.in/work\n\n"
         "Regards,\n"
         "Team OneFolk\n"
         "https://onefolk.in/"
@@ -163,19 +197,19 @@ def format_complete_email(candidate: dict) -> str:
 
 def main():
     print("=" * 75)
-    print("ONEFOLK COLD EMAIL ACCEPTANCE INSPECTION: 10 INDUSTRY SAMPLES")
+    print("ONEFOLK COLD EMAIL ACCEPTANCE INSPECTION: 15 MULTI-INDUSTRY SAMPLES")
     print("=" * 75)
 
     all_passed = True
     results = []
 
     for idx, c in enumerate(CANDIDATES, 1):
-        body = f"{c['p1']}\n\n{c['p2']}\n\n{c['p3']}\n\n{c['p4']}"
+        body = f"{c['p1']}\n\n{c['p2']}\n\n{c['p3']}"
         full_email = format_complete_email(c)
 
         # Validate with python validator
-        is_valid, reason, metrics = validate_email_body(body, c["proof_line"])
-        salutation, content_paras = parse_email_paragraphs(body)
+        is_valid, reason, metrics = validate_email_body(body)
+        salutation, content_paras = parse_email_paragraphs(full_email)
         word_count = metrics["word_count"]
         paragraph_count = len(content_paras)
 
@@ -196,12 +230,12 @@ def main():
             "full_email": full_email,
         })
 
-        print(f"\n[{idx}/10] Industry: {c['industry']}")
+        print(f"\n[{idx}/15] Industry: {c['industry']}")
         print(f"Company: {c['company']}")
         print(f"Contact Email: {c['contact_email']}")
         print(f"Observation Source: {c['observation_url']}")
-        print(f"Word Count: {word_count} words (Target: 70-120)")
-        print(f"Paragraph Count: {paragraph_count} (Required: 4)")
+        print(f"Word Count: {word_count} words (Target: 50-90, Allowed: 40-120)")
+        print(f"Paragraph Count: {paragraph_count} (Allowed: 3 or 4)")
         print(f"Validation Result: {status_str}")
         print("-" * 50)
         print("FULL FORMATTED OUTREACH EMAIL:")
@@ -216,7 +250,7 @@ def main():
         print(f"{status_tag} [{r['index']}] {r['industry']} ({r['company']}): {r['word_count']} words, {r['paragraph_count']} paras -> {r['reason']}")
 
     if all_passed:
-        print("\nALL 10 DRAFTS STRICTLY COMPLY WITH THE APPROVED ONEFOLK COLD-EMAIL STANDARD!")
+        print("\nALL 15 DRAFTS STRICTLY COMPLY WITH THE APPROVED ONEFOLK COLD-EMAIL STANDARD!")
     else:
         print("\nSOME DRAFTS FAILED COMPLIANCE CHECK!")
         sys.exit(1)

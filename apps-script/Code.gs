@@ -213,7 +213,7 @@ function validateEmailStructure(rawBody, proofLine) {
     'guaranteed','urgent','limited time','streamline','seamless','cutting-edge','synergy','game-changer','exponential','unlock'];
   if (banned.some(p => new RegExp('(?<![A-Za-z0-9_\\u00C0-\\u024F])' + p + '(?![A-Za-z0-9_\\u00C0-\\u024F])', 'i').test(raw.replace(/\s+/g, ' ')))) return fail('Prohibited jargon or sales pressure.');
   if (![3,4].includes(contentParas.length)) return fail('Use observation, relevance, OneFolk capability and CTA in 3 or 4 paragraphs.');
-  if (wordCount < 40 || wordCount > 120) return fail('Target 45-70 body words; allowed range is 40-120.');
+  if (wordCount < 40 || wordCount > 120) return fail('Target 50-90 body words; allowed range is 40-120.');
   const opening = contentParas.slice(0,-2), capability = contentParas[contentParas.length-2], cta = contentParas[contentParas.length-1];
   if (opening.some(p => /\bonefolk\b/i.test(p))) return fail('Introduce OneFolk after observation and relevance.');
   if (contentParas.length === 3 && splitSentences(contentParas[0]).length < 2) return fail('Include both observation and relevance sentences.');
@@ -240,9 +240,9 @@ function isValidApprovedDraft(v, headerMap) {
   if (status !== 'approved' || approval !== 'approved') return false;
 
   // Content requirements
-  if (!subject || !body || !proofLine) return false;
+  if (!subject || !body) return false;
 
-  // Validate Team OneFolk structure and word count (target 45-70 body words)
+  // Validate Team OneFolk structure and word count (target 50-90 body words, allowed 40-120)
   const val = validateEmailStructure(body, proofLine);
   if (!val.isValid) return false;
 

@@ -151,6 +151,7 @@ class MorningQueueManager:
                             prospect['state']='QUALIFIED_CONTACT_MISSING'; store.put('prospect:'+cid,prospect)
                             lead_record = {
                                 'lead_id': research.get('lead_id', 'lead_'+cid),
+                                'company_id': cid,
                                 'business': research.get('business', prospect.get('name', '')),
                                 'industry': prospect.get('industry', 'other'),
                                 'city': prospect.get('city', ''),
@@ -160,10 +161,17 @@ class MorningQueueManager:
                                 'email_source_url': '',
                                 'qualification_score': research.get('qualification_score', 0),
                                 'qualification_status': 'QUALIFIED_CONTACT_MISSING',
+                                'opportunity_category': research.get('opportunity_category', 'COMMERCIAL_OPPORTUNITY'),
                                 'observation': research.get('observation', ''),
                                 'observation_url': research.get('observation_url', ''),
+                                'observation_type': research.get('observation_type', ''),
                                 'opportunity': research.get('opportunity', ''),
+                                'business_relevance': research.get('business_relevance', ''),
+                                'recommended_service': research.get('recommended_service', ''),
+                                'confidence_level': research.get('confidence_level', 'LOW'),
+                                'qualification_reason': research.get('qualification_reason', ''),
                                 'proof_project': research.get('proof_project', ''),
+                                'last_verified_at': research.get('last_verified_at', now.isoformat()),
                                 'discovered_at': now.isoformat(),
                                 'updated_at': now.isoformat()
                             }

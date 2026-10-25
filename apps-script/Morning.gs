@@ -26,7 +26,7 @@ function reviewableRecord(r) {
   const qStatus = String(r.qualification_status || '').trim();
   const pVerified = String(r.proof_verified || '').trim();
   const mStatus = String(r.mail_domain_status || '').trim();
-  if (qStatus !== 'QUALIFIED' || pVerified !== 'YES' || mStatus !== 'MX_VALID_MAILBOX_UNCONFIRMED') return false;
+  if ((qStatus !== 'QUALIFIED' && qStatus !== 'QUALIFIED_CONTACTABLE') || pVerified !== 'YES' || mStatus !== 'MX_VALID_MAILBOX_UNCONFIRMED') return false;
 
   if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(r.public_email)) return false;
   if (extractDomain(emailSource) !== dom || extractDomain(obsUrl) !== dom) return false;
@@ -41,11 +41,11 @@ function reviewableRecord(r) {
     if (!val.isValid) return false;
   } else {
     const paras = body.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-    if (paras.length !== 4) return false;
+    if (![3, 4].includes(paras.length)) return false;
     const wc = body.split(/\s+/).length;
-    if (wc < 50 || wc > 150) return false;
+    if (wc < 40 || wc > 120) return false;
   }
-  if (!body.includes(r.proof_line) && !body.toLowerCase().includes('onefolk')) return false;
+  if (!body.toLowerCase().includes('onefolk')) return false;
   if (alt1 === alt2) return false;
 
   const APPROVED_PORTFOLIO = [
