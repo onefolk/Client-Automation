@@ -1,14 +1,18 @@
-# Node / Bun
+# Node / Bun / Next.js
 node_modules/
 .next/
 out/
 build/
 dist/
+.turbo/
+*.tsbuildinfo
+.eslintcache
+
+# Environment & Local Secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env*.local
+.env.backup*
+*.env
 
 # IDE & OS
 .idea/
@@ -17,6 +21,7 @@ dist/
 *.swo
 .DS_Store
 Thumbs.db
+ehthumbs.db
 
 # Logs & scratch
 *.log
@@ -25,6 +30,8 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 scratch/
+exports/
+*.tmp
 *.db
 *.db-shm
 *.db-wal
@@ -36,8 +43,9 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
+.venv/
 venv/
+env/
 ENV/
 build/
 develop-eggs/
@@ -45,16 +53,17 @@ dist/
 downloads/
 eggs/
 .eggs/
-/lib/
+lib/
 lib64/
 parts/
 sdist/
-var/
 wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 .coverage
 htmlcov/
 starter_extracted/
@@ -67,5 +76,7 @@ credentials*.json
 client_secret*.json
 onefolkinvoice*.json
 *.secret.json
+.clasp.json
 
-
+# Optional: Document / Output Exports
+OneFolk_Pricing_Catalogue_*.pdf
