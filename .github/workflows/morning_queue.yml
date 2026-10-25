@@ -1,12 +1,12 @@
 name: OneFolk Autonomous Morning Queue
 on:
   schedule:
-    # Sunday-Thursday 22:00 IST; retries/reserve batches at 00:47 and 04:47 IST.
-    - cron: '30 16 * * 0-4'
+    # Sunday-Thursday 21:53 IST; retries/reserve batches at 00:47 and 04:47 IST.
+    - cron: '23 16 * * 0-4'
     - cron: '17 19,23 * * 0-4'
-    # Final bounded replenishment at 06:47 IST; readback at 08:30 IST Mon-Fri.
+    # Final bounded replenishment at 06:47 IST; readback at 08:53 IST Mon-Fri.
     - cron: '17 1 * * 1-5'
-    - cron: '0 3 * * 1-5'
+    - cron: '23 3 * * 1-5'
   workflow_dispatch:
 permissions:
   contents: read
@@ -38,7 +38,7 @@ jobs:
       - name: Verify credentials, discover, research, draft, synchronize, then read back
         shell: bash
         run: |
-          if [ "$SCHEDULE_SLOT" = '0 3 * * 1-5' ]; then
+          if [ "$SCHEDULE_SLOT" = '23 3 * * 1-5' ]; then
             python -m src.cli preflight --no-groq
             python -m src.cli morning-queue --target 10 --publish-only
           else
