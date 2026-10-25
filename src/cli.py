@@ -122,7 +122,7 @@ def run_pipeline(
 
         researched_leads.append(research_result)
 
-        if research_result["qualification_status"] == "QUALIFIED":
+        if research_result["qualification_status"] in ("QUALIFIED", "QUALIFIED_CONTACTABLE"):
             qualified_count += 1
             # 5. Groq AI Drafting Phase
             if groq.is_available() and not dry_run:

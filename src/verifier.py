@@ -131,6 +131,24 @@ def has_valid_mx_records(domain: str, timeout: float = 3.0) -> bool:
         return False
 
 
+def decode_cf_email(cf_hex: str) -> Optional[str]:
+    """Safely decodes Cloudflare email-protection hex strings."""
+    if not cf_hex or len(cf_hex) < 4:
+        return None
+    try:
+        key = int(cf_hex[:2], 16)
+        email = "".join(chr(int(cf_hex[i:i+2], 16) ^ key) for i in range(2, len(cf_hex), 2))
+        return clean_email(email)
+    except Exception:
+        return None
+
+
+OBFUSCATED_EMAIL_REGEX = re.compile(
+    r'([A-Za-z0-9._%+-]+)\s*(?:\[at\]|\(at\)|@|\bat\b)\s*([A-Za-z0-9.-]+)\s*(?:\[dot\]|\(dot\)|\.|\bdot\b)\s*([A-Za-z]{2,}(?:\.[A-Za-z]{2,})?)',
+    re.I
+)
+
+
 def is_valid_business_email(email: str, target_domain: str, check_dns: bool = True) -> bool:
     """Strictly validates that an email belongs to the business domain and is suitable for enquiry."""
     email = clean_email(email)
@@ -148,8 +166,20 @@ def is_valid_business_email(email: str, target_domain: str, check_dns: bool = Tr
     if any(email.startswith(bad) or bad in email for bad in DISALLOWED_PREFIXES):
         return False
 
-    # Domain affiliation check: must match apex or subdomain of the target organization
-    if domain_part != target_domain and not domain_part.endswith("." + target_domain):
+    # Domain affiliation check: must match apex or subdomain of target organization,
+    # or match affiliated institutional domain (e.g. ksit.edu.in for ksit.ac.in, orchids.edu.in for orchidsinternationalschool.com)
+    is_affiliated = (
+        domain_part == target_domain
+        or domain_part.endswith("." + target_domain)
+        or target_domain.endswith("." + domain_part)
+    )
+    if not is_affiliated:
+        target_root = target_domain.split(".")[0].lower()
+        email_root = domain_part.split(".")[0].lower()
+        if len(target_root) >= 4 and (target_root in domain_part or email_root in target_domain):
+            is_affiliated = True
+
+    if not is_affiliated:
         # We only accept first-party official business domains
         return False
 
@@ -161,19 +191,25 @@ def is_valid_business_email(email: str, target_domain: str, check_dns: bool = Tr
 
 
 def extract_emails_from_html(html: str, target_domain: str, source_url: str, check_dns: bool = True) -> List[Tuple[str, str]]:
-    """Extracts all valid business emails from HTML text and mailto links."""
+    """Extracts all valid business emails from HTML text, mailto links, and safe obfuscations."""
     if not html:
         return []
 
     soup = BeautifulSoup(html, "html.parser")
-    # Decompose non-content elements (do NOT decompose footer or header as they contain contact emails)
-    for tag in soup(["script", "style", "noscript", "svg"]):
-        tag.decompose()
+    raw_emails = set()
 
-    text = html_parser.unescape(soup.get_text(" ", strip=True))
-    raw_emails = set(EMAIL_REGEX.findall(text))
+    # 1. Cloudflare email protection tags
+    for cf in soup.select('[data-cfemail]'):
+        dec = decode_cf_email(cf.get('data-cfemail', ''))
+        if dec and is_valid_syntax(dec):
+            raw_emails.add(dec)
+    for a in soup.select('a[href*="/cdn-cgi/l/email-protection#"]'):
+        hex_part = a.get('href', '').split('#')[-1]
+        dec = decode_cf_email(hex_part)
+        if dec and is_valid_syntax(dec):
+            raw_emails.add(dec)
 
-    # Also extract mailto links
+    # 2. mailto: links (including entity-encoded and percent-encoded)
     for link in soup.select('a[href*="mailto:"]'):
         href = link.get("href", "")
         unquoted = html_parser.unescape(unquote(href))
@@ -183,6 +219,21 @@ def extract_emails_from_html(html: str, target_domain: str, source_url: str, che
                 candidate = clean_email(candidate)
                 if candidate and is_valid_syntax(candidate):
                     raw_emails.add(candidate)
+
+    # Decompose non-content elements (do NOT decompose footer or header as they contain contact emails)
+    for tag in soup(["script", "style", "noscript", "svg"]):
+        tag.decompose()
+
+    text = html_parser.unescape(soup.get_text(" ", strip=True))
+    for found in EMAIL_REGEX.findall(text):
+        raw_emails.add(found)
+
+    # 3. Obfuscated patterns like name [at] domain [dot] com
+    for m in OBFUSCATED_EMAIL_REGEX.findall(text):
+        user, dom, tld = m
+        constructed = f"{user}@{dom}.{tld}".replace("..", ".").lower()
+        if is_valid_syntax(constructed):
+            raw_emails.add(constructed)
 
     valid_results = []
     for raw in raw_emails:

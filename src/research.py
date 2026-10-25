@@ -135,20 +135,48 @@ class ProspectResearcher:
         self.fetcher = fetcher
 
     def investigate(self, candidate: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Conducts a bounded crawl of the prospect's website and evaluates qualification."""
+        """Conducts a two-stage bounded crawl of the prospect's website and evaluates qualification."""
         base_url = canonical_url(candidate["website"])
         target_domain = extract_domain(base_url)
+        from hashlib import sha256
+        timestamp = datetime.now(ZoneInfo("Asia/Kolkata")).isoformat()
 
-        # 1. Fetch main landing page
+        # 1. Stage 1: Lightweight fetch of main landing page
         main_html = self.fetcher.fetch_html(base_url)
         if not main_html:
             logger.debug("Failed to fetch landing page for %s", base_url)
-            return None
+            lead_id = f"lead_{sha256(target_domain.encode()).hexdigest()[:16]}"
+            return {
+                "lead_id": lead_id,
+                "business": candidate.get("name") or target_domain,
+                "industry": candidate.get("industry", "other"),
+                "city": candidate.get("city", ""),
+                "website": base_url,
+                "source_url": candidate.get("source_url", base_url),
+                "public_email": "",
+                "email_source_url": "",
+                "qualification_score": 0,
+                "qualification_status": "WEBSITE_UNAVAILABLE",
+                "priority_score": 0,
+                "priority_tier": "WEBSITE_UNAVAILABLE",
+                "priority_breakdown": {},
+                "scoring_reasons": "Landing page inaccessible or timed out",
+                "observation": "",
+                "observation_url": base_url,
+                "observation_type": "WEBSITE_UNAVAILABLE",
+                "opportunity": "",
+                "proof_project": "",
+                "proof_line": "",
+                "page_contexts": [],
+                "timestamp": timestamp,
+            }
 
         soup = BeautifulSoup(main_html, "html.parser")
         target_urls = [base_url]
 
-        # 2. Discover relevant subpages (contact, about, admissions, services)
+        # 2. Discover relevant contact and info subpages (prioritizing navigation and footer contact links)
+        contact_links = []
+        info_links = []
         for a in soup.select("a[href]"):
             href = a.get("href", "")
             resolved = canonical_url(urljoin(base_url, href))
@@ -156,70 +184,89 @@ class ProspectResearcher:
             if sub_domain == target_domain and resolved not in target_urls:
                 lower_url = resolved.lower()
                 anchor_text = a.get_text(" ", strip=True).lower()
-                if any(k in lower_url or k in anchor_text for k in NAVIGATION_KEYWORDS):
-                    target_urls.append(resolved)
-                    if len(target_urls) >= 5:
-                        break
+                if any(k in lower_url or k in anchor_text for k in ("contact", "contact-us", "contactus", "reach-us", "reach", "enquiry", "inquiry", "admissions", "admission")):
+                    if resolved not in contact_links:
+                        contact_links.append(resolved)
+                elif any(k in lower_url or k in anchor_text for k in NAVIGATION_KEYWORDS):
+                    if resolved not in info_links:
+                        info_links.append(resolved)
 
-        # 3. Scrape pages, extract emails and context
+        for a in soup.select("footer a[href]"):
+            href = a.get("href", "")
+            resolved = canonical_url(urljoin(base_url, href))
+            sub_domain = extract_domain(resolved)
+            if sub_domain == target_domain and resolved not in target_urls and resolved not in contact_links:
+                contact_links.append(resolved)
+
+        # Stage 2: Deep contact and context investigation
+        prioritized_subpages = contact_links[:3] + info_links[:2]
+        target_urls.extend(prioritized_subpages[:4])
+
         all_emails = []
         page_contexts = []
         combined_signals: Dict[str, Any] = {}
 
-        for url in target_urls:
-            html = main_html if url == base_url else self.fetcher.fetch_html(url)
+        # Landing page scan first
+        landing_signals = extract_website_signals(main_html, base_url)
+        combined_signals.update(landing_signals)
+        landing_emails = extract_emails_from_html(main_html, target_domain, base_url, check_dns=True)
+        all_emails.extend(landing_emails)
+
+        doc = BeautifulSoup(main_html, "html.parser")
+        for tag in doc(["script", "style", "noscript", "svg", "nav", "footer"]):
+            tag.decompose()
+        page_contexts.append((doc.get_text(" ", strip=True)[:6500], base_url))
+
+        # Fetch subpages
+        for url in target_urls[1:]:
+            html = self.fetcher.fetch_html(url)
             if not html:
                 continue
 
-            # Extract signals
             signals = extract_website_signals(html, url)
-            if not combined_signals:
-                combined_signals = signals
-            else:
-                for k, v in signals.items():
-                    if isinstance(v, bool) and v:
-                        combined_signals[k] = True
+            for k, v in signals.items():
+                if isinstance(v, bool) and v:
+                    combined_signals[k] = True
 
-            # Extract emails
             found_emails = extract_emails_from_html(html, target_domain, url, check_dns=True)
             all_emails.extend(found_emails)
 
-            # Clean context for AI analysis
-            doc = BeautifulSoup(html, "html.parser")
-            for tag in doc(["script", "style", "noscript", "svg", "nav", "footer"]):
+            s_doc = BeautifulSoup(html, "html.parser")
+            for tag in s_doc(["script", "style", "noscript", "svg", "nav", "footer"]):
                 tag.decompose()
-            clean_text = doc.get_text(" ", strip=True)
-            if url == base_url:
-                page_contexts.append((clean_text[:6500], url))
-            else:
-                page_contexts.append((clean_text[:3000], url))
+            page_contexts.append((s_doc.get_text(" ", strip=True)[:3000], url))
 
-        # 4. Require at least one verified official email
         best_contact = select_best_contact_email(all_emails)
-        if not best_contact:
-            logger.debug("No valid business contact email found for %s", target_domain)
-            return None
+        public_email = best_contact[0] if best_contact else ""
+        email_source = best_contact[1] if best_contact else ""
 
-        public_email, email_source = best_contact
-
-        # 5. Formulate verifiable technical observation
+        # Formulate verifiable technical observation
         observation, observation_url, observation_type = self._formulate_observation(
             base_url, page_contexts, combined_signals
         )
 
-        # 6. Select matching portfolio reference
         industry = candidate.get("industry", "other")
         portfolio_match = match_portfolio_project(industry, combined_signals)
 
-        # 7. Compute transparent qualification score (100-point model)
+        # Compute qualification score
         score, explanation, is_qualified, breakdown = self._compute_qualification_score(
             combined_signals, public_email, observation, candidate
         )
 
-        from hashlib import sha256
-        lead_id = f"lead_{sha256((target_domain + '|' + public_email).encode()).hexdigest()[:16]}"
-        timestamp = datetime.now(ZoneInfo("Asia/Kolkata")).isoformat()
-        priority_tier = "TOP_10_PRIORITY" if score >= 80 else ("SECONDARY_BACKLOG" if is_qualified else "NEEDS_RESEARCH")
+        lead_id = f"lead_{sha256((target_domain + '|' + (public_email or target_domain)).encode()).hexdigest()[:16]}"
+
+        if is_qualified and public_email:
+            qualification_status = "QUALIFIED_CONTACTABLE"
+            priority_tier = "TOP_10_PRIORITY" if score >= 80 else "SECONDARY_BACKLOG"
+        elif is_qualified and not public_email:
+            qualification_status = "QUALIFIED_CONTACT_MISSING"
+            priority_tier = "QUALIFIED_CONTACT_MISSING"
+        elif not observation:
+            qualification_status = "NEEDS_OPPORTUNITY_EVIDENCE"
+            priority_tier = "NEEDS_OPPORTUNITY_EVIDENCE"
+        else:
+            qualification_status = "NEEDS_OPPORTUNITY_EVIDENCE"
+            priority_tier = "NEEDS_OPPORTUNITY_EVIDENCE"
 
         return {
             "lead_id": lead_id,
@@ -231,7 +278,7 @@ class ProspectResearcher:
             "public_email": public_email,
             "email_source_url": email_source,
             "qualification_score": score,
-            "qualification_status": "QUALIFIED" if is_qualified else "NEEDS_RESEARCH",
+            "qualification_status": qualification_status,
             "priority_score": score,
             "priority_tier": priority_tier,
             "priority_breakdown": breakdown,

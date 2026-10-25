@@ -113,7 +113,7 @@ class MorningQueueManager:
                 store.put(budget_key,budget)
                 groq=GroqClient(max_calls=calls)
                 prospects=sorted(store.values('prospect:'), key=lambda p:(
-                    0 if p.get('state') in ('QUALIFIED','DRAFTED') else 1, p.get('last_attempt',0)))
+                    0 if p.get('state') in ('QUALIFIED','QUALIFIED_CONTACTABLE','DRAFTED') else 1, p.get('last_attempt',0)))
                 completed=0
                 for prospect in prospects:
                     if time.monotonic() - started_monotonic > 600 or completed >= 25: break
@@ -121,7 +121,7 @@ class MorningQueueManager:
                     if prospect.get('state')=='QUEUED' and prospect['company_id'] not in existing_domains:
                         prospect['state']='DRAFTED'  # Missing/stale Sheet row: replay outbox or re-research.
                     if prospect.get('state') in ('QUEUED','SUPPRESSED','REJECTED'): continue
-                    if (prospect.get('state')=='NEEDS_RESEARCH'
+                    if (prospect.get('state') in ('NEEDS_RESEARCH','QUALIFIED_CONTACT_MISSING','NEEDS_OPPORTUNITY_EVIDENCE','WEBSITE_UNAVAILABLE','EMAIL_VALIDATION_FAILED')
                         and prospect.get('research_version') == RESEARCH_VERSION
                         and time.time()-prospect.get('last_attempt',0)<14*86400): continue
                     cid=prospect['company_id']
@@ -144,12 +144,37 @@ class MorningQueueManager:
                         prospect['last_attempt']=time.time()
                         prospect['research']=research
                         prospect['research_version']=RESEARCH_VERSION
-                        if not research or research.get('qualification_status')!='QUALIFIED':
-                            prospect['state']='NEEDS_RESEARCH'; store.put('prospect:'+cid,prospect); continue
-                        blocked,_=suppression.is_suppressed(research['public_email'],research['website'])
+                        if not research:
+                            prospect['state']='WEBSITE_UNAVAILABLE'; store.put('prospect:'+cid,prospect); continue
+                        q_status = research.get('qualification_status')
+                        if q_status == 'QUALIFIED_CONTACT_MISSING':
+                            prospect['state']='QUALIFIED_CONTACT_MISSING'; store.put('prospect:'+cid,prospect)
+                            lead_record = {
+                                'lead_id': research.get('lead_id', 'lead_'+cid),
+                                'business': research.get('business', prospect.get('name', '')),
+                                'industry': prospect.get('industry', 'other'),
+                                'city': prospect.get('city', ''),
+                                'website': prospect.get('website', ''),
+                                'source_url': prospect.get('source_url', ''),
+                                'public_email': '',
+                                'email_source_url': '',
+                                'qualification_score': research.get('qualification_score', 0),
+                                'qualification_status': 'QUALIFIED_CONTACT_MISSING',
+                                'observation': research.get('observation', ''),
+                                'observation_url': research.get('observation_url', ''),
+                                'opportunity': research.get('opportunity', ''),
+                                'proof_project': research.get('proof_project', ''),
+                                'discovered_at': now.isoformat(),
+                                'updated_at': now.isoformat()
+                            }
+                            append_records(self.sheets,'Lead Database',[lead_record],refresh_pending=True)
+                            continue
+                        if q_status not in ('QUALIFIED', 'QUALIFIED_CONTACTABLE'):
+                            prospect['state']=q_status or 'NEEDS_RESEARCH'; store.put('prospect:'+cid,prospect); continue
+                        blocked,_=suppression.is_suppressed(research.get('public_email',''),research.get('website',''))
                         if blocked:
                             prospect['state']='SUPPRESSED'; store.put('prospect:'+cid,prospect); continue
-                        prospect['state']='QUALIFIED'; store.put('prospect:'+cid,prospect)
+                        prospect['state']='QUALIFIED' if prospect.get('state')=='QUALIFIED' else 'QUALIFIED_CONTACTABLE'; store.put('prospect:'+cid,prospect)
                         summary['qualified_overnight']+=1
                         if not groq.is_available():
                             summary['shortage_reasons'].append('Groq call budget exhausted; qualified reserve saved')
@@ -178,9 +203,9 @@ class MorningQueueManager:
             ready,invalid=eligible_queue(queue,suppression)
             summary['ready_for_approval']=len(ready)
             prospects=store.values('prospect:')
-            summary['needs_research']=sum(p.get('state') in ('NEEDS_RESEARCH','LEGACY_REVIEW') for p in prospects)
+            summary['needs_research']=sum(p.get('state') in ('NEEDS_RESEARCH','LEGACY_REVIEW','QUALIFIED_CONTACT_MISSING','NEEDS_OPPORTUNITY_EVIDENCE','WEBSITE_UNAVAILABLE','EMAIL_VALIDATION_FAILED') for p in prospects)
             summary['suppressed_or_duplicate']=sum(p.get('state')=='SUPPRESSED' for p in prospects)
-            summary['reserve_qualified']=sum(p.get('state') in ('QUALIFIED','DRAFTED') for p in prospects)
+            summary['reserve_qualified']=sum(p.get('state') in ('QUALIFIED','QUALIFIED_CONTACTABLE','DRAFTED') for p in prospects)
             summary['rejected']=sum(r.get('status')=='REJECTED' for r in queue)
             sources={p.get('source','legacy') for p in prospects}
             for source in sources:
@@ -188,9 +213,9 @@ class MorningQueueManager:
                 q=[r for r in queue if r.get('source','legacy')==source]
                 append_records(self.sheets,'Source Performance',[{
                     'source_run_id':run_id+':'+source,'source':source,'run_id':run_id,
-                    'discovered':len(members),'qualified_reserve':sum(p.get('state')=='QUALIFIED' for p in members),
+                    'discovered':len(members),'qualified_reserve':sum(p.get('state') in ('QUALIFIED','QUALIFIED_CONTACTABLE') for p in members),
                     'queued':sum(p.get('state')=='QUEUED' for p in members),
-                    'needs_research':sum(p.get('state')=='NEEDS_RESEARCH' for p in members),
+                    'needs_research':sum(p.get('state') in ('NEEDS_RESEARCH','LEGACY_REVIEW','QUALIFIED_CONTACT_MISSING','NEEDS_OPPORTUNITY_EVIDENCE','WEBSITE_UNAVAILABLE','EMAIL_VALIDATION_FAILED') for p in members),
                     'sent':sum(r.get('status')=='SENT' for r in q),
                     'positive_reply':sum(r.get('status')=='POSITIVE_REPLY' for r in q),
                     'bounced':sum(r.get('status')=='BOUNCED' for r in q)

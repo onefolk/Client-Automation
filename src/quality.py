@@ -22,7 +22,7 @@ def validate_queued_draft(row, now=None):
         val = row.get(key)
         if not isinstance(val, str) or not val.strip() or val.strip() == 'None':
             return False, 'Missing ' + key
-    if row.get('qualification_status') != 'QUALIFIED':
+    if row.get('qualification_status') not in ('QUALIFIED', 'QUALIFIED_CONTACTABLE'):
         return False, 'Research incomplete'
     if row.get('mail_domain_status') != 'MX_VALID_MAILBOX_UNCONFIRMED':
         return False, 'Mail domain not verified'

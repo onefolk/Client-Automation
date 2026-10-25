@@ -88,3 +88,38 @@ def test_select_best_contact_email():
     assert best is not None
     # 'info' has higher priority ranking than 'admissions' or personal name
     assert best[0] == "info@pes.edu"
+
+
+def test_obfuscated_and_cloudflare_email_extraction():
+    from src.verifier import decode_cf_email
+    # Test Cloudflare XOR decoding
+    # "info@pes.edu" XOR encoded with key 0x12
+    # 'i' (105 ^ 18 = 123 -> 7b)
+    # Let's test decode_cf_email roundtrip
+    key = 0x25
+    plain = "info@pes.edu"
+    cf_hex = f"{key:02x}" + "".join(f"{ord(c) ^ key:02x}" for c in plain)
+    assert decode_cf_email(cf_hex) == "info@pes.edu"
+
+    # Test HTML with Cloudflare and obfuscated text
+    html = f"""
+    <div>
+      <span data-cfemail="{cf_hex}">[email protected]</span>
+      <p>Contact admissions at: admissions [at] pes [dot] edu</p>
+      <p>Inquiries: contact (at) pes.edu</p>
+    </div>
+    """
+    results = extract_emails_from_html(html, "pes.edu", "https://pes.edu/contact", check_dns=False)
+    addrs = [r[0] for r in results]
+    assert "info@pes.edu" in addrs
+    assert "admissions@pes.edu" in addrs
+    assert "contact@pes.edu" in addrs
+
+
+def test_affiliated_domain_matching():
+    # Affiliated institutional root domain (e.g. orchids in both)
+    assert is_valid_business_email("info@orchids.edu.in", "orchidsinternationalschool.com", check_dns=False)
+    assert is_valid_business_email("principal@ksit.edu.in", "ksit.ac.in", check_dns=False)
+    # Unrelated domains should still be rejected
+    assert not is_valid_business_email("info@unrelated.edu.in", "pes.edu", check_dns=False)
+
