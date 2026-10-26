@@ -45,9 +45,10 @@ class MorningQueueManager:
         now = datetime.now(IST)
         day = campaign_day(now)
         run_id = os.getenv('GITHUB_RUN_ID') or 'local_' + str(int(now.timestamp()))
+        repo_name = os.getenv('GITHUB_REPOSITORY', 'onefolk/Client-Automation')
         summary = {'run_id':run_id, 'campaign_date':day, 'start_time':now.isoformat(),
                    'trigger':os.getenv('GITHUB_EVENT_NAME','local'), 'status':'RUNNING',
-                   'workflow_url':('https://github.com/Giridharan-E/Client-Automation/actions/runs/'+run_id) if run_id.isdigit() else '',
+                   'workflow_url':(f'https://github.com/{repo_name}/actions/runs/'+run_id) if run_id.isdigit() else '',
                    'newly_discovered_today':0, 'qualified_overnight':0, 'api_failures':0,
                    'ready_for_approval':0, 'needs_research':0, 'rejected':0,
                    'suppressed_or_duplicate':0, 'shortage_reasons':[], 'target_queue':self.target_queue}
