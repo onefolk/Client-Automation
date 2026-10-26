@@ -40,11 +40,26 @@ jobs:
         run: |
           if [ "$SCHEDULE_SLOT" = '23 3 * * 1-5' ]; then
             python -m src.cli preflight --no-groq
-            python -m src.cli morning-queue --target 10 --publish-only
+            CMD="python -m src.cli morning-queue --target 10 --publish-only"
           else
             python -m src.cli preflight
-            python -m src.cli morning-queue --target 10
+            CMD="python -m src.cli morning-queue --target 10"
+          fi
+
+          echo "::group::Executing Morning Queue Orchestration"
+          EXIT_CODE=0
+          $CMD || EXIT_CODE=$?
+          echo "::endgroup::"
+
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            echo "::notice::Morning queue completed with status READY. Target fully achieved!"
+          elif [ "$EXIT_CODE" -eq 2 ]; then
+            echo "::warning::Batch completed with an honest SHORTFALL. Strict quality bar preserved; scheduled reserve runs will continue replenishing."
+            exit 0
+          else
+            echo "::error::Morning queue encountered an unexpected error (exit code $EXIT_CODE). Check logs above."
+            exit $EXIT_CODE
           fi
       - name: Failure is visible; independent Apps Script watchdog checks the heartbeat
         if: failure()
-        run: echo '::error::Morning queue failed or reported SHORTFALL. Inspect the persisted heartbeat and run summary for the exact status.'
+        run: echo '::error::Morning queue encountered a fatal crash. Inspect the persisted heartbeat and workflow logs.'

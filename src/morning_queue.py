@@ -253,9 +253,43 @@ class MorningQueueManager:
             store.put('health:last_success',summary)
             store.put('health:last_attempt',summary)
             store.put(slot_key,summary)
+            write_github_step_summary(summary)
             return summary
         except Exception as exc:
             summary['status']='FAILED'
             summary['shortage_reasons'].append(type(exc).__name__+': automation failed; inspect workflow logs')
             store.put('health:last_attempt',summary)
+            write_github_step_summary(summary)
             raise
+
+
+def write_github_step_summary(summary: dict):
+    summary_path = os.getenv('GITHUB_STEP_SUMMARY')
+    if not summary_path:
+        return
+    try:
+        status_badge = "🟢 **READY**" if summary.get('status') == 'READY' else ("🔴 **FAILED**" if summary.get('status') == 'FAILED' else "🟡 **SHORTFALL (Quality Standard Preserved)**")
+        reasons = "\n".join(f"- {r}" for r in summary.get('shortage_reasons', [])) or "- All operational criteria satisfied."
+        md = f"""## 📊 OneFolk Morning Outreach Queue Summary
+
+| Metric | Result |
+| :--- | :--- |
+| **Execution Status** | {status_badge} |
+| **Campaign Date** | `{summary.get('campaign_date', 'N/A')}` |
+| **Trigger** | `{summary.get('trigger', 'manual')}` |
+| **Target Queue Goal** | `{summary.get('target_queue', 10)}` |
+| **Top-10 Priority Ready** | **`{summary.get('top_10_priority', 0)}`** |
+| **Newly Discovered Today** | `{summary.get('newly_discovered_today', 0)}` |
+| **Backlog (Needs Research)** | `{summary.get('needs_research', 0)}` |
+| **Suppressed / Duplicates** | `{summary.get('suppressed_or_duplicate', 0)}` |
+| **HTTP Fetches Used** | `{summary.get('http_fetches_used', 0)}` |
+| **AI Calls Used** | `{summary.get('ai_calls_used', 0)}` |
+
+### 📝 Notes & Explanations:
+{reasons}
+"""
+        with open(summary_path, 'a', encoding='utf-8') as f:
+            f.write(md)
+    except Exception as e:
+        logger.warning("Could not write GITHUB_STEP_SUMMARY: %s", e)
+
