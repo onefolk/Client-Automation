@@ -44,7 +44,16 @@ class MorningQueueManager:
         started_monotonic = time.monotonic()
         now = datetime.now(IST)
         day = campaign_day(now)
-        run_id = os.getenv('GITHUB_RUN_ID') or 'local_' + str(int(now.timestamp()))
+        slot = os.getenv('SCHEDULE_SLOT', 'local')
+        github_run_id = os.getenv('GITHUB_RUN_ID')
+        if github_run_id:
+            run_id = github_run_id
+            slot_key = 'slot:' + day + ':' + slot + ':' + github_run_id
+        else:
+            slot_key = 'slot:' + day + ':' + slot
+            prior = store.get(slot_key)
+            run_id = prior.get('run_id') if (prior and prior.get('status') == 'READY') else ('local_' + str(int(now.timestamp())))
+
         repo_name = os.getenv('GITHUB_REPOSITORY', 'onefolk/Client-Automation')
         summary = {'run_id':run_id, 'campaign_date':day, 'start_time':now.isoformat(),
                    'trigger':os.getenv('GITHUB_EVENT_NAME','local'), 'status':'RUNNING',
@@ -52,11 +61,7 @@ class MorningQueueManager:
                    'newly_discovered_today':0, 'qualified_overnight':0, 'api_failures':0,
                    'ready_for_approval':0, 'needs_research':0, 'rejected':0,
                    'suppressed_or_duplicate':0, 'shortage_reasons':[], 'target_queue':self.target_queue}
-        # Per scheduled slot, persist completion so reruns don't consume another batch budget.
-        slot = os.getenv('SCHEDULE_SLOT', 'local')
-        # Unique per scheduled occurrence and stable on rerun.
-        slot += ':' + run_id
-        slot_key = 'slot:'+day+':'+slot
+
         prior = store.get(slot_key)
         if prior and prior.get('status') == 'READY':
             publish_only = True  # Re-read human edits/suppressions without spending another AI batch.
@@ -149,7 +154,10 @@ class MorningQueueManager:
                             prospect['state']='WEBSITE_UNAVAILABLE'; store.put('prospect:'+cid,prospect); continue
                         q_status = research.get('qualification_status')
                         if q_status == 'QUALIFIED_CONTACT_MISSING':
-                            prospect['state']='QUALIFIED_CONTACT_MISSING'; store.put('prospect:'+cid,prospect)
+                            prospect['state']='QUALIFIED_CONTACT_MISSING'
+                            if 'research' in prospect and isinstance(prospect['research'], dict):
+                                prospect['research'].pop('page_contexts', None)
+                            store.put('prospect:'+cid,prospect)
                             lead_record = {
                                 'lead_id': research.get('lead_id', 'lead_'+cid),
                                 'company_id': cid,
@@ -179,7 +187,10 @@ class MorningQueueManager:
                             append_records(self.sheets,'Lead Database',[lead_record],refresh_pending=True)
                             continue
                         if q_status not in ('QUALIFIED', 'QUALIFIED_CONTACTABLE'):
-                            prospect['state']=q_status or 'NEEDS_RESEARCH'; store.put('prospect:'+cid,prospect); continue
+                            prospect['state']=q_status or 'NEEDS_RESEARCH'
+                            if 'research' in prospect and isinstance(prospect['research'], dict):
+                                prospect['research'].pop('page_contexts', None)
+                            store.put('prospect:'+cid,prospect); continue
                         blocked,_=suppression.is_suppressed(research.get('public_email',''),research.get('website',''))
                         if blocked:
                             prospect['state']='SUPPRESSED'; store.put('prospect:'+cid,prospect); continue
@@ -198,10 +209,16 @@ class MorningQueueManager:
                         if not validate_queued_draft(record)[0]:
                             summary['api_failures']+=1; continue
                         prospect['record']=record
-                        prospect['state']='DRAFTED'; store.put('prospect:'+cid,prospect)
+                        prospect['state']='DRAFTED'
+                        if 'research' in prospect and isinstance(prospect['research'], dict):
+                            prospect['research'].pop('page_contexts', None)
+                        store.put('prospect:'+cid,prospect)
                     append_records(self.sheets,'Lead Database',[record],refresh_pending=True)
                     append_records(self.sheets,'Approval Queue',[record],refresh_pending=True)
-                    prospect['state']='QUEUED'; store.put('prospect:'+cid,prospect)
+                    prospect['state']='QUEUED'
+                    if 'research' in prospect and isinstance(prospect['research'], dict):
+                        prospect['research'].pop('page_contexts', None)
+                    store.put('prospect:'+cid,prospect)
                     ready.append(record)
                     existing_domains.add(cid)
                 summary['ai_calls_used']=groq.calls_used

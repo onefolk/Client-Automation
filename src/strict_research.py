@@ -236,7 +236,6 @@ class StrictResearcher(ProspectResearcher):
         has_email = bool(result.get('public_email'))
         score = int(result.get('priority_score', result.get('qualification_score', 80)) or 0)
         result['priority_score'] = score
-
         if is_evidenced and has_email:
             result['qualification_status'] = 'QUALIFIED_CONTACTABLE'
             result['priority_tier'] = 'TOP_10_PRIORITY' if score >= 80 else 'SECONDARY_BACKLOG'
@@ -246,5 +245,11 @@ class StrictResearcher(ProspectResearcher):
         else:
             result['qualification_status'] = 'NEEDS_OPPORTUNITY_EVIDENCE'
             result['priority_tier'] = 'NEEDS_OPPORTUNITY_EVIDENCE'
+
+        # Compress page_contexts to lightweight summaries so memory and Sheets remain compact
+        if 'page_contexts' in result and isinstance(result['page_contexts'], list):
+            result['page_contexts'] = [
+                (text[:1000], url) for text, url in result['page_contexts'][:3]
+            ]
 
         return result

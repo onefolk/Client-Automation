@@ -221,3 +221,40 @@ def test_requalification_appends_revision_without_touching_original(race):
     assert revision['email_body'] == 'new verified draft'
     assert append_records(sheets, 'Approval Queue', [new], refresh_pending=True) == 0
     assert len(ws.rows) == 2
+
+
+def test_serialize_store_value_guards_against_50000_char_cell_limit():
+    from src.reserve import serialize_store_value
+    import json
+
+    # 1. Normal small dict
+    small = {"company_id": "c1", "name": "Acme", "state": "DISCOVERED"}
+    serialized = serialize_store_value(small)
+    assert json.loads(serialized) == small
+    assert len(serialized) < 50000
+
+    # 2. Bloated dict with 70,000 chars of page_contexts
+    huge_text = "A" * 70000
+    bloated = {
+        "company_id": "c_huge",
+        "name": "Huge Corp",
+        "website": "https://hugecorp.com",
+        "state": "NEEDS_RESEARCH",
+        "research": {
+            "page_contexts": [(huge_text, "https://hugecorp.com")],
+            "observation": "Some observation"
+        }
+    }
+    safe = serialize_store_value(bloated, max_chars=45000)
+    assert len(safe) <= 45000
+    parsed = json.loads(safe)
+    assert parsed["company_id"] == "c_huge"
+    assert parsed["website"] == "https://hugecorp.com"
+
+    # 3. Extreme non-dict or non-prunable giant payload
+    giant_list = ["X" * 1000 for _ in range(100)]
+    giant_payload = {"company_id": "c_giant", "giant": giant_list}
+    safe_giant = serialize_store_value(giant_payload, max_chars=45000)
+    assert len(safe_giant) <= 45000
+    assert json.loads(safe_giant)
+

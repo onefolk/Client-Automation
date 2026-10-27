@@ -70,6 +70,75 @@ mutation_gateway = SerializedMutationGateway()
 compute_row_version = SerializedMutationGateway.compute_row_version
 
 
+def serialize_store_value(value, max_chars=45000) -> str:
+    """Safely serializes store values for Google Sheets single-cell 50,000 char limit.
+
+    Guarantees valid JSON output that never exceeds max_chars and avoids
+    expensive ASCII escaping inflation for UTF-8 content.
+    """
+    try:
+        raw = json.dumps(value, ensure_ascii=False)
+    except Exception:
+        raw = json.dumps(value, ensure_ascii=True)
+
+    if len(raw) <= max_chars:
+        return raw
+
+    # Value exceeds Google Sheet cell threshold: prune large fields defensively
+    if isinstance(value, dict):
+        pruned = dict(value)
+        # 1. Prune research page_contexts
+        if 'research' in pruned and isinstance(pruned['research'], dict):
+            r = dict(pruned['research'])
+            if 'page_contexts' in r:
+                r['page_contexts'] = [(str(t)[:300], str(u)) for t, u in r.get('page_contexts', [])[:2]]
+            pruned['research'] = r
+            try:
+                candidate = json.dumps(pruned, ensure_ascii=False)
+                if len(candidate) <= max_chars:
+                    return candidate
+            except Exception:
+                pass
+            # Drop page_contexts entirely if still too big
+            r.pop('page_contexts', None)
+            pruned['research'] = r
+            try:
+                candidate = json.dumps(pruned, ensure_ascii=False)
+                if len(candidate) <= max_chars:
+                    return candidate
+            except Exception:
+                pass
+
+        # 2. Prune any huge strings or long lists in the dictionary
+        for k, v in list(pruned.items()):
+            if isinstance(v, str) and len(v) > 1000:
+                pruned[k] = v[:1000] + "... [TRUNCATED]"
+            elif isinstance(v, list) and len(v) > 20:
+                pruned[k] = v[:20]
+        try:
+            candidate = json.dumps(pruned, ensure_ascii=False)
+            if len(candidate) <= max_chars:
+                return candidate
+        except Exception:
+            pass
+
+        # 3. Compact fallback dict that preserves identity & core metadata
+        fallback = {
+            'company_id': pruned.get('company_id', ''),
+            'name': pruned.get('name', ''),
+            'website': pruned.get('website', ''),
+            'state': pruned.get('state', ''),
+            'last_attempt': pruned.get('last_attempt', 0),
+            'research_version': pruned.get('research_version', 0),
+            'reason': str(pruned.get('reason', ''))[:200],
+            '_sheet_truncated': True
+        }
+        return json.dumps(fallback, ensure_ascii=False)
+
+    # For non-dict payloads, truncate safely
+    return json.dumps({"_truncated": True, "raw": str(value)[:max_chars - 100]}, ensure_ascii=False)
+
+
 class ReserveStore:
     def __init__(self, sheets):
         self.sheets = sheets
@@ -83,7 +152,8 @@ class ReserveStore:
 
     def put(self, key, value):
         with mutation_gateway._lock:
-            row = [key, json.dumps(value, ensure_ascii=True), datetime.now(IST).isoformat()]
+            serialized = serialize_store_value(value)
+            row = [key, serialized, datetime.now(IST).isoformat()]
             if key in self.indices:
                 self.ws.update(range_name=f'A{self.indices[key]}:C{self.indices[key]}', values=[row], value_input_option='RAW')
             else:
@@ -104,7 +174,7 @@ class ReserveStore:
                 if not row_idx:
                     raise RuntimeError(f"Failed to determine durable checkpoint row index for key: {key}")
                 self.indices[key] = row_idx
-            self.data[key] = value
+            self.data[key] = json.loads(serialized)
 
     def values(self, prefix):
         return [v for k, v in self.data.items() if k.startswith(prefix)]
@@ -114,7 +184,8 @@ class ReserveStore:
             rows = []
             for key, value in records.items():
                 if key not in self.data:
-                    rows.append([key, json.dumps(value, ensure_ascii=True), datetime.now(IST).isoformat()])
+                    serialized = serialize_store_value(value)
+                    rows.append([key, serialized, datetime.now(IST).isoformat()])
             if rows:
                 resp = self.ws.append_rows(rows, value_input_option='RAW')
                 start_row = None
