@@ -1,5 +1,5 @@
 """Robots-aware bounded crawler: each redirect rechecks destination policy."""
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 import time
 from src.network import SafeFetcher, read_bounded, extract_domain
@@ -16,13 +16,30 @@ class PermittedFetcher(SafeFetcher):
         # Cross-company redirects cannot establish official evidence for the old company.
         return extract_domain(old_url) == extract_domain(new_url)
 
+    def _fetch_robots(self, origin, deadline):
+        """Fetch robots.txt, following same-company redirects (e.g. apex to www) as RFC 9309 expects."""
+        url = origin + '/robots.txt'
+        for _ in range(4):
+            response = self._request(url, deadline)
+            if response.status_code not in (301, 302, 303, 307, 308):
+                return response
+            location = response.headers.get('Location')
+            response.close()
+            target = urljoin(url, location) if location else ''
+            if not target or not self._allow_redirect(url, target):
+                return None
+            url = target
+        return None
+
     def _before_fetch(self, url, deadline):
         parts = urlsplit(url)
         origin = f'{parts.scheme}://{parts.netloc}'
         if origin not in self.robots:
             response = None
             try:
-                response = self._request(origin + '/robots.txt', deadline)
+                response = self._fetch_robots(origin, deadline)
+                if response is None:
+                    return False
                 parser = RobotFileParser()
                 if response.status_code == 404:
                     parser.parse([])

@@ -122,3 +122,45 @@ def test_dashboard_reply_metrics_and_fail_closed():
     with pytest.raises(RuntimeError):manager.update_dashboard()
     dash.update.assert_not_called()
     dash.clear.assert_not_called()
+
+
+def test_robots_redirect_to_www_is_followed_and_page_fetched(monkeypatch):
+    from src.permitted_fetcher import PermittedFetcher
+    monkeypatch.setattr('socket.getaddrinfo', lambda *a: [(2,1,6,'',('8.8.8.8',443))])
+    fetcher = PermittedFetcher()
+    monkeypatch.setattr('time.sleep', lambda s: None)
+    responses = [
+        response(status=301, headers={'Location': 'https://www.fixture.test/robots.txt'}),
+        response(b'User-agent: *\nAllow: /'),
+        response(b'<html>ok</html>'),
+    ]
+    fetcher.session.get = Mock(side_effect=responses)
+    assert fetcher.fetch_html('https://fixture.test/') == '<html>ok</html>'
+
+
+def test_robots_redirect_to_another_company_is_denied(monkeypatch):
+    from src.permitted_fetcher import PermittedFetcher
+    monkeypatch.setattr('socket.getaddrinfo', lambda *a: [(2,1,6,'',('8.8.8.8',443))])
+    fetcher = PermittedFetcher()
+    fetcher.session.get = Mock(side_effect=[response(status=301, headers={'Location': 'https://other.example/robots.txt'})])
+    assert fetcher.fetch_html('https://fixture.test/') is None
+    assert fetcher.session.get.call_count == 1
+
+
+def test_http_only_site_is_reached_and_reported_without_https():
+    from src.research import ProspectResearcher
+    html = '<html><head><title>Old College</title></head><body>Welcome</body></html>'
+
+    class Fetcher:
+        last_url = None
+        count = 0
+        def fetch_html(self, url):
+            if url.startswith('https://'):
+                return None
+            self.last_url = url
+            return html
+
+    research = ProspectResearcher(Fetcher()).investigate(
+        {'website': 'https://oldcollege.in', 'name': 'Old College', 'industry': 'education'})
+    assert research['qualification_status'] != 'WEBSITE_UNAVAILABLE'
+    assert research['website'].startswith('http://')

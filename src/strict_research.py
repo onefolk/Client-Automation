@@ -1,16 +1,28 @@
 """Qualify only a concrete, source-backed workflow improvement."""
 import re
+from datetime import datetime, timezone
 from bs4 import BeautifulSoup
 from src.research import ProspectResearcher
 from src.config import load_portfolio
 from src.open_discovery import company_id
 
-RESEARCH_VERSION = 5
+RESEARCH_VERSION = 6
+
+
+STALE_COPYRIGHT_YEARS = 2  # a footer year at least this many years old is treated as stale
+
+
+def current_year():
+    return datetime.now(timezone.utc).year
 
 
 def workflow_opportunity(industry, observation_type, observation):
-    if observation_type == "PAGE_UNDER_CONSTRUCTION":
+    if observation_type in ("PAGE_UNDER_CONSTRUCTION", "PLACEHOLDER_CONTENT"):
         return "Improve website content and structure with complete program/service information."
+    if observation_type == "STALE_COPYRIGHT":
+        return "Refresh website content and structure so it reflects the current year and offerings."
+    if observation_type == "LEGACY_SITE_MARKER":
+        return "Modernize the website with a responsive, current design and structure."
     if observation_type in ("TECHNICAL_DEFECT", "MOBILE_VIEWPORT_DEFECT"):
         return "Modernize the web portal with mobile responsiveness and secure web architecture."
     if observation_type == "INSECURE_HTTP":
@@ -170,6 +182,18 @@ class StrictResearcher(ProspectResearcher):
                 raw_phrase = re.sub(r'\s+', ' ', match.group(0).strip())
                 return 'Your portal states: "' + raw_phrase[:160] + '".', url, 'DIRECT_EMAIL_INTAKE'
 
+        # 7. Presence-based legacy signals, weakest evidence so they rank last
+        for text, url in contexts:
+            if re.search(r'lorem\s+ipsum', text, re.I):
+                return 'Your page still shows placeholder text ("Lorem ipsum").', url, 'PLACEHOLDER_CONTENT'
+        if signals.get('placeholder_text'):
+            return 'Your page still shows placeholder text ("Lorem ipsum").', base_url, 'PLACEHOLDER_CONTENT'
+        if signals.get('legacy_marker'):
+            return f'Your site displays "{signals["legacy_marker"]}".', base_url, 'LEGACY_SITE_MARKER'
+        year = signals.get('copyright_year')
+        if isinstance(year, int) and year <= current_year() - STALE_COPYRIGHT_YEARS:
+            return f'Your website footer still reads "© {year}".', base_url, 'STALE_COPYRIGHT'
+
         return '', '', 'NEEDS_RESEARCH'
 
     def investigate(self, candidate):
@@ -194,14 +218,15 @@ class StrictResearcher(ProspectResearcher):
         result['opportunity'] = opp_text
 
         obs_type = result['observation_type']
-        is_tech = obs_type in ("PAGE_UNDER_CONSTRUCTION", "TECHNICAL_DEFECT", "MOBILE_VIEWPORT_DEFECT", "INSECURE_HTTP", "BROKEN_INTERNAL_LINK")
+        is_tech = obs_type in ("PAGE_UNDER_CONSTRUCTION", "TECHNICAL_DEFECT", "MOBILE_VIEWPORT_DEFECT", "INSECURE_HTTP", "BROKEN_INTERNAL_LINK",
+                               "PLACEHOLDER_CONTENT", "STALE_COPYRIGHT", "LEGACY_SITE_MARKER")
         opp_category = "TECHNICAL_OPPORTUNITY" if is_tech else "COMMERCIAL_OPPORTUNITY"
         result['opportunity_category'] = opp_category
         result['business_relevance'] = opp_text
 
-        if obs_type == "PAGE_UNDER_CONSTRUCTION":
+        if obs_type in ("PAGE_UNDER_CONSTRUCTION", "PLACEHOLDER_CONTENT", "STALE_COPYRIGHT"):
             rec_service = "Website content and UX improvements"
-        elif obs_type in ("TECHNICAL_DEFECT", "MOBILE_VIEWPORT_DEFECT", "INSECURE_HTTP"):
+        elif obs_type in ("TECHNICAL_DEFECT", "MOBILE_VIEWPORT_DEFECT", "INSECURE_HTTP", "LEGACY_SITE_MARKER"):
             rec_service = "Website design and development"
         elif obs_type == "BRANCH_EXPANSION":
             rec_service = "Landing pages and enquiry management"

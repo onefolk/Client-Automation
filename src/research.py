@@ -67,6 +67,14 @@ def match_portfolio_project(industry: str, signals: Dict[str, Any]) -> Dict[str,
     )
 
 
+LEGACY_MARKER_PATTERN = re.compile(
+    r"best\s+viewed\s+(?:in|with|using|on)\s+[^.|]{0,50}?(?:internet\s+explorer|ie\s?\d|netscape|\d{3,4}\s?[x×]\s?\d{3,4})[^.|]{0,20}"
+    r"|you\s+are\s+(?:the\s+)?visitor\s+(?:no\.?|number|#)?\s*:?\s*\d+"
+    r"|(?:adobe\s+)?flash\s+player\s+(?:is\s+)?(?:required|needed)",
+    re.I,
+)
+
+
 def extract_website_signals(html: str, url: str) -> Dict[str, Any]:
     """Extracts factual, verifiable technical signals from page HTML."""
     signals = {
@@ -79,6 +87,8 @@ def extract_website_signals(html: str, url: str) -> Dict[str, Any]:
         "has_event_opportunity": False,
         "has_hostel_opportunity": False,
         "copyright_year": None,
+        "legacy_marker": "",
+        "placeholder_text": False,
         "title": "",
     }
     if not html:
@@ -125,6 +135,15 @@ def extract_website_signals(html: str, url: str) -> Dict[str, Any]:
         except ValueError:
             pass
 
+    # Quotable legacy markers and unfinished placeholder text, read from the full page text
+    # (including the footer, which page_contexts strips).
+    visible_text = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))
+    legacy = LEGACY_MARKER_PATTERN.search(visible_text)
+    if legacy:
+        signals["legacy_marker"] = legacy.group(0).strip()[:100]
+    if re.search(r"lorem ipsum", visible_text, re.I):
+        signals["placeholder_text"] = True
+
     return signals
 
 
@@ -143,6 +162,15 @@ class ProspectResearcher:
 
         # 1. Stage 1: Lightweight fetch of main landing page
         main_html = self.fetcher.fetch_html(base_url)
+        if not main_html and base_url.startswith("https://"):
+            # Some older sites serve plain HTTP only; the https_only assumption must not hide them.
+            http_url = "http://" + base_url[len("https://"):]
+            main_html = self.fetcher.fetch_html(http_url)
+            if main_html:
+                base_url = http_url
+        final_url = getattr(self.fetcher, "last_url", None)
+        if main_html and isinstance(final_url, str) and extract_domain(final_url) == target_domain:
+            base_url = canonical_url(final_url)  # has_https must reflect where the site actually ends up
         if not main_html:
             logger.debug("Failed to fetch landing page for %s", base_url)
             lead_id = f"lead_{sha256(target_domain.encode()).hexdigest()[:16]}"

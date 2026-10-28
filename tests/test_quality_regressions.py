@@ -133,3 +133,50 @@ def test_unused_groq_allowance_is_refunded_in_source():
     from src import morning_queue
     src = inspect.getsource(morning_queue)
     assert "unused=calls-groq.calls_used" in src and "budget['batches'] >= 6" in src
+
+
+def _observe(contexts, signals, year=2026, monkeypatch=None):
+    from src.strict_research import StrictResearcher
+    base = {"has_https": True, "has_mobile_viewport": True}
+    base.update(signals)
+    return StrictResearcher(fetcher=None)._formulate_observation("https://site.in", contexts, base)
+
+
+def test_stale_copyright_is_a_quotable_observation(monkeypatch):
+    monkeypatch.setattr('src.strict_research.current_year', lambda: 2026)
+    obs, url, kind = _observe([("Welcome to our school.", "https://site.in")], {"copyright_year": 2019})
+    assert kind == "STALE_COPYRIGHT" and "© 2019" in obs and url == "https://site.in"
+    assert _observe([("Welcome", "https://site.in")], {"copyright_year": 2025})[2] == "NEEDS_RESEARCH"
+    assert _observe([("Welcome", "https://site.in")], {"copyright_year": 2024})[2] == "STALE_COPYRIGHT"
+
+
+def test_legacy_marker_and_placeholder_text(monkeypatch):
+    monkeypatch.setattr('src.strict_research.current_year', lambda: 2026)
+    obs, _, kind = _observe([("Hello", "https://site.in")], {"legacy_marker": "Best viewed in Internet Explorer 8"})
+    assert kind == "LEGACY_SITE_MARKER" and "Internet Explorer 8" in obs
+    obs, url, kind = _observe([("Lorem ipsum dolor sit amet", "https://site.in/about")], {})
+    assert kind == "PLACEHOLDER_CONTENT" and url == "https://site.in/about"
+
+
+def test_stronger_evidence_outranks_new_weak_signals(monkeypatch):
+    monkeypatch.setattr('src.strict_research.current_year', lambda: 2026)
+    _, _, kind = _observe([("Website under construction. Lorem ipsum", "https://site.in")],
+                          {"copyright_year": 2015, "legacy_marker": "Best viewed in IE 6"})
+    assert kind == "PAGE_UNDER_CONSTRUCTION"
+
+
+def test_signal_extraction_reads_footer_markers_and_placeholder():
+    from src.research import extract_website_signals
+    html = ('<html><body><p>Lorem ipsum dolor sit amet</p>'
+            '<footer>Best viewed in Internet Explorer 8 at 1024x768 &copy; 2018 Foo</footer></body></html>')
+    sig = extract_website_signals(html, "http://a.in")
+    assert sig["placeholder_text"] is True and sig["copyright_year"] == 2018
+    assert sig["legacy_marker"].startswith("Best viewed in Internet Explorer 8")
+    clean = extract_website_signals("<body>A modern responsive site</body>", "https://a.in")
+    assert clean["legacy_marker"] == "" and clean["placeholder_text"] is False
+
+
+def test_new_observation_types_have_opportunities():
+    from src.strict_research import workflow_opportunity
+    for kind in ("STALE_COPYRIGHT", "LEGACY_SITE_MARKER", "PLACEHOLDER_CONTENT"):
+        assert workflow_opportunity("education", kind, "x")
