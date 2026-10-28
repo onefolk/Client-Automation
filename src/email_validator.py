@@ -68,7 +68,7 @@ def validate_email_body(raw_body: str, proof_line: Optional[str] = None) -> Tupl
     if len(paragraphs) not in (3, 4):
         return False, "Use observation, relevance, OneFolk capability and one CTA (3 or 4 paragraphs).", details
     if not MIN_WORD_COUNT <= count <= MAX_WORD_COUNT:
-        return False, f"Body has {count} words; target 45-70, allowed 40-120 excluding greeting/sign-off.", details
+        return False, f"Body has {count} words; target 50-90, allowed 40-120 excluding greeting/sign-off.", details
     opening = paragraphs[:-2]
     capability, cta = paragraphs[-2:]
     if any(re.search(r"\bonefolk\b", p, re.I | re.ASCII) for p in opening):

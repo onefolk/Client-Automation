@@ -75,8 +75,7 @@ class StrictResearcher(ProspectResearcher):
     def _formulate_observation(self, base_url, contexts, signals):
         # 1. Technical Opportunity: Under-construction or maintenance notices on internal pages
         construction_pattern = re.compile(
-            r'[^.!?]{0,80}\b(?:website|page|section|curriculum|portal|outcomes?)\s+(?:is\s+)?(?:currently\s+)?(?:under\s+construction|under\s+maintenance|coming\s+soon|will\s+be\s+updated\s+soon)\b[^.!?]{0,80}|'
-            r'[^.!?]{0,80}\b(?:under\s+construction|under\s+maintenance)\b[^.!?]{0,80}',
+            r'[^.!?]{0,80}\b(?:website|site|page|section|curriculum|portal|outcomes?)\s+(?:is\s+)?(?:currently\s+)?(?:under\s+construction|under\s+maintenance|coming\s+soon|will\s+be\s+updated\s+soon)\b[^.!?]{0,80}',
             re.I
         )
         for text, url in contexts:
@@ -222,7 +221,7 @@ class StrictResearcher(ProspectResearcher):
             anchor = urlsplit(result['proof_url']).fragment
             soup = BeautifulSoup(html or '', 'html.parser')
             supported = (not anchor or soup.find(id=anchor) is not None
-                         or project['project'].lower() in text)
+                         or project.get('project', 'onefolk website').lower() in text)
             self.proof_cache[result['proof_url']] = bool(html and 'onefolk' in text and supported)
         result['proof_verified'] = 'YES' if self.proof_cache.get(result['proof_url']) else 'NO'
 

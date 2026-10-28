@@ -1,12 +1,14 @@
 """Durable Sheet checkpoints. No local cache is authoritative."""
 import hashlib
 import json
+import logging
 import re
 import threading
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 IST = ZoneInfo("Asia/Kolkata")
+logger = logging.getLogger(__name__)
 
 
 OPERATOR_COLUMNS = frozenset({'status', 'approval', 'reviewer_notes'})
@@ -133,6 +135,13 @@ def serialize_store_value(value, max_chars=45000) -> str:
             'reason': str(pruned.get('reason', ''))[:200],
             '_sheet_truncated': True
         }
+        # Never silently drop a finished draft; keep it when it fits on its own.
+        if isinstance(pruned.get('record'), dict):
+            with_record = dict(fallback, record=pruned['record'])
+            candidate = json.dumps(with_record, ensure_ascii=False)
+            if len(candidate) <= max_chars:
+                return candidate
+            logger.warning("Draft record for %s exceeds the cell limit and was dropped", fallback['company_id'])
         return json.dumps(fallback, ensure_ascii=False)
 
     # For non-dict payloads, truncate safely

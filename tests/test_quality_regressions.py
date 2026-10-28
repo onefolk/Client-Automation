@@ -96,3 +96,33 @@ def test_under_construction_page_recognized_as_technical_opportunity():
     assert "under construction" in obs.lower()
     assert url == "https://college.edu/bca"
 
+
+
+def test_unrelated_construction_text_is_not_a_page_observation():
+    from src.strict_research import StrictResearcher
+    researcher = StrictResearcher(fetcher=None)
+    obs, url, obs_type = researcher._formulate_observation(
+        "https://college.edu",
+        [("Road work: the bypass near campus is under construction until March.", "https://college.edu/news")],
+        {"has_https": True, "has_mobile_viewport": True}
+    )
+    assert obs_type == "NEEDS_RESEARCH"
+
+
+def test_serialize_store_value_keeps_draft_record_when_oversized():
+    import json
+    from src.reserve import serialize_store_value
+    value = {'company_id': 'c1', 'name': 'X', 'website': 'https://x.in', 'state': 'QUEUED',
+             'record': {'subject': 'Hi', 'email_body': 'Body'},
+             'research': {'page_contexts': [('a' * 60000, 'u')]}, 'blob': ['z' * 900] * 100}
+    out = json.loads(serialize_store_value(value, max_chars=3000))
+    assert out['record']['subject'] == 'Hi'
+
+
+def test_open_discovery_falls_back_to_osm_when_serper_empty(monkeypatch):
+    from src import open_discovery
+    monkeypatch.setenv('SERPER_API_KEY', 'k')
+    monkeypatch.setattr('src.serper_discovery.SerperDiscovery.harvest', lambda self: ([], []))
+    monkeypatch.setattr(open_discovery.OpenDiscovery, '_harvest_osm', lambda self: ([{'x': 1}], []))
+    d, errs = open_discovery.OpenDiscovery(object(), {}).harvest()
+    assert d == [{'x': 1}]

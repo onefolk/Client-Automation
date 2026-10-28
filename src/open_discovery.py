@@ -20,18 +20,21 @@ class OpenDiscovery:
 
     def harvest(self):
         # 1. Primary: Serper Google Search API if configured
-        try:
-            from src.serper_discovery import SerperDiscovery
-            serper = SerperDiscovery(self.store, self.campaign)
-            if serper.is_configured():
+        from src.serper_discovery import SerperDiscovery
+        serper_errors = []
+        serper = SerperDiscovery(self.store, self.campaign)
+        if serper.is_configured():
+            try:
                 d, errs = serper.harvest()
-                if d or not errs:
-                    return d, errs
-        except Exception:
-            pass
+            except Exception as exc:
+                d, errs = [], ['Serper discovery crashed: ' + type(exc).__name__]
+            if d:
+                return d, errs
+            serper_errors = errs
 
-        # 2. Fallback: OpenStreetMap (OSM / Overpass)
-        return self._harvest_osm()
+        # 2. Fallback: OpenStreetMap (OSM / Overpass) when Serper is off, empty or failed
+        osm_d, osm_errs = self._harvest_osm()
+        return osm_d, serper_errors + osm_errs
 
     def _harvest_osm(self):
         cfg = json.loads((CONFIG_DIR/'public_sources.json').read_text())

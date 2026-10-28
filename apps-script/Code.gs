@@ -196,7 +196,8 @@ function splitSentences(text) {
 
 /**
  * Single Authoritative Email Structure Validator for OneFolk Apps Script layer.
- * Validates the Team OneFolk structure (target 45-70 body words).
+ * Validates the Team OneFolk structure (3-4 paragraphs; target 50-90 body words, allowed 40-120).
+ * proofLine is accepted for call-site compatibility; the proof sentence is optional.
  */
 function validateEmailStructure(rawBody, proofLine) {
   const raw = normalizeWhitespace(rawBody).trim();

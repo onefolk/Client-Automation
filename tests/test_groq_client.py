@@ -172,7 +172,7 @@ def test_prompt_schema_envelope_and_natural_strict_cta(monkeypatch):
     schema = payload['response_format']['json_schema']['schema']
     assert 'opportunity' in schema['required']
     prompt = json.loads(payload['messages'][1]['content'])
-    assert '45-70' in prompt['task']
+    assert '50-90' in prompt['task']
     assert 'my company' in payload['messages'][0]['content']
 
 

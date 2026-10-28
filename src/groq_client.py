@@ -60,7 +60,7 @@ class GroqClient:
         research_data: Dict[str, Any],
         max_retries: int = 5,
     ) -> Optional[Dict[str, Any]]:
-        """Drafts a grounded, Team OneFolk cold email (45-70 body words target) with 2 alternative openings."""
+        """Drafts a grounded, Team OneFolk cold email (50-90 body words target) with 2 alternative openings."""
         if not self.is_available():
             logger.info("Groq API unavailable or budget reached (%d/%d calls used)", self.calls_used, self.max_calls)
             return None
@@ -92,7 +92,7 @@ class GroqClient:
             "Forbidden phrases: " + "; ".join(BANNED_PHRASES) + ". Return only the requested JSON."
         )
         user_prompt = {
-            "task": "Write a concise, natural email targeting 50-90 body words (target 45-70 to 50-90, allowed 40-120 excluding greeting and sign-off).",
+            "task": "Write a concise, natural email targeting 50-90 body words (allowed 40-120, excluding greeting and sign-off).",
             "prospect": {"name": business, "industry": lead.get("industry"), "website": lead.get("website")},
             "verified_observation": observation,
             "verified_opportunity": research_data.get("opportunity", ""),
