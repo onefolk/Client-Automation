@@ -197,8 +197,11 @@ class MorningQueueManager:
                         prospect['state']='QUALIFIED' if prospect.get('state')=='QUALIFIED' else 'QUALIFIED_CONTACTABLE'; store.put('prospect:'+cid,prospect)
                         summary['qualified_overnight']+=1
                         if not groq.is_available():
-                            summary['shortage_reasons'].append('Groq call budget exhausted; qualified reserve saved')
-                            break
+                            # Keep researching other prospects: qualified leads are saved and drafted later.
+                            reason='Groq call budget exhausted; qualified reserve saved'
+                            if reason not in summary['shortage_reasons']:
+                                summary['shortage_reasons'].append(reason)
+                            continue
                         draft=groq.draft_outreach(prospect,research)
                         if not draft:
                             summary['api_failures']+=1; continue
