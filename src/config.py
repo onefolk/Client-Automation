@@ -127,6 +127,10 @@ PRE_SEEDED_SUPPRESSIONS = [
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 GROQ_FALLBACK_MODEL = "openai/gpt-oss-20b"
+# Optional second provider (Cloudflare Workers AI free tier), used automatically once Groq is exhausted or failing
+CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
+CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
+CLOUDFLARE_MODEL = os.getenv("CLOUDFLARE_MODEL", "@cf/openai/gpt-oss-120b")
 MAX_AI_CALLS = int(os.getenv("MAX_AI_CALLS", "120"))
 QUALIFIED_TARGET = int(os.getenv("QUALIFIED_TARGET", "100"))
 MAX_HTTP_FETCHES = int(os.getenv("MAX_HTTP_FETCHES", "1200"))
