@@ -127,6 +127,9 @@ PRE_SEEDED_SUPPRESSIONS = [
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 GROQ_FALLBACK_MODEL = "openai/gpt-oss-20b"
+# Optional second provider, used automatically once Groq is exhausted or failing
+CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY", "")
+CEREBRAS_MODEL = os.getenv("CEREBRAS_MODEL", "gpt-oss-120b")
 MAX_AI_CALLS = int(os.getenv("MAX_AI_CALLS", "120"))
 QUALIFIED_TARGET = int(os.getenv("QUALIFIED_TARGET", "100"))
 MAX_HTTP_FETCHES = int(os.getenv("MAX_HTTP_FETCHES", "1200"))

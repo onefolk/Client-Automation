@@ -227,3 +227,55 @@ def test_capability_sentence_matches_industry_and_service():
         'At OneFolk, we help institutions improve website content and structure.'
     assert 'clinics and hospitals' in capability_sentence('healthcare', 'Website design and development')
     assert capability_sentence('unknown', None).startswith('At OneFolk, we help businesses')
+
+
+def _ok_response():
+    response = MagicMock(status_code=200)
+    response.json.return_value = {'choices':[{'message':{'content':json.dumps(official_draft())}}]}
+    return response
+
+
+_DRAFT_ARGS = ({'business':'Swarnandhra College'}, {
+    'strict_grounding':True, 'observation':OBSERVATION,
+    'observation_url':'https://example.edu/bca',
+    'page_contexts':[(OBSERVATION, 'https://example.edu/bca')]})
+
+
+def test_cerebras_used_when_groq_quota_exhausted(monkeypatch):
+    client = GroqClient(api_key='gsk_x', cerebras_api_key='csk_x', cerebras_model='gpt-oss-120b')
+    exhausted = MagicMock(status_code=429, headers={'Retry-After': '3600'})
+    post = MagicMock(side_effect=[exhausted, _ok_response()])
+    monkeypatch.setattr('src.groq_client.requests.post', post)
+    assert client.draft_outreach(*_DRAFT_ARGS) is not None
+    assert post.call_args_list[0].args[0].startswith('https://api.groq.com')
+    assert post.call_args_list[1].args[0].startswith('https://api.cerebras.ai')
+    assert post.call_args_list[1].kwargs['headers']['Authorization'] == 'Bearer csk_x'
+    assert client.exhausted_providers == {'Groq'}
+    assert client.is_available() and not client.quota_exhausted
+
+
+def test_cerebras_used_after_repeated_groq_server_errors(monkeypatch):
+    client = GroqClient(api_key='gsk_x', cerebras_api_key='csk_x')
+    error = MagicMock(status_code=503)
+    post = MagicMock(side_effect=[error, error, _ok_response()])
+    monkeypatch.setattr('src.groq_client.requests.post', post)
+    monkeypatch.setattr('src.groq_client.time.sleep', lambda s: None)
+    assert client.draft_outreach(*_DRAFT_ARGS) is not None
+    assert post.call_args_list[2].args[0].startswith('https://api.cerebras.ai')
+
+
+def test_no_fallback_when_cerebras_unconfigured(monkeypatch):
+    client = GroqClient(api_key='gsk_x', cerebras_api_key='')
+    post = MagicMock(return_value=MagicMock(status_code=429, headers={'Retry-After': '3600'}))
+    monkeypatch.setattr('src.groq_client.requests.post', post)
+    assert client.draft_outreach(*_DRAFT_ARGS) is None
+    assert client.quota_exhausted and not client.is_available()
+    assert post.call_count == 1
+
+
+def test_both_providers_exhausted_stops(monkeypatch):
+    client = GroqClient(api_key='gsk_x', cerebras_api_key='csk_x')
+    post = MagicMock(return_value=MagicMock(status_code=429, headers={'Retry-After': '3600'}))
+    monkeypatch.setattr('src.groq_client.requests.post', post)
+    assert client.draft_outreach(*_DRAFT_ARGS) is None
+    assert client.quota_exhausted and post.call_count == 2
