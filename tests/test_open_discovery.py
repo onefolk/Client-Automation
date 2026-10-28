@@ -10,6 +10,7 @@ def test_partition_checkpoint_replay_deduplicates(monkeypatch):
     response.headers = {}
     response.raw.read1.side_effect = [json.dumps(payload).encode(), b'', json.dumps(payload).encode(), b'']
     monkeypatch.setattr('src.open_discovery.requests.post',lambda *a,**k:response)
+    monkeypatch.setattr('src.wikidata_discovery.WikidataDiscovery.harvest',lambda self:([],[]))
     discovery=OpenDiscovery(store,{'industries':['education'],'target_cities':['Chennai']})
     first,errors=discovery.harvest()
     second,_=discovery.harvest()

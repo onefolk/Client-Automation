@@ -94,3 +94,43 @@ def test_seed_discovery_harvests_unseeded_rows():
         assert not errors
         cid = found[0]["company_id"]
         assert store.get("prospect:" + cid) is not None
+
+
+def test_bio_websites_reads_listed_site_and_ignores_link_hubs():
+    from src.serper_discovery import bio_websites
+    item = {"title": "Lumen Studio (@lumenstudio) • Instagram", "snippet": "Wedding films, Pune. www.lumenstudio.in | linktr.ee/lumen | instagram.com/lumen"}
+    assert bio_websites(item) == ["www.lumenstudio.in"]
+    assert bio_websites({"title": "x", "snippet": "no website here"}) == []
+
+
+def test_social_profile_becomes_candidate_from_bio_website(monkeypatch):
+    from src import serper_discovery
+    store = Store()
+    monkeypatch.setenv("SERPER_API_KEY", "k")
+    monkeypatch.setenv("SERPER_QUERIES_PER_HARVEST", "1")
+    monkeypatch.setattr(serper_discovery, "SEARCH_TEMPLATES", {"wedding": [], "other": []})
+    monkeypatch.setattr(serper_discovery, "INTENT_TEMPLATES", [])
+    monkeypatch.setattr(serper_discovery, "SOCIAL_TEMPLATES", ['site:instagram.com "{city}" {label}'])
+    mock_resp = Mock(status_code=200)
+    mock_resp.json.return_value = {"organic": [
+        {"title": "Lumen Studio (@lumenstudio) • Instagram", "link": "https://www.instagram.com/lumenstudio/",
+         "snippet": "Wedding films Pune. www.lumenstudio.in"},
+        {"title": "No site (@nosite) • Instagram", "link": "https://www.instagram.com/nosite/", "snippet": "DM to book"},
+    ]}
+    monkeypatch.setattr("src.serper_discovery.requests.post", lambda *a, **k: mock_resp)
+    found, errors = SerperDiscovery(store, {"industries": ["wedding"], "target_cities": ["Pune"]}).harvest()
+    assert errors == [] and len(found) == 1
+    assert found[0]["website"] == "https://lumenstudio.in/" or found[0]["website"].endswith("lumenstudio.in/")
+    assert found[0]["business"] == "Lumen Studio"
+    assert found[0]["source"].startswith("Public social profile")
+
+
+def test_multiple_queries_per_harvest_advance_cursor(monkeypatch):
+    store = Store()
+    monkeypatch.setenv("SERPER_API_KEY", "k")
+    monkeypatch.setenv("SERPER_QUERIES_PER_HARVEST", "3")
+    mock_resp = Mock(status_code=200)
+    mock_resp.json.return_value = {"organic": []}
+    monkeypatch.setattr("src.serper_discovery.requests.post", lambda *a, **k: mock_resp)
+    SerperDiscovery(store, {"industries": ["education"], "target_cities": ["Pune"]}).harvest()
+    assert store.get("source:serper")["cursor"] == 3

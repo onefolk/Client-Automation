@@ -19,22 +19,27 @@ class OpenDiscovery:
         self.store, self.campaign = store, campaign
 
     def harvest(self):
-        # 1. Primary: Serper Google Search API if configured
+        """Merge every configured free source; OSM runs only when they are empty."""
         from src.serper_discovery import SerperDiscovery
-        serper_errors = []
+        from src.wikidata_discovery import WikidataDiscovery
+        discovered, errors = [], []
+        sources = [WikidataDiscovery(self.store, self.campaign)]
         serper = SerperDiscovery(self.store, self.campaign)
         if serper.is_configured():
+            sources.append(serper)
+        for source in sources:
             try:
-                d, errs = serper.harvest()
+                d, errs = source.harvest()
             except Exception as exc:
-                d, errs = [], ['Serper discovery crashed: ' + type(exc).__name__]
-            if d:
-                return d, errs
-            serper_errors = errs
+                d, errs = [], [type(source).__name__ + ' crashed: ' + type(exc).__name__]
+            discovered.extend(d)
+            errors.extend(errs)
+        if discovered:
+            return discovered, errors
 
-        # 2. Fallback: OpenStreetMap (OSM / Overpass) when Serper is off, empty or failed
+        # Fallback: OpenStreetMap (OSM / Overpass) when the other sources are empty
         osm_d, osm_errs = self._harvest_osm()
-        return osm_d, serper_errors + osm_errs
+        return osm_d, errors + osm_errs
 
     def _harvest_osm(self):
         cfg = json.loads((CONFIG_DIR/'public_sources.json').read_text())
