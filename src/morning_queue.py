@@ -113,7 +113,7 @@ class MorningQueueManager:
                 budget_key='budget:'+day
                 budget=store.get(budget_key, {'ai_reserved':0,'batches':0})
                 calls=min(30, max(0,120-budget['ai_reserved']))
-                if budget['batches'] >= 4: calls=0
+                if budget['batches'] >= 6: calls=0
                 budget['ai_reserved'] += calls
                 budget['batches'] += 1
                 store.put(budget_key,budget)
@@ -222,6 +222,12 @@ class MorningQueueManager:
                     ready.append(record)
                     existing_domains.add(cid)
                 summary['ai_calls_used']=groq.calls_used
+                # The batch reserved its whole allowance up front; give back what it did not spend
+                # so later batches today can still draft qualified leads.
+                unused=calls-groq.calls_used
+                if unused>0:
+                    budget['ai_reserved']=max(0,budget['ai_reserved']-unused)
+                    store.put(budget_key,budget)
                 summary['http_fetches_used']=fetcher.count
             # Only live readback can establish readiness; repeat suppression after all writes.
             supp,sent,queue=self.sheets.load_historical_suppression_data()

@@ -126,3 +126,10 @@ def test_open_discovery_falls_back_to_osm_when_serper_empty(monkeypatch):
     monkeypatch.setattr(open_discovery.OpenDiscovery, '_harvest_osm', lambda self: ([{'x': 1}], []))
     d, errs = open_discovery.OpenDiscovery(object(), {}).harvest()
     assert d == [{'x': 1}]
+
+
+def test_unused_groq_allowance_is_refunded_in_source():
+    import inspect
+    from src import morning_queue
+    src = inspect.getsource(morning_queue)
+    assert "unused=calls-groq.calls_used" in src and "budget['batches'] >= 6" in src
