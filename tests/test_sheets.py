@@ -258,3 +258,34 @@ def test_serialize_store_value_guards_against_50000_char_cell_limit():
     assert len(safe_giant) <= 45000
     assert json.loads(safe_giant)
 
+
+
+def test_dashboard_counts_conversion_stages_cumulatively():
+    manager = SheetsManager(spreadsheet_id="test_sheet_id")
+    manager.spreadsheet = MagicMock()
+    mock_dash = MagicMock()
+    manager.ensure_tab = MagicMock(return_value=mock_dash)
+
+    def sheet(name):
+        ws = MagicMock()
+        if name == "Approval Queue":
+            ws.get_all_records.return_value = [
+                {"status": "SENT", "approval": "APPROVED"},
+                {"status": "MEETING_BOOKED", "approval": "APPROVED"},
+                {"status": "PROPOSAL_REQUESTED", "approval": "APPROVED"},
+                {"status": "CLIENT_CONVERTED", "approval": "APPROVED"},
+            ]
+        elif name == "Lead Database":
+            ws.get_all_records.return_value = [{"qualification_status": "QUALIFIED_CONTACTABLE"}]
+        else:
+            ws.get_all_records.return_value = []
+        return ws
+
+    manager.spreadsheet.worksheet.side_effect = sheet
+    manager.update_dashboard({})
+    metric_map = {r[0]: r[1] for r in mock_dash.update.call_args[1]["values"]}
+    assert metric_map["Sales calls booked"] == 3
+    assert metric_map["Proposals requested"] == 2
+    assert metric_map["Clients converted"] == 1
+    assert metric_map["Emails sent"] == 4
+    assert metric_map["Qualified leads"] == 1

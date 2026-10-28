@@ -18,6 +18,29 @@ logger = logging.getLogger(__name__)
 
 GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
 
+AUDIENCE_BY_INDUSTRY = {
+    "education": "institutions", "training": "institutions", "healthcare": "clinics and hospitals",
+    "hospitality": "hospitality businesses", "restaurant": "restaurants and caterers",
+    "real-estate": "real estate firms", "creative": "creative studios", "architecture": "architecture studios",
+    "professional-services": "professional firms", "finance": "professional firms",
+    "events": "event businesses", "wedding": "event businesses", "manufacturing": "manufacturers",
+    "retail": "retail brands", "nonprofit": "non-profit organisations", "wellness": "wellness businesses",
+    "startup-tech": "growing companies", "logistics-travel": "travel and logistics businesses",
+    "automotive": "automotive businesses",
+}
+SERVICE_PHRASE = {
+    "Website content and UX improvements": "improve website content and structure",
+    "Website design and development": "build fast, mobile-friendly and secure websites",
+    "Landing pages and enquiry management": "set up landing pages and enquiry systems",
+}
+
+
+def capability_sentence(industry, service):
+    """One approved OneFolk capability sentence matched to the prospect's industry and service."""
+    audience = AUDIENCE_BY_INDUSTRY.get(str(industry or "").lower(), "businesses")
+    phrase = SERVICE_PHRASE.get(service, "simplify online enquiries, bookings and workflows")
+    return f"At OneFolk, we help {audience} {phrase}."
+
 
 class GroqClient:
     """Manages AI completions over Groq's free tier with strict grounding and budget limits."""
@@ -76,6 +99,8 @@ class GroqClient:
             for text, url in research_data.get("page_contexts", [])[:2]
         ]
 
+        capability = capability_sentence(
+            lead.get("industry") or research_data.get("industry"), research_data.get("recommended_service"))
         business = str(lead.get("business") or lead.get("name") or research_data.get("business") or "").strip()
         if not business or "\n" in business or "\r" in business:
             return None
@@ -97,6 +122,7 @@ class GroqClient:
             "verified_observation": observation,
             "verified_opportunity": research_data.get("opportunity", ""),
             "observation_url": observation_url,
+            "approved_capability_sentence": capability,
             "approved_portfolio_proof": proof_line,
             "approved_project": proof_project,
             "scraped_pages": contexts_summary,
@@ -113,7 +139,7 @@ class GroqClient:
                 "Subject: 3-7 words, natural and specific to the observation; no clickbait or fake familiarity.",
                 "Body: exactly three concise paragraphs matching the style reference:\n"
                 "- Paragraph 1: Verified observation of their current site or workflow, followed by a concise, practical recommendation framed neutrally with 'could'.\n"
-                "- Paragraph 2: OneFolk introduction with ONLY one matching capability (e.g. 'At OneFolk, we help institutions improve website content and structure.').\n"
+                "- Paragraph 2: Use approved_capability_sentence exactly as written; do not change its audience or service.\n"
                 "- Paragraph 3: Exactly one question mark in the entire body, in a low-pressure CTA referral question ('Could you direct us to the person responsible for website updates?').",
                 "Do not introduce OneFolk before the second paragraph.",
                 "The style reference is not evidence. Never copy its business details unless supported by this prospect research.",

@@ -219,3 +219,11 @@ def test_metric_and_currency_claims_rejected(claim):
     raw['email_body'] = raw['email_body'].replace('could help prospective students', f'could help prospective students achieve {claim}')
     assert client._validate_and_sanitize(raw, '', '', {}) is None
 
+
+
+def test_capability_sentence_matches_industry_and_service():
+    from src.groq_client import capability_sentence
+    assert capability_sentence('education', 'Website content and UX improvements') == \
+        'At OneFolk, we help institutions improve website content and structure.'
+    assert 'clinics and hospitals' in capability_sentence('healthcare', 'Website design and development')
+    assert capability_sentence('unknown', None).startswith('At OneFolk, we help businesses')

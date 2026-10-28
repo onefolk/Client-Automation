@@ -1,3 +1,5 @@
+> **Partly superseded.** The email format is now 3-4 short paragraphs, 40-120 body words (target 50-90), with an optional proof line. Discovery sources and conversion tracking are listed in [README.md](../README.md).
+
 # OneFolk Outreach Engine — Cloud Architecture & Specification
 
 ## 1. Architectural Philosophy

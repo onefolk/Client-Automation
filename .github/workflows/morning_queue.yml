@@ -18,7 +18,7 @@ jobs:
     if: (github.repository == 'onefolk/Client-Automation' || github.repository == 'Giridharan-E/Client-Automation') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: scraper
-    timeout-minutes: 12
+    timeout-minutes: 18
     env:
       SHEET_ID: ${{ secrets.SHEET_ID }}
       GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}

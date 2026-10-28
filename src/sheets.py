@@ -28,6 +28,9 @@ from src.config import (
 
 logger = logging.getLogger(__name__)
 
+# Operator-set statuses in the Approval Queue, in pipeline order.
+CONVERSION_STAGES = ("MEETING_BOOKED", "PROPOSAL_REQUESTED", "CLIENT_CONVERTED")
+
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 
@@ -261,6 +264,7 @@ class SheetsManager:
         bounced = 0
         declined = 0
         positive_replies = 0
+        calls_booked = proposals = clients = 0
 
         try:
             db_ws = self.spreadsheet.worksheet(TAB_LEAD_DATABASE)
@@ -268,7 +272,7 @@ class SheetsManager:
             discovered = len(leads)
             for r in leads:
                 qstatus = str(r.get("qualification_status", "")).upper()
-                if qstatus == "QUALIFIED":
+                if qstatus in ("QUALIFIED", "QUALIFIED_CONTACTABLE"):
                     qualified += 1
                 elif qstatus == "NEEDS_RESEARCH":
                     needs_research += 1
@@ -284,10 +288,16 @@ class SheetsManager:
                 stat_val = str(r.get("status", "")).upper()
                 if app_val == "APPROVED" and stat_val == "APPROVED":
                     approved += 1
-                if stat_val in ("SENT", "BOUNCED", "DECLINED", "UNSUBSCRIBED", "POSITIVE_REPLY", "REPLY_REVIEW"):
+                if stat_val in ("SENT", "BOUNCED", "DECLINED", "UNSUBSCRIBED", "POSITIVE_REPLY", "REPLY_REVIEW") + CONVERSION_STAGES:
                     sent += 1
-                if stat_val == "POSITIVE_REPLY":
+                if stat_val == "POSITIVE_REPLY" or stat_val in CONVERSION_STAGES:
                     positive_replies += 1
+                # Stages are cumulative: a converted client also had a call and a proposal.
+                if stat_val in CONVERSION_STAGES:
+                    stage = CONVERSION_STAGES.index(stat_val)
+                    calls_booked += 1
+                    proposals += stage >= 1
+                    clients += stage >= 2
                 elif stat_val == "BOUNCED":
                     bounced += 1
                 elif stat_val in ("DECLINED", "UNSUBSCRIBED"):
@@ -313,9 +323,9 @@ class SheetsManager:
             ["Bounced emails", bounced, "Verified delivery failures"],
             ["Positive replies", positive_replies, "Inquiries / meeting requests"],
             ["Negative replies / Opt-outs", declined, "Immediately suppressed"],
-            ["Sales calls booked", 0, "Commercial pipeline conversion"],
-            ["Proposals requested", 0, "Formal requirement submissions"],
-            ["Clients converted", 0, "Signed engagements"],
+            ["Sales calls booked", calls_booked, "Commercial pipeline conversion"],
+            ["Proposals requested", proposals, "Formal requirement submissions"],
+            ["Clients converted", clients, "Signed engagements"],
             ["Conversion rate (Sent -> Qualified Reply)", f"{(positive_replies / sent * 100):.1f}%" if sent > 0 else "0.0%", "Primary pipeline efficiency metric"],
             ["Campaign execution duration", f"{metrics.get('duration_seconds', 0) if metrics else 0}s", "GitHub Actions runner execution time"],
             ["API quota usage (Groq)", f"{metrics.get('ai_calls_used', 0) if metrics else 0} calls", "Free tier budget (max 120 calls/run)"],

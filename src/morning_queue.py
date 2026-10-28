@@ -107,7 +107,7 @@ class MorningQueueManager:
                         break
                 summary['newly_discovered_today'] = len(discovered)
                 summary['shortage_reasons'] += errors
-                fetcher = PermittedFetcher(max_fetches=160)
+                fetcher = PermittedFetcher(max_fetches=250)
                 researcher = StrictResearcher(fetcher)
                 # Reserve the whole call allowance BEFORE network work; crashes cannot reset it.
                 budget_key='budget:'+day
@@ -122,7 +122,7 @@ class MorningQueueManager:
                     0 if p.get('state') in ('QUALIFIED','QUALIFIED_CONTACTABLE','DRAFTED') else 1, p.get('last_attempt',0)))
                 completed=0
                 for prospect in prospects:
-                    if time.monotonic() - started_monotonic > 600 or completed >= 25: break
+                    if time.monotonic() - started_monotonic > 840 or completed >= 40: break
                     if len(ready) >= 100: break
                     if prospect.get('state')=='QUEUED' and prospect['company_id'] not in existing_domains:
                         prospect['state']='DRAFTED'  # Missing/stale Sheet row: replay outbox or re-research.

@@ -1136,7 +1136,7 @@ function apiCancelApproval(leadId) {
     }
 
     if (targetRow === -1) throw new Error('Lead ID not found: ' + leadId);
-    if (['SENT', 'SENDING', 'BOUNCED', 'POSITIVE_REPLY'].includes(currentStatus)) {
+    if (['SENT', 'SENDING', 'BOUNCED', 'POSITIVE_REPLY', 'MEETING_BOOKED', 'PROPOSAL_REQUESTED', 'CLIENT_CONVERTED'].includes(currentStatus)) {
       throw new Error(`Cannot cancel lead in '${currentStatus}' status; dispatch has already commenced.`);
     }
 

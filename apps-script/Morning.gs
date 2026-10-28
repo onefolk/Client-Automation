@@ -159,7 +159,7 @@ function auditApprovalEdit(e) {
 function evaluateOutreachSafety(queueRows) {
   const rows = queueRows || recordsFrom(getSpreadsheet().getSheetByName(TAB_APPROVAL_QUEUE));
   const failures = [];
-  const contacted=rows.filter(r=>['SENT','BOUNCED','DECLINED','POSITIVE_REPLY','REPLY_REVIEW'].includes(r.status));
+  const contacted=rows.filter(r=>['SENT','BOUNCED','DECLINED','POSITIVE_REPLY','REPLY_REVIEW','MEETING_BOOKED','PROPOSAL_REQUESTED','CLIENT_CONVERTED'].includes(r.status));
   const bounceRate=contacted.length ? contacted.filter(r=>r.status==='BOUNCED').length/contacted.length : 0;
   const declineRate=contacted.length ? contacted.filter(r=>r.status==='DECLINED').length/contacted.length : 0;
   if (contacted.length>=10 && (bounceRate>=0.05 || declineRate>=0.1)) {

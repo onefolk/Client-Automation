@@ -1,3 +1,5 @@
+> **Superseded.** This describes the earlier local Next.js/SQLite workflow. The current system is the GitHub Actions + Google Sheets + Apps Script pipeline described in [README.md](README.md). The email spec (3-4 paragraphs, 40-120 words) and sending rules there take precedence.
+
 # OneFolk Institutional Lead-Research & Shortlisting Workflow
 
 This application is an internal institutional lead-research, qualification, and shortlisting engine. It is designed to run entirely on free-tier, local equipment with zero cloud hosting, subscription fees, or paid API requirements.
