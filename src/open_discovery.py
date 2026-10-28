@@ -19,6 +19,21 @@ class OpenDiscovery:
         self.store, self.campaign = store, campaign
 
     def harvest(self):
+        # 1. Primary: Serper Google Search API if configured
+        try:
+            from src.serper_discovery import SerperDiscovery
+            serper = SerperDiscovery(self.store, self.campaign)
+            if serper.is_configured():
+                d, errs = serper.harvest()
+                if d or not errs:
+                    return d, errs
+        except Exception:
+            pass
+
+        # 2. Fallback: OpenStreetMap (OSM / Overpass)
+        return self._harvest_osm()
+
+    def _harvest_osm(self):
         cfg = json.loads((CONFIG_DIR/'public_sources.json').read_text())
         jobs = [(city, industry, filters) for city in cfg['cities']
                 for industry, filters in cfg['industries'].items()
