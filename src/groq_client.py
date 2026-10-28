@@ -11,15 +11,12 @@ import time
 from typing import Any, Dict, List, Optional
 import requests
 
-from src.config import (
-    CEREBRAS_API_KEY, CEREBRAS_MODEL, GROQ_API_KEY, GROQ_FALLBACK_MODEL, GROQ_MODEL, MAX_AI_CALLS,
-)
+from src.config import GROQ_API_KEY, GROQ_FALLBACK_MODEL, GROQ_MODEL, MAX_AI_CALLS
 from src.email_validator import validate_email_body, parse_email_paragraphs, voice_error, BANNED_PHRASES
 
 logger = logging.getLogger(__name__)
 
 GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
-CEREBRAS_ENDPOINT = "https://api.cerebras.ai/v1/chat/completions"
 
 AUDIENCE_BY_INDUSTRY = {
     "education": "institutions", "training": "institutions", "healthcare": "clinics and hospitals",
@@ -46,42 +43,24 @@ def capability_sentence(industry, service):
 
 
 class GroqClient:
-    """Manages AI completions over Groq's free tier, falling back to Cerebras, with strict grounding and budget limits."""
+    """Manages AI completions over Groq's free tier with strict grounding and budget limits."""
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         model: Optional[str] = None,
         max_calls: int = MAX_AI_CALLS,
-        cerebras_api_key: Optional[str] = None,
-        cerebras_model: Optional[str] = None,
     ):
         self.api_key = api_key or GROQ_API_KEY
         self.model = model or GROQ_MODEL
         self.fallback_model = GROQ_FALLBACK_MODEL
-        self.cerebras_api_key = CEREBRAS_API_KEY if cerebras_api_key is None else cerebras_api_key
-        self.cerebras_model = cerebras_model or CEREBRAS_MODEL
         self.max_calls = max_calls
         self.calls_used = 0
-        self.exhausted_providers: set = set()
-
-    @property
-    def quota_exhausted(self) -> bool:
-        """True once every configured provider has run out of quota or been rejected."""
-        return not self._providers()
-
-    def _providers(self) -> List[Dict[str, str]]:
-        """Configured providers still usable, in priority order (Groq first)."""
-        providers = [
-            {"name": "Groq", "key": self.api_key, "model": self.model, "endpoint": GROQ_ENDPOINT},
-            {"name": "Cerebras", "key": self.cerebras_api_key, "model": self.cerebras_model,
-             "endpoint": CEREBRAS_ENDPOINT},
-        ]
-        return [p for p in providers if p["key"] and p["name"] not in self.exhausted_providers]
+        self.quota_exhausted = False
 
     def is_available(self) -> bool:
-        """Checks if any provider has a configured API key and budget remains."""
-        return self.calls_used < self.max_calls and bool(self._providers())
+        """Checks if the client has a configured API key and budget remaining."""
+        return bool(self.api_key) and self.calls_used < self.max_calls and not self.quota_exhausted
 
     def test_connection(self) -> bool:
         """Verifies API key validity and connectivity to Groq without consuming chat tokens."""
@@ -183,44 +162,40 @@ class GroqClient:
                 "Do not add facts to it; relevance, capability and CTA should remain natural and specific."
             )
 
-        def build_payload(model: str) -> Dict[str, Any]:
-            payload = {
-                "model": model,
-                "temperature": 0.2,
-                "max_completion_tokens": 1024,
-                "response_format": {"type": "json_object"},
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": json.dumps(user_prompt)},
-                ],
-            }
-            if 'gpt-oss' in model:
-                payload['reasoning_effort'] = 'low'
-                payload['response_format'] = {'type':'json_schema', 'json_schema':{
-                    'name':'outreach_draft', 'strict':True, 'schema':{
-                        'type':'object','additionalProperties':False,
-                        'properties':{**{k:{'type':'string'} for k in ('subject','email_body','alt_opening_1','alt_opening_2','opportunity')},'skip':{'type':'boolean'}},
-                        'required':['subject','email_body','alt_opening_1','alt_opening_2','opportunity','skip']
-                    }}}
-            return payload
+        payload = {
+            "model": self.model,
+            "temperature": 0.2,
+            "max_completion_tokens": 1024,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": json.dumps(user_prompt)},
+            ],
+        }
+
+        if self.model.startswith('openai/gpt-oss'):
+            payload['reasoning_effort'] = 'low'
+            payload['response_format'] = {'type':'json_schema', 'json_schema':{
+                'name':'outreach_draft', 'strict':True, 'schema':{
+                    'type':'object','additionalProperties':False,
+                    'properties':{**{k:{'type':'string'} for k in ('subject','email_body','alt_opening_1','alt_opening_2','opportunity')},'skip':{'type':'boolean'}},
+                    'required':['subject','email_body','alt_opening_1','alt_opening_2','opportunity','skip']
+                }}}
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
 
         attempt = 0
         backoff = 2.0
-        server_failures = 0
 
         while attempt < max_retries and self.is_available():
-            provider = self._providers()[0]
-            name = provider["name"]
             attempt += 1
             self.calls_used += 1
 
             try:
-                response = requests.post(
-                    provider["endpoint"],
-                    headers={"Authorization": f"Bearer {provider['key']}", "Content-Type": "application/json"},
-                    json=build_payload(provider["model"]),
-                    timeout=35,
-                )
+                response = requests.post(GROQ_ENDPOINT, headers=headers, json=payload, timeout=35)
 
                 if response.status_code == 429:
                     raw_retry = response.headers.get("Retry-After", "")
@@ -235,12 +210,9 @@ class GroqClient:
                             retry_after = backoff
                     if not math.isfinite(retry_after) or retry_after < 0:
                         retry_after = backoff
-                    logger.warning("%s 429 Rate Limit encountered. Backing off for %.1f seconds...", name, retry_after)
+                    logger.warning("Groq 429 Rate Limit encountered. Backing off for %.1f seconds...", retry_after)
                     if retry_after > 60:
-                        self.exhausted_providers.add(name)
-                        if self._providers():
-                            logger.warning("%s quota exhausted; falling back to %s.", name, self._providers()[0]["name"])
-                            continue
+                        self.quota_exhausted = True
                         return None
                     time.sleep(min(60, retry_after + random.uniform(0.5, 1.5)))
                     backoff *= 2.0
@@ -248,25 +220,13 @@ class GroqClient:
 
 
                 if response.status_code in (500, 502, 503, 504):
-                    logger.warning("%s temporary server error %d. Retrying...", name, response.status_code)
-                    server_failures += 1
-                    if server_failures >= 2 and len(self._providers()) > 1:
-                        self.exhausted_providers.add(name)
-                        server_failures = 0
-                        logger.warning("%s keeps failing; falling back to %s.", name, self._providers()[0]["name"])
-                        continue
+                    logger.warning("Groq temporary server error %d. Retrying...", response.status_code)
                     time.sleep(backoff)
                     backoff *= 1.5
                     continue
 
-                if response.status_code in (401, 403, 404) and len(self._providers()) > 1:
-                    logger.warning("%s rejected the request (HTTP %d); falling back to %s.",
-                                   name, response.status_code, self._providers()[1]["name"])
-                    self.exhausted_providers.add(name)
-                    continue
-
                 if response.status_code != 200:
-                    logger.warning("%s API returned HTTP %d: %s", name, response.status_code, response.text[:200])
+                    logger.warning("Groq API returned HTTP %d: %s", response.status_code, response.text[:200])
                     return None
 
                 data = response.json()
@@ -286,18 +246,13 @@ class GroqClient:
                 return validated
 
             except requests.Timeout:
-                logger.warning("%s request timed out on attempt %d", name, attempt)
-                server_failures += 1
-                if server_failures >= 2 and len(self._providers()) > 1:
-                    self.exhausted_providers.add(name)
-                    server_failures = 0
-                    continue
+                logger.warning("Groq request timed out on attempt %d", attempt)
                 time.sleep(backoff)
             except Exception as e:
-                logger.warning("%s call exception: %s", name, str(e)[:160])
+                logger.warning("Groq call exception: %s", str(e)[:160])
                 return None
 
-        logger.warning("Exhausted retries for AI drafting.")
+        logger.warning("Exhausted retries for Groq drafting.")
         return None
 
     def _validate_and_sanitize(
