@@ -5,6 +5,7 @@ No Google Maps extraction, proxies, login bypass or unreviewed directories.
 """
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
 import requests
@@ -21,9 +22,12 @@ class OpenDiscovery:
     def harvest(self):
         """Merge every configured free source; OSM runs only when they are empty."""
         from src.serper_discovery import SerperDiscovery
+        from src.overture_discovery import OvertureDiscovery
         from src.wikidata_discovery import WikidataDiscovery
         discovered, errors = [], []
         sources = [WikidataDiscovery(self.store, self.campaign)]
+        if os.getenv('OVERTURE_ENABLED', 'true').lower() != 'false':
+            sources.append(OvertureDiscovery(self.store, self.campaign))
         serper = SerperDiscovery(self.store, self.campaign)
         if serper.is_configured():
             sources.append(serper)
