@@ -35,7 +35,8 @@ this repository can be described as an operational autonomous system.
   searches per run.
 
 - [Deployment and operation](docs/AUTONOMOUS_DEPLOYMENT.md)
-- [Open-source architecture audit](docs/AUTONOMY_AUDIT.md)
+- [Writer skills (editable prompt files)](skills/README.md)
+- [All documentation](docs/README.md)
 - [Observed acceptance evidence and remaining gaps](docs/ACCEPTANCE_EVIDENCE.md)
 
 Developer checks: `python -m pytest -q`, `npm test`, `npm run typecheck`.
