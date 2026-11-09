@@ -1,0 +1,31 @@
+{
+  "names": [
+    "Treebo", "OYO", "FabHotels", "Zostel", "Lemon Tree", "Ginger Hotel", "Marriott", "Hyatt", "Hilton", "Radisson",
+    "Novotel", "Ibis", "Holiday Inn", "Sheraton", "Westin", "ITC Hotels", "Oberoi Hotel",
+    "Croma", "Reliance Digital", "Reliance Trends", "Reliance Smart", "Reliance Fresh", "Smart Bazaar", "DMart",
+    "Big Bazaar", "Vijay Sales", "Tanishq", "Kalyan Jewellers", "Malabar Gold", "Lenskart", "Pantaloons", "Westside",
+    "Shoppers Stop", "Decathlon", "IKEA", "Nykaa", "United Colors of Benetton",
+    "McDonald's", "KFC", "Domino's", "Pizza Hut", "Subway", "Burger King", "Starbucks", "Cafe Coffee Day", "Barista",
+    "Haldiram's", "Saravana Bhavan", "Adyar Ananda Bhavan", "Wow Momo", "Baskin Robbins", "Chai Kings",
+    "Naturals", "Green Trends", "Lakme Salon", "Jawed Habib", "Toni&Guy", "Essensuals", "VLCC", "Kaya Skin Clinic",
+    "Cult.fit", "Gold's Gym", "Anytime Fitness", "Talwalkars",
+    "Apollo Hospital", "Apollo Hospitals", "Apollo Pharmacy", "Apollo Clinic", "Fortis", "Manipal Hospital", "MedPlus",
+    "Dr Lal PathLabs", "Thyrocare", "Metropolis Healthcare", "Vasan Eye Care",
+    "Castrol", "Maruti Suzuki", "Bosch Car Service", "FIITJEE", "Aakash Institute", "Allen Career", "BYJU'S"
+  ],
+  "site_domains": [
+    "treebo.com", "oyorooms.com", "fabhotels.com", "zostel.com", "lemontreehotels.com", "marriott.com", "hyatt.com",
+    "hilton.com", "radissonhotels.com", "accor.com", "ihg.com", "itchotels.com", "oberoihotels.com", "tajhotels.com",
+    "croma.com", "reliancedigital.in", "ajio.com", "dmart.in", "vijaysales.com", "tanishq.co.in", "kalyanjewellers.net",
+    "malabargoldanddiamonds.com", "lenskart.com", "pantaloons.com", "shoppersstop.com", "decathlon.in", "ikea.com",
+    "nykaa.com", "mcdonaldsindia.com", "kfc.co.in", "dominos.co.in", "pizzahut.co.in", "subway.com", "burgerking.in",
+    "starbucks.in", "cafecoffeeday.com", "haldirams.com", "naturals.in", "greentrends.in", "lakme.com", "jawedhabib.co.in",
+    "vlccwellness.com", "kaya.in", "cult.fit", "apollohospitals.com", "apollopharmacy.in", "fortishealthcare.com",
+    "manipalhospitals.com", "medplusmart.com", "lalpathlabs.com", "thyrocare.com", "metropolisindia.com", "castrol.com",
+    "marutisuzuki.com", "fiitjee.com", "aakash.ac.in", "allen.ac.in", "byjus.com"
+  ],
+  "booking_domains": [
+    "expedia.com", "expedia.co.in", "hotels.com", "trivago.in", "trivago.com", "cleartrip.com", "yatra.com", "ixigo.com",
+    "easemytrip.com", "hostelworld.com", "airbnb.co.in", "airbnb.com", "trip.com", "dineout.in", "bookmyshow.com", "townscript.com"
+  ]
+}

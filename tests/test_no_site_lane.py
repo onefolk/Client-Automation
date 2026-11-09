@@ -205,6 +205,52 @@ def test_generic_name_cannot_be_verified(monkeypatch):
     assert result['qualification_status'] == 'NEEDS_OPPORTUNITY_EVIDENCE' and r.searches_used == 0
 
 
+@pytest.mark.parametrize('name', ['Treebo Nestlay Casa', 'Croma BSR Mall', 'Naturals Ttk Road', 'Castrol Service - Sv Car Care', "McDonald's Adyar"])
+def test_known_chain_is_rejected_before_spending_a_search(monkeypatch, name):
+    r = researcher(monkeypatch, [social()])
+    result = r.investigate(prospect(name=name, business=name))
+    assert result['qualification_status'] == 'REJECTED' and r.searches_used == 0
+
+
+@pytest.mark.parametrize('name', ['Natural Foods Pune', 'Tajmahal Sweets', 'Crompton Electricals'])
+def test_chain_match_needs_whole_words(name):
+    from src.open_discovery import is_known_chain
+    assert not is_known_chain(name)
+
+
+def test_chain_website_is_not_sent_to_the_website_pipeline(monkeypatch):
+    p = prospect(name='Lumen Croma Store', business='Lumen Store')
+    organic = [{'title': 'Lumen Store', 'link': 'https://www.croma.com/', 'snippet': 'Lumen Store Pune'}]
+    monkeypatch.setattr(nsv, 'is_known_chain', lambda name: False)
+    r = researcher(monkeypatch, organic)
+    monkeypatch.setattr(r, '_classify', lambda *a: {'site': 'https://www.croma.com/', 'uncertain': False, 'social': [], 'listings': [], 'emails': [], 'phones': [], 'snippets': {}})
+    result = r.investigate(p)
+    assert result['qualification_status'] == 'REJECTED' and result['website'] == ''
+
+
+@pytest.mark.parametrize('link', ['https://the-belstead.hotelinchennai.com/', 'https://www.expedia.co.in/Lumen-Studio'])
+def test_booking_site_counts_as_a_listing_not_a_website(monkeypatch, link):
+    organic = [{'title': 'Lumen Studio', 'link': link, 'snippet': 'Lumen Studio Pune'}]
+    result = researcher(monkeypatch, organic).investigate(prospect())
+    assert result['qualification_status'] == 'CALL_LIST' and result['website_status'] == 'NO_SITE_CONFIRMED'
+    assert result['website'] == '' and result['observation_url'] == link
+
+
+def test_real_hotel_domain_is_not_mistaken_for_a_portal():
+    assert not nsv.is_listing_host('hotelgreenpark.com') and nsv.is_listing_host('hotelinchennai.com')
+
+
+def test_rejected_chain_is_never_checked_again(rig, monkeypatch):
+    manager, store, written = rig
+    lead = seed(store)
+    investigate = stub_research(monkeypatch, qualification_status='REJECTED')
+    manager.run()
+    assert store.get('prospect:' + lead['company_id'])['state'] == 'REJECTED'
+    monkeypatch.setenv('SCHEDULE_SLOT', 'second')
+    manager.run()
+    assert investigate.call_count == 1 and 'Call List' not in written
+
+
 def test_public_gmail_on_profile_is_contactable(monkeypatch):
     organic = [social('Bookings: lumenfilms@gmail.com'), {'title': 'Lumen Studio', 'link': LISTING, 'snippet': 'Pune'}]
     result = researcher(monkeypatch, organic).investigate(prospect())

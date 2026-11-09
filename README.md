@@ -34,6 +34,7 @@ this repository can be described as an operational autonomous system.
   Queue; phone-only leads go to the `Call List` tab for a person to dial. Mark a row `DO_NOT_CALL`,
   `NOT_INTERESTED` or `WRONG_NUMBER` to stop further contact. Needs `SERPER_API_KEY`; set `NO_SITE_ENABLED=false`
   to turn it off, and `NO_SITE_SEARCHES_PER_RUN` (15) / `NO_SITE_SEARCHES_PER_DAY` (30) to cap search spend.
+  Add big chains and booking sites to `config/chains.json` to keep them out of this lane.
 - **Reachable and genuine (website lane):** every lead needs an official site, a verified quotable observation, a public
   email on that site, an MX check and no suppression match, then human approval.
 - **Conversion stages:** set `status` in the Approval Queue to `MEETING_BOOKED`, `PROPOSAL_REQUESTED` or

@@ -2,6 +2,7 @@
 
 import json
 import os
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List
 from dotenv import load_dotenv
@@ -183,6 +184,16 @@ def load_portfolio() -> List[Dict[str, Any]]:
     if not portfolio_file.exists():
         return []
     with portfolio_file.open(encoding="utf-8") as f:
+        return json.load(f)
+
+
+@lru_cache(maxsize=1)
+def load_chains() -> Dict[str, List[str]]:
+    """Loads the editable lists of known chains and booking sites."""
+    chains_file = CONFIG_DIR / "chains.json"
+    if not chains_file.exists():
+        return {"names": [], "site_domains": [], "booking_domains": []}
+    with chains_file.open(encoding="utf-8") as f:
         return json.load(f)
 
 
