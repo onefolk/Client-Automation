@@ -27,7 +27,15 @@ this repository can be described as an operational autonomous system.
   Search via Serper (20 industries, 22 cities, "under construction" signals, public social-profile bio
   websites), OpenStreetMap fallback. Social platforms are never scraped directly; a profile only yields a
   candidate when it publicly lists an official website, which is then researched like any other lead.
-- **Reachable and genuine:** every lead needs an official site, a verified quotable observation, a public
+- **No-website lane:** businesses with no working website are found separately (Overture places with no
+  website, public profiles that list none, and dead or parked domains). Each must pass domain guesses and a
+  Google search, and be findable under its exact name, before any claim is made. Unclear cases are parked, and a
+  site that turns up moves the lead to the normal pipeline. Leads with a publicly posted email go to the Approval
+  Queue; phone-only leads go to the `Call List` tab for a person to dial. Mark a row `DO_NOT_CALL`,
+  `NOT_INTERESTED` or `WRONG_NUMBER` to stop further contact. Needs `SERPER_API_KEY`; set `NO_SITE_ENABLED=false`
+  to turn it off, and `NO_SITE_SEARCHES_PER_RUN` (15) / `NO_SITE_SEARCHES_PER_DAY` (30) to cap search spend.
+  Add big chains and booking sites to `config/chains.json` to keep them out of this lane.
+- **Reachable and genuine (website lane):** every lead needs an official site, a verified quotable observation, a public
   email on that site, an MX check and no suppression match, then human approval.
 - **Conversion stages:** set `status` in the Approval Queue to `MEETING_BOOKED`, `PROPOSAL_REQUESTED` or
   `CLIENT_CONVERTED`; the Dashboard tab counts them cumulatively.

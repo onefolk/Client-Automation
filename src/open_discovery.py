@@ -6,14 +6,45 @@ No Google Maps extraction, proxies, login bypass or unreviewed directories.
 import hashlib
 import json
 import os
+import re
 import time
 from pathlib import Path
 import requests
-from src.config import CONFIG_DIR, USER_AGENT
+from src.config import CONFIG_DIR, LEAD_TYPE_NO_WEBSITE, NO_SITE_MAX_BACKLOG, USER_AGENT, is_no_site_lead, load_chains
 from src.network import canonical_url, extract_domain, read_bounded
 
 def company_id(website):
     return 'company_' + hashlib.sha256(extract_domain(website).encode()).hexdigest()[:20]
+
+
+def no_site_company_id(name, city):
+    """Stable identity for a business with no domain, shared across discovery sources."""
+    key = re.sub(r'[^a-z0-9]', '', str(name).lower()) + '|' + re.sub(r'[^a-z0-9]', '', str(city).lower())
+    return 'company_nosite_' + hashlib.sha256(key.encode()).hexdigest()[:20]
+
+
+def no_site_candidate(name, industry, city, source_url, source, phone='', social_url='', profile_snippet=''):
+    """A discovery hint only: it stays unverified until NoSiteResearcher has checked it."""
+    return {
+        'company_id': no_site_company_id(name, city), 'name': name, 'business': name, 'website': '',
+        'lead_type': LEAD_TYPE_NO_WEBSITE, 'industry': industry, 'city': city, 'source_url': source_url,
+        'source': source, 'phone': phone, 'social_url': social_url, 'profile_snippet': profile_snippet,
+        'state': 'DISCOVERED', 'discovered_at': time.time(),
+    }
+
+
+def is_known_chain(name):
+    """True when a place name contains a chain from config/chains.json, on word boundaries."""
+    def words(text):
+        return ' ' + re.sub(r'[^a-z0-9]+', ' ', str(text).lower()).strip() + ' '
+    normalized = words(name)
+    return any(words(chain) in normalized for chain in load_chains()['names'])
+
+
+def no_site_backlog_full(store):
+    """Stops discovery from outrunning the daily verification budget."""
+    pending = sum(1 for p in store.values('prospect:') if is_no_site_lead(p) and p.get('state') == 'DISCOVERED')
+    return pending >= NO_SITE_MAX_BACKLOG
 
 class OpenDiscovery:
     def __init__(self, store, campaign):
@@ -21,16 +52,22 @@ class OpenDiscovery:
 
     def harvest(self):
         """Merge every configured free source; OSM runs only when they are empty."""
-        from src.serper_discovery import SerperDiscovery
-        from src.overture_discovery import OvertureDiscovery
+        from src.serper_discovery import SerperDiscovery, SerperNoSiteDiscovery
+        from src.overture_discovery import OvertureDiscovery, OvertureNoSiteDiscovery
         from src.wikidata_discovery import WikidataDiscovery
         discovered, errors = [], []
+        no_site_on = os.getenv('NO_SITE_ENABLED', 'true').lower() != 'false'
+        overture_on = os.getenv('OVERTURE_ENABLED', 'true').lower() != 'false'
         sources = [WikidataDiscovery(self.store, self.campaign)]
-        if os.getenv('OVERTURE_ENABLED', 'true').lower() != 'false':
+        if overture_on:
             sources.append(OvertureDiscovery(self.store, self.campaign))
+            if no_site_on:
+                sources.append(OvertureNoSiteDiscovery(self.store, self.campaign))
         serper = SerperDiscovery(self.store, self.campaign)
         if serper.is_configured():
             sources.append(serper)
+            if no_site_on:
+                sources.append(SerperNoSiteDiscovery(self.store, self.campaign))
         for source in sources:
             try:
                 d, errs = source.harvest()

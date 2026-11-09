@@ -5,13 +5,18 @@ import json
 import os
 import time
 from src.writer_policy import require_production_writer
-from src.config import get_active_campaign, validate_credentials
+from src.config import (
+    CALL_LIST_HEADERS, LEAD_TYPE_NO_WEBSITE, NO_SITE_SEARCHES_PER_DAY, NO_SITE_SEARCHES_PER_RUN, TAB_CALL_LIST,
+    get_active_campaign, is_no_site_lead, validate_credentials,
+)
+from src.no_site_verifier import NoSiteResearcher, SearchUnavailable
 from src.sheets import SheetsManager
 from src.suppression import SuppressionManager
 from src.groq_client import GroqClient
 from src.permitted_fetcher import PermittedFetcher
 from src.strict_research import StrictResearcher, RESEARCH_VERSION
-from src.open_discovery import OpenDiscovery
+from src.network import extract_domain
+from src.open_discovery import OpenDiscovery, company_id
 from src.reserve import ReserveStore, append_records
 from src.quality import validate_queued_draft, eligible_queue
 
@@ -60,7 +65,8 @@ class MorningQueueManager:
                    'workflow_url':(f'https://github.com/{repo_name}/actions/runs/'+run_id) if run_id.isdigit() else '',
                    'newly_discovered_today':0, 'qualified_overnight':0, 'api_failures':0,
                    'ready_for_approval':0, 'needs_research':0, 'rejected':0,
-                   'suppressed_or_duplicate':0, 'shortage_reasons':[], 'target_queue':self.target_queue}
+                   'suppressed_or_duplicate':0, 'shortage_reasons':[], 'target_queue':self.target_queue,
+                   'no_site_checked':0, 'no_site_qualified':0, 'call_list_added':0, 'no_site_found_website':0}
 
         prior = store.get(slot_key)
         if prior and prior.get('status') == 'READY':
@@ -84,7 +90,6 @@ class MorningQueueManager:
             existing_ids = {str(r.get('lead_id','')) for r in queue}
             existing_domains = {str(r.get('company_id','')) for r in ready}
             existing_domains.update(str(r.get('company_id','')) for r in queue if r.get('status')=='APPROVED')
-            from src.open_discovery import company_id
             # Import the existing inventory once so discovery never starts again at the old seed list.
             old_leads=self.sheets.spreadsheet.worksheet('Lead Database').get_all_records()
             store.put_many_new({'prospect:'+company_id(r['website']):{
@@ -118,21 +123,37 @@ class MorningQueueManager:
                 budget['batches'] += 1
                 store.put(budget_key,budget)
                 groq=GroqClient(max_calls=calls)
+                # Reserved up front like the AI budget, so a crash can never overspend search credits.
+                search_key='no_site_budget:'+day
+                search_budget=store.get(search_key,{'reserved':0})
+                searches=min(NO_SITE_SEARCHES_PER_RUN,max(0,NO_SITE_SEARCHES_PER_DAY-search_budget['reserved']))
+                search_budget['reserved']+=searches
+                store.put(search_key,search_budget)
+                no_site=NoSiteResearcher(fetcher,max_searches=searches)
+                call_ws=self.sheets.ensure_tab(TAB_CALL_LIST,CALL_LIST_HEADERS)
+                suppression.load_call_list(call_ws.get_all_records() if call_ws else [])
+                # No-website leads go first; once their search budget is spent the website lane continues.
                 prospects=sorted(store.values('prospect:'), key=lambda p:(
-                    0 if p.get('state') in ('QUALIFIED','QUALIFIED_CONTACTABLE','DRAFTED') else 1, p.get('last_attempt',0)))
+                    0 if p.get('state') in ('QUALIFIED','QUALIFIED_CONTACTABLE','DRAFTED') else 1,
+                    0 if is_no_site_lead(p) else 1, p.get('last_attempt',0)))
+                if not no_site.api_key and any(is_no_site_lead(p) and p.get('state')=='DISCOVERED' for p in prospects):
+                    summary['shortage_reasons'].append('No-website leads waiting: SERPER_API_KEY is required to verify them')
                 completed=0
                 for prospect in prospects:
                     if time.monotonic() - started_monotonic > 840 or completed >= 40: break
                     if len(ready) >= 100: break
                     if prospect.get('state')=='QUEUED' and prospect['company_id'] not in existing_domains:
                         prospect['state']='DRAFTED'  # Missing/stale Sheet row: replay outbox or re-research.
-                    if prospect.get('state') in ('QUEUED','SUPPRESSED','REJECTED'): continue
+                    if prospect.get('state') in ('QUEUED','SUPPRESSED','REJECTED','ROUTED_HAS_SITE','CALL_LISTED'): continue
+                    if is_no_site_lead(prospect) and not no_site.can_verify() and not prospect.get('record') and not prospect.get('research'):
+                        continue
                     if (prospect.get('state') in ('NEEDS_RESEARCH','QUALIFIED_CONTACT_MISSING','NEEDS_OPPORTUNITY_EVIDENCE','WEBSITE_UNAVAILABLE','EMAIL_VALIDATION_FAILED')
                         and prospect.get('research_version') == RESEARCH_VERSION
                         and time.time()-prospect.get('last_attempt',0)<14*86400): continue
                     cid=prospect['company_id']
                     if cid in existing_domains: continue
-                    blocked,_=suppression.is_suppressed(prospect.get('public_email',''),prospect['website'])
+                    company_site=prospect.get('website') or prospect.get('dead_domain','')
+                    blocked,_=suppression.is_suppressed(prospect.get('public_email',''),company_site)
                     if blocked:
                         prospect['state']='SUPPRESSED'; store.put('prospect:'+cid,prospect)
                         continue
@@ -146,13 +167,51 @@ class MorningQueueManager:
                         if research and prospect.get('research_version') == RESEARCH_VERSION:
                             try: fresh=(now-datetime.fromisoformat(research['last_verified_at'])).total_seconds()<7*86400
                             except (KeyError,ValueError,TypeError): pass
-                        if not fresh: research=researcher.investigate(prospect)
+                        if not fresh:
+                            try:
+                                if is_no_site_lead(prospect):
+                                    research=no_site.investigate(prospect)
+                                    summary['no_site_checked']+=1
+                                else:
+                                    research=researcher.investigate(prospect)
+                            except SearchUnavailable as exc:
+                                # Nothing was learned, so the lead stays untouched for a later run.
+                                reason='No-website verification paused: '+str(exc)
+                                if reason not in summary['shortage_reasons']:
+                                    summary['shortage_reasons'].append(reason)
+                                continue
                         prospect['last_attempt']=time.time()
                         prospect['research']=research
                         prospect['research_version']=RESEARCH_VERSION
                         if not research:
                             prospect['state']='WEBSITE_UNAVAILABLE'; store.put('prospect:'+cid,prospect); continue
                         q_status = research.get('qualification_status')
+                        if research.get('dead_site_reason'):
+                            # The domain is gone or parked: re-check this company in the no-website lane.
+                            prospect.update(lead_type=LEAD_TYPE_NO_WEBSITE, dead_domain=extract_domain(prospect.get('website','')),
+                                            website='', research=None, state='DISCOVERED', last_attempt=0)
+                            store.put('prospect:'+cid,prospect); continue
+                        if q_status == 'HAS_WEBSITE_FOUND':
+                            # Keep the lead: it moves to the normal website pipeline.
+                            site_cid=company_id(research['website'])
+                            store.put_many_new({'prospect:'+site_cid:{
+                                'company_id':site_cid,'name':prospect.get('name',''),'business':prospect.get('business',''),
+                                'website':research['website'],'industry':prospect.get('industry','other'),'city':prospect.get('city',''),
+                                'source_url':prospect.get('source_url',''),'source':prospect.get('source',''),
+                                'state':'DISCOVERED','discovered_at':time.time()}})
+                            prospect['state']='ROUTED_HAS_SITE'
+                            summary['no_site_found_website']+=1
+                            store.put('prospect:'+cid,prospect); continue
+                        if q_status == 'CALL_LIST':
+                            if suppression.is_phone_blocked(research.get('phone','')):
+                                prospect['state']='SUPPRESSED'; store.put('prospect:'+cid,prospect); continue
+                            call_row={h:research.get(h,'') for h in CALL_LIST_HEADERS}
+                            call_row.update(evidence_url=research.get('observation_url',''),status='TO_CALL',created_at=now.isoformat())
+                            append_records(self.sheets,TAB_CALL_LIST,[call_row])
+                            suppression.known_phones.add(research.get('phone',''))
+                            prospect['state']='CALL_LISTED'
+                            summary['call_list_added']+=1
+                            store.put('prospect:'+cid,prospect); continue
                         if q_status == 'QUALIFIED_CONTACT_MISSING':
                             prospect['state']='QUALIFIED_CONTACT_MISSING'
                             if 'research' in prospect and isinstance(prospect['research'], dict):
@@ -191,11 +250,12 @@ class MorningQueueManager:
                             if 'research' in prospect and isinstance(prospect['research'], dict):
                                 prospect['research'].pop('page_contexts', None)
                             store.put('prospect:'+cid,prospect); continue
-                        blocked,_=suppression.is_suppressed(research.get('public_email',''),research.get('website',''))
-                        if blocked:
+                        blocked,_=suppression.is_suppressed(research.get('public_email',''),research.get('website','') or company_site)
+                        if blocked or suppression.is_phone_opted_out(research.get('phone','')):
                             prospect['state']='SUPPRESSED'; store.put('prospect:'+cid,prospect); continue
                         prospect['state']='QUALIFIED' if prospect.get('state')=='QUALIFIED' else 'QUALIFIED_CONTACTABLE'; store.put('prospect:'+cid,prospect)
                         summary['qualified_overnight']+=1
+                        if is_no_site_lead(prospect): summary['no_site_qualified']+=1
                         if not groq.is_available():
                             # Keep researching other prospects: qualified leads are saved and drafted later.
                             reason='Groq call budget exhausted; qualified reserve saved'
@@ -231,6 +291,10 @@ class MorningQueueManager:
                 if unused>0:
                     budget['ai_reserved']=max(0,budget['ai_reserved']-unused)
                     store.put(budget_key,budget)
+                unused_searches=searches-no_site.searches_used
+                if unused_searches>0:
+                    search_budget['reserved']=max(0,search_budget['reserved']-unused_searches)
+                    store.put(search_key,search_budget)
                 summary['http_fetches_used']=fetcher.count
             # Only live readback can establish readiness; repeat suppression after all writes.
             supp,sent,queue=self.sheets.load_historical_suppression_data()

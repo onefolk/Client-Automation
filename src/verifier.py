@@ -35,6 +35,13 @@ BAD_EMAIL_DOMAINS = (
     "mysite.com",
 )
 
+# Shared mailbox providers. A small business without a website often publishes one of these.
+FREE_MAIL_DOMAINS = frozenset({
+    "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.in", "yahoo.in", "ymail.com",
+    "outlook.com", "outlook.in", "hotmail.com", "live.com", "rediffmail.com", "icloud.com",
+    "protonmail.com", "proton.me", "zohomail.in", "aol.com",
+})
+
 # Automated / non-inquiry prefixes
 DISALLOWED_PREFIXES = (
     "noreply",
@@ -129,6 +136,32 @@ def has_valid_mx_records(domain: str, timeout: float = 3.0) -> bool:
         logger.debug("DNS check failed for %s: %s", domain, str(e)[:100])
         MX_CACHE[domain] = False
         return False
+
+
+def is_free_mail(domain: str) -> bool:
+    """True for shared mailbox providers, whose domain never identifies one company."""
+    return str(domain or "").strip().lower() in FREE_MAIL_DOMAINS
+
+
+def domain_resolution(domain: str, timeout: float = 4.0) -> str:
+    """Returns NXDOMAIN, RESOLVES or UNKNOWN. Only NXDOMAIN proves the name does not exist."""
+    domain = str(domain or "").strip().lower()
+    if not domain or not DNS_AVAILABLE:
+        return "UNKNOWN"
+    resolver = dns.resolver.Resolver()
+    resolver.nameservers = ["8.8.8.8", "1.1.1.1", "8.8.4.4"]
+    resolver.lifetime = timeout
+    resolver.timeout = timeout
+    try:
+        resolver.resolve(domain, "A")
+        return "RESOLVES"
+    except dns.resolver.NXDOMAIN:
+        return "NXDOMAIN"
+    except dns.resolver.NoAnswer:
+        return "RESOLVES"  # the name exists, it just has no A record
+    except Exception as e:
+        logger.debug("DNS resolution inconclusive for %s: %s", domain, str(e)[:100])
+        return "UNKNOWN"
 
 
 def decode_cf_email(cf_hex: str) -> Optional[str]:
