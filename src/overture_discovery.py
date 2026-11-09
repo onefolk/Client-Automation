@@ -1,8 +1,9 @@
 """Bulk discovery of independent Indian businesses from the Overture Maps places dataset.
 
 Overture Maps (CDLA Permissive 2.0) is a discovery hint only: it supplies a name, a category and a
-website. Its emails and phone numbers are never trusted; the contact email must still be found on the
-official site by the normal research step. Chain outlets are dropped by keeping only places without a
+website. Its emails are never trusted; the contact email must still be found on the official site or
+the business's own public profile. Its phone numbers only reach the Call List, where a person dials
+them, never an automated message. Chain outlets are dropped by keeping only places without a
 brand whose website domain appears on at most MAX_PLACES_PER_DOMAIN places.
 """
 import json
@@ -16,11 +17,18 @@ import requests
 
 from src.config import CONFIG_DIR, USER_AGENT
 from src.network import canonical_url, extract_domain
-from src.open_discovery import company_id
+from src.open_discovery import company_id, no_site_backlog_full, no_site_candidate
+from src.suppression import normalize_phone
 
 BUCKET = "https://overturemaps-us-west-2.s3.amazonaws.com"
 PAGE_SIZE = 400
 BATCH_SIZE = 40
+NO_SITE_BATCH_SIZE = 20
+NO_SITE_QUERY_TIMEOUT_SECONDS = 180  # this scan reads far more rows than the website query
+# Most unbranded places hold an empty brand record, so "brand IS NULL" wrongly drops them.
+NO_BRAND_SQL = "brand.names.primary IS NULL AND brand.wikidata IS NULL"
+CHAIN_PREFIX_MIN = 3
+COMMON_NAME_PREFIXES = {"sri", "shri", "sree", "shree", "new", "the", "royal", "star", "dr", "mr", "city", "hotel", "best"}
 QUERY_TIMEOUT_SECONDS = 90
 MAX_PLACES_PER_DOMAIN = 2
 MIN_CONFIDENCE = 0.6
@@ -75,34 +83,60 @@ def latest_release() -> str:
     return releases[-1]
 
 
-def query_places(release: str, bbox: List[float], offset: int) -> List[Dict[str, Any]]:
-    """One bounded DuckDB scan of the public Overture bucket; no credentials are used."""
+def _scan(sql: str, timeout: int = QUERY_TIMEOUT_SECONDS) -> List[tuple]:
+    """Runs one bounded DuckDB scan of the public Overture bucket; no credentials are used."""
     import duckdb
-    south, west, north, east = bbox
     con = duckdb.connect()
-    timer = threading.Timer(QUERY_TIMEOUT_SECONDS, con.interrupt)
+    timer = threading.Timer(timeout, con.interrupt)
     timer.start()
     try:
         con.execute("INSTALL httpfs; LOAD httpfs; SET s3_region='us-west-2';")
-        sql = f"""
+        return con.execute(sql).fetchall()
+    finally:
+        timer.cancel()
+        con.close()
+
+
+def query_no_website_places(release: str, bbox: List[float], offset: int) -> List[Dict[str, Any]]:
+    """Independent places with no listed website, those with a phone number first."""
+    south, west, north, east = bbox
+    sql = f"""
+    WITH f AS (
+      SELECT names.primary AS name, basic_category AS category, id, phones[1] AS phone, socials[1] AS social, confidence
+      FROM read_parquet('s3://overturemaps-us-west-2/release/{release}/theme=places/type=place/*')
+      WHERE addresses[1].country = 'IN'
+        AND bbox.xmin BETWEEN {west} AND {east} AND bbox.ymin BETWEEN {south} AND {north}
+        AND {NO_BRAND_SQL} AND coalesce(len(websites), 0) = 0
+        AND confidence >= {MIN_CONFIDENCE}
+        AND (operating_status IS NULL OR operating_status = 'open')
+    )
+    SELECT any_value(name), any_value(category), any_value(id), max(phone), max(social)
+    FROM f WHERE name IS NOT NULL AND length(name) >= 3
+    GROUP BY lower(name) HAVING count(*) <= {MAX_PLACES_PER_DOMAIN}
+    ORDER BY (max(phone) IS NOT NULL) DESC, max(confidence) DESC, hash(lower(name))
+    LIMIT {PAGE_SIZE} OFFSET {int(offset)}"""
+    return [{"name": r[0], "category": r[1], "id": r[2], "phone": r[3] or "", "social": r[4] or ""}
+            for r in _scan(sql, NO_SITE_QUERY_TIMEOUT_SECONDS)]
+
+
+def query_places(release: str, bbox: List[float], offset: int) -> List[Dict[str, Any]]:
+    """Independent places that publish a website, one row per domain."""
+    south, west, north, east = bbox
+    sql = f"""
         WITH f AS (
           SELECT names.primary AS name, websites[1] AS site, basic_category AS category, id,
                  lower(regexp_extract(websites[1], '^(?:https?://)?(?:www\\.)?([^/:?#]+)', 1)) AS domain
           FROM read_parquet('s3://overturemaps-us-west-2/release/{release}/theme=places/type=place/*')
           WHERE addresses[1].country = 'IN'
             AND bbox.xmin BETWEEN {west} AND {east} AND bbox.ymin BETWEEN {south} AND {north}
-            AND brand IS NULL AND len(websites) > 0 AND confidence >= {MIN_CONFIDENCE}
+            AND {NO_BRAND_SQL} AND len(websites) > 0 AND confidence >= {MIN_CONFIDENCE}
             AND (operating_status IS NULL OR operating_status = 'open')
         )
         SELECT domain, any_value(name), any_value(site), any_value(category), any_value(id)
         FROM f WHERE domain <> '' AND name IS NOT NULL AND length(name) >= 3
         GROUP BY domain HAVING count(*) <= {MAX_PLACES_PER_DOMAIN}
         ORDER BY hash(domain) LIMIT {PAGE_SIZE} OFFSET {int(offset)}"""
-        rows = con.execute(sql).fetchall()
-    finally:
-        timer.cancel()
-        con.close()
-    return [{"domain": r[0], "name": r[1], "site": r[2], "category": r[3], "id": r[4]} for r in rows]
+    return [{"domain": r[0], "name": r[1], "site": r[2], "category": r[3], "id": r[4]} for r in _scan(sql)]
 
 
 class OvertureDiscovery:
@@ -161,4 +195,64 @@ class OvertureDiscovery:
             state.update(city_idx=state.get("city_idx", 0) + 1, offset=0)
         state.update(release=release, timestamp=time.time())
         self.store.put("source:overture", state)
+        return discovered, []
+
+
+def name_prefix(name: str) -> str:
+    """First meaningful word of a place name, ignoring words many unrelated businesses share."""
+    words = re.findall(r"[a-z0-9]+", str(name).lower())
+    return next((w for w in words if len(w) >= 3 and w not in COMMON_NAME_PREFIXES), "")
+
+
+def chain_prefixes(rows: List[Dict[str, Any]]) -> set:
+    """Overture often leaves brand empty on outlets ("Naturals Ttk Road"), so repeats reveal chains."""
+    counts: Dict[str, int] = {}
+    for row in rows:
+        prefix = name_prefix(row["name"])
+        counts[prefix] = counts.get(prefix, 0) + 1
+    return {p for p, n in counts.items() if p and n >= CHAIN_PREFIX_MIN}
+
+
+class OvertureNoSiteDiscovery(OvertureDiscovery):
+    """Finds places with no listed website. Missing from Overture is only a hint, never proof."""
+
+    def harvest(self) -> Tuple[List[Dict[str, Any]], List[str]]:
+        cities = self.cities()
+        if not cities or no_site_backlog_full(self.store):
+            return [], []
+        state = self.store.get("source:overture_nosite", {"city_idx": 0, "offset": 0})
+        city = cities[state.get("city_idx", 0) % len(cities)]
+        allowed = set(self.campaign.get("industries") or [])
+        try:
+            release = latest_release()
+            rows = query_no_website_places(release, city["bbox"], state.get("offset", 0))
+        except Exception as exc:
+            return [], ["Overture no-website source unavailable: " + type(exc).__name__]
+
+        chains = chain_prefixes(rows)
+        discovered, seen = [], set()
+        for row in rows:
+            industry = industry_for_category(row["category"])
+            if not industry or (allowed and industry not in allowed) or name_prefix(row["name"]) in chains:
+                continue
+            candidate = no_site_candidate(
+                row["name"], industry, city["name"], "overture:" + str(row["id"]),
+                "Overture Maps Foundation (CDLA Permissive 2.0), no website listed",
+                phone=normalize_phone(row["phone"]), social_url=row["social"])
+            cid = candidate["company_id"]
+            if cid in seen or self.store.get("prospect:" + cid):
+                continue
+            seen.add(cid)
+            discovered.append(candidate)
+            if len(discovered) >= NO_SITE_BATCH_SIZE:
+                break
+
+        if discovered:
+            self.store.put_many_new({"prospect:" + c["company_id"]: c for c in discovered})
+        if len(rows) == PAGE_SIZE:
+            state.update(offset=state.get("offset", 0) + PAGE_SIZE)
+        else:
+            state.update(city_idx=state.get("city_idx", 0) + 1, offset=0)
+        state.update(release=release, timestamp=time.time())
+        self.store.put("source:overture_nosite", state)
         return discovered, []

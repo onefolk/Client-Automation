@@ -36,6 +36,7 @@ SERVICE_PHRASE = {
     "Website content and UX improvements": "improve website content and structure",
     "Website design and development": "build fast, mobile-friendly and secure websites",
     "Landing pages and enquiry management": "set up landing pages and enquiry systems",
+    "First website and online presence": "build simple, professional first websites",
 }
 
 
@@ -146,6 +147,8 @@ class GroqClient:
         }
         if research_data.get("strict_grounding"):
             user_prompt["strict_rules"].append(load_skill("strict_grounding"))
+        if research_data.get("lead_type") == "NO_WEBSITE":
+            user_prompt["strict_rules"].append(load_skill("no_website_lane"))
 
         def build_payload(model: str) -> Dict[str, Any]:
             payload = {
