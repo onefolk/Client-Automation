@@ -17,7 +17,7 @@ import requests
 
 from src.config import CONFIG_DIR, USER_AGENT
 from src.network import canonical_url, extract_domain
-from src.open_discovery import company_id, no_site_backlog_full, no_site_candidate
+from src.open_discovery import company_id, is_known_chain, no_site_backlog_full, no_site_candidate
 from src.suppression import normalize_phone
 
 BUCKET = "https://overturemaps-us-west-2.s3.amazonaws.com"
@@ -233,7 +233,9 @@ class OvertureNoSiteDiscovery(OvertureDiscovery):
         discovered, seen = [], set()
         for row in rows:
             industry = industry_for_category(row["category"])
-            if not industry or (allowed and industry not in allowed) or name_prefix(row["name"]) in chains:
+            if not industry or (allowed and industry not in allowed):
+                continue
+            if name_prefix(row["name"]) in chains or is_known_chain(row["name"]):
                 continue
             candidate = no_site_candidate(
                 row["name"], industry, city["name"], "overture:" + str(row["id"]),

@@ -10,7 +10,7 @@ import re
 import time
 from pathlib import Path
 import requests
-from src.config import CONFIG_DIR, LEAD_TYPE_NO_WEBSITE, NO_SITE_MAX_BACKLOG, USER_AGENT, is_no_site_lead
+from src.config import CONFIG_DIR, LEAD_TYPE_NO_WEBSITE, NO_SITE_MAX_BACKLOG, USER_AGENT, is_no_site_lead, load_chains
 from src.network import canonical_url, extract_domain, read_bounded
 
 def company_id(website):
@@ -31,6 +31,14 @@ def no_site_candidate(name, industry, city, source_url, source, phone='', social
         'source': source, 'phone': phone, 'social_url': social_url, 'profile_snippet': profile_snippet,
         'state': 'DISCOVERED', 'discovered_at': time.time(),
     }
+
+
+def is_known_chain(name):
+    """True when a place name contains a chain from config/chains.json, on word boundaries."""
+    def words(text):
+        return ' ' + re.sub(r'[^a-z0-9]+', ' ', str(text).lower()).strip() + ' '
+    normalized = words(name)
+    return any(words(chain) in normalized for chain in load_chains()['names'])
 
 
 def no_site_backlog_full(store):

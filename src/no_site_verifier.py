@@ -17,8 +17,9 @@ from zoneinfo import ZoneInfo
 import requests
 from bs4 import BeautifulSoup
 
-from src.config import LEAD_TYPE_NO_WEBSITE, USER_AGENT, load_portfolio
+from src.config import LEAD_TYPE_NO_WEBSITE, USER_AGENT, load_chains, load_portfolio
 from src.network import canonical_url, extract_domain
+from src.open_discovery import is_known_chain
 from src.serper_discovery import LINK_HUBS, bio_websites, is_profile_url, is_social_host
 from src.strict_research import corroborated_identity
 from src.suppression import normalize_phone
@@ -32,6 +33,7 @@ logger = logging.getLogger(__name__)
 IST = ZoneInfo("Asia/Kolkata")
 QUALIFY_SCORE = 60
 PRIORITY_SCORE = 80
+CITY_HOTEL_PORTAL = re.compile(r'(?:^|\.)hotels?in[a-z]+\.(?:com|in|net|org|co\.in)$')  # the-x.hotelinchennai.com
 PHONE_IN_TEXT = re.compile(r'(?<!\d)(?:\+?91[\s-]?|0)?[6-9]\d{4}[\s-]?\d{5}(?!\d)')
 GENERIC_NAME_WORDS = {
     'the', 'and', 'private', 'limited', 'pvt', 'ltd', 'llp', 'college', 'school', 'university', 'institute',
@@ -58,6 +60,12 @@ class SearchUnavailable(Exception):
 
 def _matches(domain: str, hosts) -> bool:
     return any(domain == h or domain.endswith("." + h) for h in hosts)
+
+
+def is_listing_host(domain: str) -> bool:
+    """Directories, booking sites and city hotel portals can list a business but are not its website."""
+    return (_matches(domain, DIRECTORY_HOSTS) or _matches(domain, load_chains()["booking_domains"])
+            or bool(CITY_HOTEL_PORTAL.search(domain)))
 
 
 def distinctive_words(name: str) -> List[str]:
@@ -169,7 +177,7 @@ class NoSiteResearcher:
         graph = data.get("knowledgeGraph") or {}
         graph_site = extract_domain(str(graph.get("website") or ""))
         if (graph_site and graph_site != dead_domain and corroborated_identity(name, str(graph.get("title", "")).lower())
-                and not is_social_host(graph_site) and not _matches(graph_site, DIRECTORY_HOSTS) and not _matches(graph_site, LINK_HUBS)):
+                and not is_social_host(graph_site) and not is_listing_host(graph_site) and not _matches(graph_site, LINK_HUBS)):
             found["site"] = canonical_url(f"https://{graph_site}")
             return found
 
@@ -191,10 +199,10 @@ class NoSiteResearcher:
             if not domain or not corroborated_identity(name, text.lower()):
                 continue
             # Loose matching above errs towards finding a site; evidence of the business must be exact.
-            if (is_social_host(domain) or _matches(domain, DIRECTORY_HOSTS)) and not names_this_business(name, text):
+            if (is_social_host(domain) or is_listing_host(domain)) and not names_this_business(name, text):
                 continue
             if is_social_host(domain):
-                sites = [s for s in bio_websites(item) if extract_domain(s) != dead_domain]
+                sites = [s for s in bio_websites(item) if extract_domain(s) != dead_domain and not is_listing_host(extract_domain(s))]
                 if sites:
                     found["site"] = canonical_url(f"https://{extract_domain(sites[0])}")
                     return found
@@ -203,7 +211,7 @@ class NoSiteResearcher:
                         found["social"].append(link)
                         found["snippets"][link] = str(item.get("snippet", ""))
                     read_contacts(text, link)
-            elif _matches(domain, DIRECTORY_HOSTS):
+            elif is_listing_host(domain):
                 if link not in found["listings"]:
                     found["listings"].append(link)
                     found["snippets"][link] = str(item.get("snippet", ""))
@@ -238,6 +246,8 @@ class NoSiteResearcher:
         return project, "YES" if self._proof else "NO"
 
     def _route_to_site(self, base: Dict[str, Any], website: str, reason: str) -> Dict[str, Any]:
+        if _matches(extract_domain(website), load_chains()["site_domains"]):
+            return {**base, "qualification_status": "REJECTED", "qualification_reason": "Website belongs to a known chain"}
         return {**base, "qualification_status": "HAS_WEBSITE_FOUND", "website": website, "qualification_reason": reason}
 
     def investigate(self, prospect: Dict[str, Any]) -> Dict[str, Any]:
@@ -259,6 +269,9 @@ class NoSiteResearcher:
         if not distinctive_words(name):
             return {**base, "qualification_status": "NEEDS_OPPORTUNITY_EVIDENCE",
                     "qualification_reason": "Name too generic to verify against search results"}
+
+        if is_known_chain(name):
+            return {**base, "qualification_status": "REJECTED", "qualification_reason": "Known chain outlet"}
 
         site, ambiguous = self._guess_official_site(name, city, dead_domain)
         if site:
