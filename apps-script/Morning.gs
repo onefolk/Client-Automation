@@ -18,8 +18,10 @@ function reviewableRecord(r) {
   const alt1 = String(r.alt_opening_1 || '').trim();
   const alt2 = String(r.alt_opening_2 || '').trim();
 
-  const required = ['lead_id','business','industry','website','public_email',
-    'observation','proof_project','proof_line','subject','email_body'];
+  // A no-website lead has no official domain; its proof is the verified status and a public source.
+  const noSite = String(r.lead_type || '').trim() === 'NO_WEBSITE';
+  const required = ['lead_id','business','industry','public_email',
+    'observation','proof_project','proof_line','subject','email_body'].concat(noSite ? [] : ['website']);
   if (required.some(k => !String(r[k] || '').trim())) return false;
   if (!companyId || !emailSource || !obsUrl || !opp || !proofUrl || !lastVer || !alt1 || !alt2) return false;
 
@@ -29,7 +31,10 @@ function reviewableRecord(r) {
   if ((qStatus !== 'QUALIFIED' && qStatus !== 'QUALIFIED_CONTACTABLE') || pVerified !== 'YES' || mStatus !== 'MX_VALID_MAILBOX_UNCONFIRMED') return false;
 
   if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(r.public_email)) return false;
-  if (extractDomain(emailSource) !== dom || extractDomain(obsUrl) !== dom) return false;
+  if (noSite) {
+    if (!['NO_SITE_CONFIRMED','SOCIAL_ONLY','SITE_DEAD'].includes(String(r.website_status || '').trim()) || dom) return false;
+    if (!/^https?:\/\//i.test(emailSource) || !/^https?:\/\//i.test(obsUrl)) return false;
+  } else if (extractDomain(emailSource) !== dom || extractDomain(obsUrl) !== dom) return false;
 
   const verDate = new Date(lastVer).getTime();
   const age = Date.now() - verDate;
@@ -125,7 +130,7 @@ function auditApprovalEdit(e) {
       const blocked=buildSuppressionSet();
       const isReviewable = reviewableRecord(r);
       const emailBlocked = blocked.has(normalizeKey(r.public_email));
-      const domBlocked = blocked.has(extractDomain(r.website));
+      const domBlocked = !!extractDomain(r.website) && blocked.has(extractDomain(r.website));
       const approved=individual && e.value==='APPROVED' && isAuthorized && isReviewable && !emailBlocked && !domBlocked;
       const rejected=individual && e.value==='REJECTED' && isAuthorized;
       sheet.getRange(row,statusCol).setValue(rejected?'REJECTED':approved?'APPROVED':'AWAITING_REVIEW');
@@ -176,8 +181,10 @@ function automationSnapshot() {
     if (r.status==='NEEDS_RESEARCH') needs++;
     if (r.status!=='AWAITING_REVIEW' || r.approval!=='PENDING') continue;
     const domain=extractDomain(r.website), email=normalizeKey(r.public_email);
-    if (!reviewableRecord(r) || blocked.has(domain) || blocked.has(email) || seen.has(domain) || seen.has(email)) { needs++; continue; }
-    seen.add(domain); seen.add(email); ready++;
+    // No-website leads have no domain, so their company ID is what makes them unique.
+    const company=domain || normalizeKey(r.company_id);
+    if (!reviewableRecord(r) || (domain && blocked.has(domain)) || blocked.has(email) || seen.has(company) || seen.has(email)) { needs++; continue; }
+    seen.add(company); seen.add(email); ready++;
     if (Number(r.priority_score || r.qualification_score || 0) >= 80) priorityReady++;
   }
   const states=recordsFrom(book.getSheetByName('Automation State'));

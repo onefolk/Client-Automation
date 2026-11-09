@@ -5,8 +5,15 @@ from bs4 import BeautifulSoup
 from src.research import ProspectResearcher
 from src.config import load_portfolio
 from src.open_discovery import company_id
+from src.network import extract_domain
+from src.verifier import domain_resolution
 
 RESEARCH_VERSION = 6
+
+PARKED_DOMAIN = re.compile(
+    r'\b(?:this\s+domain(?:\s+name)?\s+(?:is|may\s+be)\s+for\s+sale|buy\s+this\s+domain|domain\s+(?:is\s+)?parked|parked\s+free|domain\s+parking)\b',
+    re.I,
+)
 
 
 STALE_COPYRIGHT_YEARS = 2  # a footer year at least this many years old is treated as stale
@@ -201,8 +208,16 @@ class StrictResearcher(ProspectResearcher):
         if not result:
             return None
 
-        # Pass through status if landing page was unavailable
+        # Pass through status if landing page was unavailable. Only a domain that does not exist
+        # counts as dead: a timeout or a robots.txt refusal says nothing about the business.
         if result.get('qualification_status') == 'WEBSITE_UNAVAILABLE':
+            if domain_resolution(extract_domain(result.get('website', ''))) == 'NXDOMAIN':
+                result['dead_site_reason'] = 'NXDOMAIN'
+            return result
+
+        if PARKED_DOMAIN.search(' '.join(t for t, _ in result.get('page_contexts', []))):
+            result['qualification_status'] = 'WEBSITE_UNAVAILABLE'
+            result['dead_site_reason'] = 'PARKED'
             return result
 
         result['company_id'] = company_id(result['website'])

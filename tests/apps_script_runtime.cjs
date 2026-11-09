@@ -35,6 +35,13 @@ context.row[context.headers.subject]='Changed after approval';
 assert.equal(vm.runInContext('isValidApprovedDraft(row,headers)',context),false,'Edits invalidate approval');
 context.record={...r,last_verified_at:'invalid'};
 assert.equal(vm.runInContext('reviewableRecord(record)',context),false);
+const noSite={...r,website:'',lead_type:'NO_WEBSITE',website_status:'SOCIAL_ONLY',public_email:'lead@gmail.com',
+  email_source_url:'https://www.instagram.com/lead/',observation_url:'https://www.instagram.com/lead/'};
+assert.equal(context.reviewableRecord(noSite),true,'A verified no-website lead is reviewable');
+assert.equal(context.reviewableRecord({...noSite,website_status:''}),false,'Unverified absence must fail');
+assert.equal(context.reviewableRecord({...noSite,website:'https://has-site.in/'}),false,'A lead with a site cannot use the no-website gate');
+assert.equal(context.reviewableRecord({...noSite,observation_url:'overture:1'}),false,'Evidence must be a public URL');
+assert.equal(context.reviewableRecord({...r,website:''}),false,'Website lane still requires a website');
 console.log('Apps Script runtime: interlock, evidence, auditable approval and post-approval edit checks passed');
 
 // A separate sandbox lifts ONLY the compile-time lock to exercise Gmail outcomes with mocks.

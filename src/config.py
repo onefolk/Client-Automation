@@ -25,6 +25,41 @@ TAB_CAMPAIGN_RUNS = "Campaign Runs"
 TAB_SETTINGS = "Settings"
 TAB_LEGACY_LEAD_QUEUE = "Lead Queue"
 TAB_HISTORICAL_SENT = "Sent Emails"
+TAB_CALL_LIST = "Call List"
+
+# No-website lane: businesses verified to have no working website of their own.
+LEAD_TYPE_NO_WEBSITE = "NO_WEBSITE"
+NO_WEBSITE_STATUSES = ("NO_SITE_CONFIRMED", "SOCIAL_ONLY", "SITE_DEAD")
+NO_SITE_SEARCHES_PER_RUN = int(os.getenv("NO_SITE_SEARCHES_PER_RUN", "15"))
+NO_SITE_SEARCHES_PER_DAY = int(os.getenv("NO_SITE_SEARCHES_PER_DAY", "30"))
+NO_SITE_MAX_BACKLOG = int(os.getenv("NO_SITE_MAX_BACKLOG", "200"))
+# Call List statuses an operator can set that permanently stop further contact.
+DO_NOT_CALL_STATUSES = ("DO_NOT_CALL", "NOT_INTERESTED", "WRONG_NUMBER")
+
+CALL_LIST_HEADERS = [
+    "lead_id",
+    "company_id",
+    "business",
+    "industry",
+    "city",
+    "phone",
+    "social_url",
+    "website_status",
+    "observation",
+    "evidence_url",
+    "call_script",
+    "qualification_score",
+    "status",
+    "notes",
+    "last_verified_at",
+    "created_at",
+]
+
+
+def is_no_site_lead(row: Dict[str, Any]) -> bool:
+    """True for records in the no-website lane."""
+    return isinstance(row, dict) and row.get("lead_type") == LEAD_TYPE_NO_WEBSITE
+
 
 # Table Schemas
 LEAD_DATABASE_HEADERS = [

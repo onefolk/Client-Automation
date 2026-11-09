@@ -2,7 +2,7 @@
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import re
-from src.config import load_portfolio
+from src.config import NO_WEBSITE_STATUSES, is_no_site_lead, load_portfolio
 from src.network import extract_domain
 from src.verifier import is_valid_syntax
 from src.email_validator import validate_email_body
@@ -14,10 +14,11 @@ def validate_queued_draft(row, now=None):
     now = now or datetime.now(IST)
     if not isinstance(row, dict):
         return False, 'Invalid row type'
-    required = ('lead_id','company_id','business','industry','website','public_email',
+    no_site = is_no_site_lead(row)
+    required = ('lead_id','company_id','business','industry','public_email',
                 'email_source_url','observation','observation_url','opportunity',
                 'proof_project','proof_line','proof_url','last_verified_at',
-                'subject','email_body','alt_opening_1','alt_opening_2')
+                'subject','email_body','alt_opening_1','alt_opening_2') + (() if no_site else ('website',))
     for key in required:
         val = row.get(key)
         if not isinstance(val, str) or not val.strip() or val.strip() == 'None':
@@ -28,10 +29,17 @@ def validate_queued_draft(row, now=None):
         return False, 'Mail domain not verified'
     if not is_valid_syntax(row['public_email']):
         return False, 'Invalid email syntax'
-    domain = extract_domain(row['website'])
-    for key in ('email_source_url','observation_url'):
-        if extract_domain(row[key]) != domain:
-            return False, 'Evidence not from official website'
+    if no_site:
+        # There is no official domain to match, so require proof of the absence and a public source.
+        if row.get('website_status') not in NO_WEBSITE_STATUSES or str(row.get('website') or '').strip():
+            return False, 'No-website status not verified'
+        if any(not str(row[key]).startswith(('http://', 'https://')) for key in ('email_source_url','observation_url')):
+            return False, 'Evidence has no public source'
+    else:
+        domain = extract_domain(row['website'])
+        for key in ('email_source_url','observation_url'):
+            if extract_domain(row[key]) != domain:
+                return False, 'Evidence not from official website'
     try:
         verified = datetime.fromisoformat(str(row['last_verified_at']).replace('Z','+00:00'))
         if not timedelta(0) <= now - verified <= timedelta(days=FRESH_DAYS):
@@ -62,7 +70,8 @@ def eligible_queue(rows, suppression, now=None):
             issues.append((row, reason))
             continue
         blocked, why = suppression.is_suppressed(row.get('public_email',''), row.get('website',''))
-        domain = extract_domain(row.get('website',''))
+        # A no-website lead has no domain, so its company ID is what makes it unique.
+        domain = extract_domain(row.get('website','')) or str(row.get('company_id',''))
         email = str(row.get('public_email','')).lower()
         if not ok or blocked or domain in seen or email in seen:
             issues.append((row, why if blocked else reason if not ok else 'Duplicate company/contact'))
