@@ -35,6 +35,11 @@ this repository can be described as an operational autonomous system.
   `NOT_INTERESTED` or `WRONG_NUMBER` to stop further contact. Needs `SERPER_API_KEY`; set `NO_SITE_ENABLED=false`
   to turn it off, and `NO_SITE_SEARCHES_PER_RUN` (15) / `NO_SITE_SEARCHES_PER_DAY` (30) to cap search spend.
   Add big chains and booking sites to `config/chains.json` to keep them out of this lane.
+- **Manual runs (testing and targeted client search):** the schedule stays automatic. To run by hand, open GitHub
+  Actions > *OneFolk Autonomous Morning Queue* > **Run workflow** on `main`, then pick `mode` (`full`,
+  `publish-only` or `preflight` to test credentials only), `lane` (`all`, `no-website`, `website`), one `city`, one
+  `industry`, a `target` and `no_site_searches`. City and industry limit both discovery and research. Manual runs
+  use their own search budget, so they never eat into the nightly allowance, but they do share the daily AI budget.
 - **Reachable and genuine (website lane):** every lead needs an official site, a verified quotable observation, a public
   email on that site, an MX check and no suppression match, then human approval.
 - **Conversion stages:** set `status` in the Approval Queue to `MEETING_BOOKED`, `PROPOSAL_REQUESTED` or

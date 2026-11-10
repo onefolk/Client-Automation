@@ -31,8 +31,11 @@ TAB_CALL_LIST = "Call List"
 # No-website lane: businesses verified to have no working website of their own.
 LEAD_TYPE_NO_WEBSITE = "NO_WEBSITE"
 NO_WEBSITE_STATUSES = ("NO_SITE_CONFIRMED", "SOCIAL_ONLY", "SITE_DEAD")
-NO_SITE_SEARCHES_PER_RUN = int(os.getenv("NO_SITE_SEARCHES_PER_RUN", "15"))
-NO_SITE_SEARCHES_PER_DAY = int(os.getenv("NO_SITE_SEARCHES_PER_DAY", "30"))
+# Clamped so a typo in a manual run cannot spend hundreds of search credits.
+NO_SITE_SEARCHES_PER_RUN = max(0, min(100, int(os.getenv("NO_SITE_SEARCHES_PER_RUN", "15"))))
+NO_SITE_SEARCHES_PER_DAY = max(0, min(100, int(os.getenv("NO_SITE_SEARCHES_PER_DAY", "30"))))
+# Manual runs get their own budget so they never use up the scheduled runs' credits.
+NO_SITE_BUDGET_SCOPE = os.getenv("NO_SITE_BUDGET_SCOPE", "scheduled").strip() or "scheduled"
 NO_SITE_MAX_BACKLOG = int(os.getenv("NO_SITE_MAX_BACKLOG", "200"))
 # Call List statuses an operator can set that permanently stop further contact.
 DO_NOT_CALL_STATUSES = ("DO_NOT_CALL", "NOT_INTERESTED", "WRONG_NUMBER")
@@ -206,8 +209,40 @@ def load_campaigns() -> Dict[str, Any]:
         return json.load(f)
 
 
+def env_list(name: str) -> List[str]:
+    """A comma-separated environment variable as a list; empty means no filter."""
+    return [v.strip() for v in os.getenv(name, "").split(",") if v.strip()]
+
+
+def lead_lane() -> str:
+    """Which leads a run looks for: all, website or no-website (set by a manual run)."""
+    lane = os.getenv("LEAD_LANE", "all").strip().lower()
+    return lane if lane in ("all", "website", "no-website") else "all"
+
+
+def matches_run_filters(prospect: Dict[str, Any]) -> bool:
+    """True when a prospect fits the lane, city and industry chosen for this run."""
+    lane = lead_lane()
+    if (lane == "website" and is_no_site_lead(prospect)) or (lane == "no-website" and not is_no_site_lead(prospect)):
+        return False
+    cities = [c.lower() for c in env_list("CAMPAIGN_CITIES")]
+    industries = [i.lower() for i in env_list("CAMPAIGN_INDUSTRIES")]
+    if cities and str(prospect.get("city", "")).lower() not in cities:
+        return False
+    return not industries or str(prospect.get("industry", "")).lower() in industries
+
+
 def get_active_campaign() -> Dict[str, Any]:
-    """Retrieves the active campaign parameters."""
+    """Retrieves the active campaign parameters, narrowed by any manual-run filters."""
+    campaign = dict(_configured_campaign())
+    if env_list("CAMPAIGN_CITIES"):
+        campaign["target_cities"] = env_list("CAMPAIGN_CITIES")
+    if env_list("CAMPAIGN_INDUSTRIES"):
+        campaign["industries"] = env_list("CAMPAIGN_INDUSTRIES")
+    return campaign
+
+
+def _configured_campaign() -> Dict[str, Any]:
     cfg = load_campaigns()
     active_key = os.getenv("ACTIVE_CAMPAIGN", cfg.get("active_campaign", "all_industries_pilot"))
     return cfg.get("campaigns", {}).get(

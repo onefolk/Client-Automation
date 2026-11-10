@@ -469,3 +469,83 @@ def test_emailable_no_site_lead_reaches_approval_queue(rig, monkeypatch):
     result = manager.run()
     assert result['no_site_qualified'] == 1 and result['ready_for_approval'] == 1
     assert written['Approval Queue'][0]['lead_type'] == 'NO_WEBSITE'
+
+
+# --- manual runs --------------------------------------------------------------------------
+
+def test_manual_filters_narrow_campaign_and_research(monkeypatch):
+    from src.config import get_active_campaign, matches_run_filters
+    monkeypatch.setenv('CAMPAIGN_CITIES', 'Pune')
+    monkeypatch.setenv('CAMPAIGN_INDUSTRIES', 'wedding')
+    campaign = get_active_campaign()
+    assert campaign['target_cities'] == ['Pune'] and campaign['industries'] == ['wedding']
+    assert matches_run_filters(prospect())
+    assert not matches_run_filters(prospect(city='Chennai'))
+    assert not matches_run_filters(prospect(industry='retail'))
+
+
+def test_campaign_is_unchanged_without_filters():
+    from src.config import get_active_campaign
+    assert len(get_active_campaign()['target_cities']) == 22
+
+
+@pytest.mark.parametrize('lane,no_site_ok,website_ok', [('all', True, True), ('no-website', True, False),
+                                                        ('website', False, True), ('nonsense', True, True)])
+def test_lane_filter(monkeypatch, lane, no_site_ok, website_ok):
+    from src.config import matches_run_filters
+    monkeypatch.setenv('LEAD_LANE', lane)
+    assert matches_run_filters(prospect()) is no_site_ok
+    assert matches_run_filters({'website': 'https://x.in/', 'city': 'Pune'}) is website_ok
+
+
+def test_no_website_lane_runs_only_no_website_sources(monkeypatch):
+    from src.open_discovery import OpenDiscovery
+    calls = []
+    for path in ('wikidata_discovery.WikidataDiscovery', 'overture_discovery.OvertureDiscovery',
+                 'overture_discovery.OvertureNoSiteDiscovery', 'serper_discovery.SerperDiscovery',
+                 'serper_discovery.SerperNoSiteDiscovery'):
+        name = path.split('.')[-1]
+        monkeypatch.setattr('src.' + path + '.harvest', lambda self, n=name: calls.append(n) or ([], []))
+    monkeypatch.setattr(OpenDiscovery, '_harvest_osm', lambda self: calls.append('OSM') or ([], []))
+    monkeypatch.setenv('SERPER_API_KEY', 'k')
+    monkeypatch.setenv('NO_SITE_ENABLED', 'true')
+    monkeypatch.setenv('LEAD_LANE', 'no-website')
+    OpenDiscovery(Store(), {}).harvest()
+    assert sorted(calls) == ['OvertureNoSiteDiscovery', 'SerperNoSiteDiscovery']
+    calls.clear()
+    monkeypatch.setenv('LEAD_LANE', 'website')
+    OpenDiscovery(Store(), {}).harvest()
+    assert 'OvertureNoSiteDiscovery' not in calls and 'SerperNoSiteDiscovery' not in calls and 'OSM' in calls
+
+
+def test_manual_run_skips_other_cities_and_uses_its_own_budget(rig, monkeypatch):
+    manager, store, written = rig
+    pune, chennai = seed(store), seed(store, city='Chennai', name='Orbit Cafe', business='Orbit Cafe',
+                                       company_id=no_site_company_id('Orbit Cafe', 'Chennai'))
+    monkeypatch.setenv('CAMPAIGN_CITIES', 'Pune')
+    monkeypatch.setattr(mq, 'NO_SITE_BUDGET_SCOPE', 'manual-42')
+    investigate = stub_research(monkeypatch)
+    result = manager.run()
+    assert investigate.call_count == 1 and investigate.call_args[0][0]['city'] == 'Pune'
+    assert store.get('prospect:' + chennai['company_id'])['state'] == 'DISCOVERED'
+    assert store.get('no_site_budget:manual-42') is not None
+    assert not any(k.startswith('no_site_budget:2') for k in store.data)
+    assert result['cities'] == 'Pune' and result['lane'] == 'all'
+
+
+def test_workflow_offers_manual_run_options():
+    """Plain-text check so CI needs no YAML library; options must match the campaign config."""
+    import re
+    from src.config import load_campaigns
+    text = open('.github/workflows/morning_queue.yml', encoding='utf-8').read()
+    assert 'schedule:' in text and 'workflow_dispatch:' in text, 'scheduled and manual triggers must both exist'
+    for name in ('mode', 'lane', 'city', 'industry', 'target', 'no_site_searches'):
+        assert re.search(r'^      ' + name + r':$', text, re.M), name
+
+    def options(name):
+        block = re.search(r'^      ' + name + r':\n(.*?)\n        default', text, re.M | re.S).group(1)
+        listed = re.search(r'options: \[(.*?)\]', block, re.S).group(1)
+        return [o.strip() for o in listed.replace('\n', ' ').split(',')]
+    campaign = load_campaigns()['campaigns']['all_industries_pilot']
+    assert options('city') == ['all'] + campaign['target_cities']
+    assert options('industry') == ['all'] + campaign['industries']
