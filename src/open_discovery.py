@@ -75,7 +75,7 @@ class OpenDiscovery:
                 d, errs = [], [type(source).__name__ + ' crashed: ' + type(exc).__name__]
             discovered.extend(d)
             errors.extend(errs)
-        if discovered:
+        if discovered or not website_on:
             return discovered, errors
 
         # Fallback: OpenStreetMap (OSM / Overpass) when the other sources are empty

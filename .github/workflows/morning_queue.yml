@@ -7,7 +7,41 @@ on:
     # Final bounded replenishment at 06:47 IST; readback at 08:53 IST Mon-Fri.
     - cron: '17 1 * * 1-5'
     - cron: '23 3 * * 1-5'
+  # Manual run for testing or a targeted client search: Actions > this workflow > Run workflow.
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'full = find, verify and draft; publish-only = re-check the queue; preflight = test credentials only'
+        type: choice
+        options: [full, publish-only, preflight]
+        default: full
+      lane:
+        description: 'Which businesses to look for'
+        type: choice
+        options: [all, no-website, website]
+        default: all
+      city:
+        description: 'Limit discovery and research to one city'
+        type: choice
+        options: [all, Bengaluru, Mumbai, Delhi NCR, Hyderabad, Pune, Chennai, Kolkata, Ahmedabad, Jaipur, Kochi,
+                  Coimbatore, Chandigarh, Lucknow, Indore, Nagpur, Surat, Goa, Thiruvananthapuram, Visakhapatnam,
+                  Bhubaneswar, Mysuru, Vadodara]
+        default: all
+      industry:
+        description: 'Limit discovery and research to one industry'
+        type: choice
+        options: [all, education, training, events, hospitality, restaurant, professional-services, creative,
+                  architecture, retail, healthcare, real-estate, wellness, wedding, manufacturing, logistics-travel,
+                  startup-tech, automotive, nonprofit, finance, other]
+        default: all
+      target:
+        description: 'Priority drafts to aim for (1-50)'
+        type: number
+        default: 10
+      no_site_searches:
+        description: 'Serper searches this run may spend verifying no-website leads (0-100, separate from the nightly budget)'
+        type: number
+        default: 15
 permissions:
   contents: read
 concurrency:
@@ -32,6 +66,15 @@ jobs:
       SCHEDULE_SLOT: ${{ github.event.schedule || github.run_id }}
       MAX_AI_CALLS: '30'
       MAX_HTTP_FETCHES: '160'
+      # Manual-run choices; scheduled runs leave them empty and search everything.
+      RUN_MODE: ${{ inputs.mode || 'scheduled' }}
+      RUN_TARGET: ${{ inputs.target || 10 }}
+      LEAD_LANE: ${{ inputs.lane || 'all' }}
+      CAMPAIGN_CITIES: ${{ inputs.city != 'all' && inputs.city || '' }}
+      CAMPAIGN_INDUSTRIES: ${{ inputs.industry != 'all' && inputs.industry || '' }}
+      NO_SITE_SEARCHES_PER_RUN: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.no_site_searches) || 15 }}
+      NO_SITE_SEARCHES_PER_DAY: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.no_site_searches) || 30 }}
+      NO_SITE_BUDGET_SCOPE: ${{ github.event_name == 'workflow_dispatch' && format('manual-{0}', github.run_id) || 'scheduled' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -42,12 +85,17 @@ jobs:
       - name: Verify credentials, discover, research, draft, synchronize, then read back
         shell: bash
         run: |
-          if [ "$SCHEDULE_SLOT" = '23 3 * * 1-5' ]; then
+          echo "Run: mode=$RUN_MODE lane=$LEAD_LANE city=${CAMPAIGN_CITIES:-all} industry=${CAMPAIGN_INDUSTRIES:-all} target=$RUN_TARGET"
+          if [ "$RUN_MODE" = 'preflight' ]; then
+            python -m src.cli preflight
+            exit $?
+          fi
+          if [ "$SCHEDULE_SLOT" = '23 3 * * 1-5' ] || [ "$RUN_MODE" = 'publish-only' ]; then
             python -m src.cli preflight --no-groq
-            CMD="python -m src.cli morning-queue --target 10 --publish-only"
+            CMD="python -m src.cli morning-queue --target $RUN_TARGET --publish-only"
           else
             python -m src.cli preflight
-            CMD="python -m src.cli morning-queue --target 10"
+            CMD="python -m src.cli morning-queue --target $RUN_TARGET"
           fi
 
           echo "::group::Executing Morning Queue Orchestration"

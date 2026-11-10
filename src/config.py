@@ -206,8 +206,40 @@ def load_campaigns() -> Dict[str, Any]:
         return json.load(f)
 
 
+def env_list(name: str) -> List[str]:
+    """A comma-separated environment variable as a list; empty means no filter."""
+    return [v.strip() for v in os.getenv(name, "").split(",") if v.strip()]
+
+
+def lead_lane() -> str:
+    """Which leads a run looks for: all, website or no-website (set by a manual run)."""
+    lane = os.getenv("LEAD_LANE", "all").strip().lower()
+    return lane if lane in ("all", "website", "no-website") else "all"
+
+
+def matches_run_filters(prospect: Dict[str, Any]) -> bool:
+    """True when a prospect fits the lane, city and industry chosen for this run."""
+    lane = lead_lane()
+    if (lane == "website" and is_no_site_lead(prospect)) or (lane == "no-website" and not is_no_site_lead(prospect)):
+        return False
+    cities = [c.lower() for c in env_list("CAMPAIGN_CITIES")]
+    industries = [i.lower() for i in env_list("CAMPAIGN_INDUSTRIES")]
+    if cities and str(prospect.get("city", "")).lower() not in cities:
+        return False
+    return not industries or str(prospect.get("industry", "")).lower() in industries
+
+
 def get_active_campaign() -> Dict[str, Any]:
-    """Retrieves the active campaign parameters."""
+    """Retrieves the active campaign parameters, narrowed by any manual-run filters."""
+    campaign = dict(_configured_campaign())
+    if env_list("CAMPAIGN_CITIES"):
+        campaign["target_cities"] = env_list("CAMPAIGN_CITIES")
+    if env_list("CAMPAIGN_INDUSTRIES"):
+        campaign["industries"] = env_list("CAMPAIGN_INDUSTRIES")
+    return campaign
+
+
+def _configured_campaign() -> Dict[str, Any]:
     cfg = load_campaigns()
     active_key = os.getenv("ACTIVE_CAMPAIGN", cfg.get("active_campaign", "all_industries_pilot"))
     return cfg.get("campaigns", {}).get(

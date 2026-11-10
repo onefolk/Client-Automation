@@ -1442,3 +1442,164 @@ function recordAuditEntry(leadId, reviewer, action, fingerprint) {
 function clientValidationSource() {
   return [normalizeWhitespace, splitSentences, validateEmailStructure, formatOneFolkEmail].map(fn => fn.toString()).join('\n');
 }
+
+// -----------------------------------------------------------------------------
+// MANUAL SEARCH: start the GitHub morning-queue workflow from the dashboard.
+// Setup: create a fine-grained GitHub token limited to this repository with
+// "Actions: Read and write", then add it in Apps Script > Project Settings >
+// Script properties as GITHUB_DISPATCH_TOKEN. It is never sent to the browser.
+// -----------------------------------------------------------------------------
+const MANUAL_SEARCH_WORKFLOW = 'morning_queue.yml';
+const MANUAL_SEARCH_MODES = ['full', 'publish-only', 'preflight'];
+const MANUAL_SEARCH_LANES = ['all', 'no-website', 'website'];
+// Must match the workflow's choices and config/campaigns.json (checked by tests).
+const MANUAL_SEARCH_CITIES = ['all', 'Bengaluru', 'Mumbai', 'Delhi NCR', 'Hyderabad', 'Pune', 'Chennai', 'Kolkata', 'Ahmedabad', 'Jaipur', 'Kochi', 'Coimbatore', 'Chandigarh', 'Lucknow', 'Indore', 'Nagpur', 'Surat', 'Goa', 'Thiruvananthapuram', 'Visakhapatnam', 'Bhubaneswar', 'Mysuru', 'Vadodara'];
+const MANUAL_SEARCH_INDUSTRIES = ['all', 'education', 'training', 'events', 'hospitality', 'restaurant', 'professional-services', 'creative', 'architecture', 'retail', 'healthcare', 'real-estate', 'wellness', 'wedding', 'manufacturing', 'logistics-travel', 'startup-tech', 'automotive', 'nonprofit', 'finance', 'other'];
+// Full runs share the daily AI drafting budget with the nightly schedule, so they are capped.
+const MANUAL_FULL_RUNS_PER_DAY = 2;
+const MANUAL_SEARCH_COOLDOWN_MS = 60000;
+const MANUAL_SEARCH_LOG_SIZE = 20;
+
+function manualSearchRepo() {
+  return getProp('GITHUB_REPOSITORY') || 'onefolk/Client-Automation';
+}
+
+function manualSearchLog() {
+  try {
+    const log = JSON.parse(getProp('MANUAL_SEARCH_LOG') || '[]');
+    return Array.isArray(log) ? log : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function manualFullRunsToday(log) {
+  const today = getISTDateString();
+  return log.filter(entry => entry.mode === 'full' && entry.ist_date === today).length;
+}
+
+function githubRequest(path, method, body) {
+  const token = getProp('GITHUB_DISPATCH_TOKEN');
+  if (!token) throw new Error('GitHub token not configured: add GITHUB_DISPATCH_TOKEN in Apps Script Script properties.');
+  const options = {
+    method: method || 'get',
+    muteHttpExceptions: true,
+    headers: {
+      Authorization: 'Bearer ' + token,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    }
+  };
+  if (body) {
+    options.contentType = 'application/json';
+    options.payload = JSON.stringify(body);
+  }
+  const response = UrlFetchApp.fetch('https://api.github.com/repos/' + manualSearchRepo() + path, options);
+  return { code: response.getResponseCode(), text: response.getContentText() };
+}
+
+/** Explains a GitHub refusal in plain words; never echoes the token. */
+function githubErrorMessage(code) {
+  if (code === 401) return 'GitHub rejected the token (expired or wrong). Create a new one and update GITHUB_DISPATCH_TOKEN.';
+  if (code === 403) return 'The token is not allowed to run workflows. It needs "Actions: Read and write" on ' + manualSearchRepo() + '.';
+  if (code === 404) return 'GitHub could not find ' + manualSearchRepo() + ' or its morning queue workflow. Check GITHUB_REPOSITORY and that the token can see the repository.';
+  if (code === 422) return 'GitHub refused these options. Merge the manual-run update into main first, since searches always run from main.';
+  return 'GitHub returned HTTP ' + code + '. Try again in a minute.';
+}
+
+/** Pairs each logged start with the GitHub run it created, by time. */
+function attachRunStatus(log, runs) {
+  const used = new Set();
+  const ordered = runs.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  return log.map(entry => {
+    const started = new Date(entry.at).getTime();
+    const run = ordered.find(r => !used.has(r.id) && new Date(r.created_at).getTime() >= started - 5000
+      && new Date(r.created_at).getTime() <= started + 10 * 60000);
+    if (run) used.add(run.id);
+    return Object.assign({}, entry, run
+      ? { status: run.status, conclusion: run.conclusion || '', run_url: run.html_url }
+      : { status: 'not_found', conclusion: '', run_url: '' });
+  });
+}
+
+function apiGetManualSearchConfig() {
+  assertAuthorizedAdmin();
+  const log = manualSearchLog();
+  const configured = !!getProp('GITHUB_DISPATCH_TOKEN');
+  let history = log.map(entry => Object.assign({}, entry, { status: 'unknown', conclusion: '', run_url: '' }));
+  let githubError = '';
+  if (configured && log.length) {
+    try {
+      const res = githubRequest('/actions/workflows/' + MANUAL_SEARCH_WORKFLOW + '/runs?event=workflow_dispatch&per_page=30', 'get');
+      if (res.code === 200) history = attachRunStatus(log, JSON.parse(res.text).workflow_runs || []);
+      else githubError = githubErrorMessage(res.code);
+    } catch (err) {
+      githubError = 'Could not reach GitHub to check run status.';
+    }
+  }
+  let sheetUrl = '';
+  try { sheetUrl = getSpreadsheet().getUrl(); } catch (e) {}
+  return {
+    tokenConfigured: configured,
+    repository: manualSearchRepo(),
+    options: { modes: MANUAL_SEARCH_MODES, lanes: MANUAL_SEARCH_LANES, cities: MANUAL_SEARCH_CITIES, industries: MANUAL_SEARCH_INDUSTRIES },
+    fullRunsToday: manualFullRunsToday(log),
+    fullRunsPerDay: MANUAL_FULL_RUNS_PER_DAY,
+    history: history.slice().reverse(),
+    githubError: githubError,
+    actionsUrl: 'https://github.com/' + manualSearchRepo() + '/actions/workflows/' + MANUAL_SEARCH_WORKFLOW,
+    sheetUrl: sheetUrl
+  };
+}
+
+function apiTriggerManualSearch(params) {
+  const userEmail = assertAuthorizedAdmin();
+  params = params || {};
+  const pick = (value, allowed, name) => {
+    const v = String(value === undefined || value === null ? allowed[0] : value).trim();
+    if (!allowed.includes(v)) throw new Error('Invalid ' + name + ': ' + v);
+    return v;
+  };
+  const whole = (value, min, max, fallback, name) => {
+    const n = Number(value === undefined || value === null || value === '' ? fallback : value);
+    if (!Number.isInteger(n) || n < min || n > max) throw new Error(name + ' must be a whole number from ' + min + ' to ' + max + '.');
+    return n;
+  };
+  const inputs = {
+    mode: pick(params.mode, MANUAL_SEARCH_MODES, 'mode'),
+    lane: pick(params.lane, MANUAL_SEARCH_LANES, 'lane'),
+    city: pick(params.city, MANUAL_SEARCH_CITIES, 'city'),
+    industry: pick(params.industry, MANUAL_SEARCH_INDUSTRIES, 'industry'),
+    target: whole(params.target, 1, 50, 10, 'Target'),
+    no_site_searches: whole(params.no_site_searches, 0, 100, 15, 'Search budget')
+  };
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) throw new Error('Another manual search is being started. Try again in a moment.');
+  try {
+    const log = manualSearchLog();
+    const last = log[log.length - 1];
+    if (last && Date.now() - new Date(last.at).getTime() < MANUAL_SEARCH_COOLDOWN_MS) {
+      throw new Error('A manual search was started less than a minute ago. Wait for it to appear before starting another.');
+    }
+    if (inputs.mode === 'full' && manualFullRunsToday(log) >= MANUAL_FULL_RUNS_PER_DAY) {
+      throw new Error('Daily limit reached: ' + MANUAL_FULL_RUNS_PER_DAY + ' full manual runs per day, so the nightly runs keep their AI drafting budget. Preflight and publish-only still work.');
+    }
+    const res = githubRequest('/actions/workflows/' + MANUAL_SEARCH_WORKFLOW + '/dispatches', 'post', {
+      ref: 'main',
+      inputs: {
+        mode: inputs.mode, lane: inputs.lane, city: inputs.city, industry: inputs.industry,
+        target: String(inputs.target), no_site_searches: String(inputs.no_site_searches)
+      }
+    });
+    if (res.code !== 204 && res.code !== 200) throw new Error(githubErrorMessage(res.code));
+
+    const entry = Object.assign({ at: new Date().toISOString(), ist_date: getISTDateString(), by: userEmail }, inputs);
+    log.push(entry);
+    setProp('MANUAL_SEARCH_LOG', JSON.stringify(log.slice(-MANUAL_SEARCH_LOG_SIZE)));
+    recordAuditEntry('SYSTEM', userEmail, 'MANUAL_SEARCH_STARTED', JSON.stringify(inputs));
+    return { success: true, entry: entry, message: 'Search started on GitHub. It usually appears within a minute and takes up to 18 minutes.' };
+  } finally {
+    lock.releaseLock();
+  }
+}
