@@ -510,6 +510,23 @@
     }
     .lead-link:hover { color: var(--text-secondary); }
 
+    /* Manual Search page */
+    .manual-lede { color: var(--text-secondary); font-size: 14px; margin-top: 6px; max-width: 70ch; }
+    .manual-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; margin-bottom: 28px; }
+    @media (max-width: 860px) { .manual-grid { grid-template-columns: 1fr; } }
+    .manual-card { background: var(--bg-surface); border: 1px solid var(--border-line); border-radius: var(--radius-md); padding: 22px; box-shadow: var(--shadow-sm); }
+    .manual-card-title { font-family: var(--font-serif); font-size: 18px; margin-bottom: 16px; }
+    .manual-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .manual-summary { margin: 18px 0 14px; font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+    .manual-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .manual-quota { font-size: 12px; color: var(--text-tertiary); }
+    .manual-notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+    .manual-notice { background: var(--color-warning-bg); border: 1px solid var(--color-warning-border); color: var(--text-main); border-radius: var(--radius-md); padding: 14px 18px; font-size: 13px; line-height: 1.55; margin-bottom: 18px; }
+    .manual-notice-error { background: var(--color-danger-bg, #FEF2F2); border-color: var(--color-danger, #DC2626); }
+    .manual-notice code { font-size: 12px; background: var(--bg-subtle); padding: 1px 5px; border-radius: 4px; }
+    .manual-history-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .manual-subtitle { font-family: var(--font-serif); font-size: 20px; margin: 0; }
+
     .status-badge {
       display: inline-flex;
       align-items: center;
@@ -1328,6 +1345,9 @@
     <button class="nav-btn" id="tabBtn-campaigns" onclick="switchTab('campaigns')">
       Campaigns
     </button>
+    <button class="nav-btn" id="tabBtn-manual" onclick="switchTab('manual')">
+      Manual Search
+    </button>
     <button class="nav-btn" id="tabBtn-replies" onclick="switchTab('replies')">
       Sent & Replies
     </button>
@@ -1527,6 +1547,102 @@
           </thead>
           <tbody id="campaignsTableBody">
             <tr><td colspan="8" class="empty-state"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SECTION 3B: MANUAL SEARCH -->
+    <div id="tab-manual" class="tab-content">
+      <div class="page-lead">
+        <h1 class="page-title">Manual Search</h1>
+        <p class="manual-lede">The nightly search still runs on its own. Start an extra run here to test the system or look for clients in one city or industry.</p>
+      </div>
+
+      <div id="manualSetupNotice" class="manual-notice" style="display:none;">
+        <strong>One-time setup needed.</strong> Create a fine-grained GitHub token for
+        <span id="manualRepoName">the repository</span> with <em>Actions: Read and write</em> only, then add it in
+        Apps Script under <em>Project Settings &gt; Script properties</em> as <code>GITHUB_DISPATCH_TOKEN</code>.
+        The token stays on the server and is never shown in this page.
+      </div>
+      <div id="manualGithubError" class="manual-notice manual-notice-error" style="display:none;"></div>
+
+      <div class="manual-grid">
+        <form class="manual-card" id="manualSearchForm" onsubmit="startManualSearch(event)">
+          <h4 class="manual-card-title">Start a search</h4>
+          <div class="manual-fields">
+            <div class="form-group">
+              <label class="form-label" for="manualMode">What to run</label>
+              <select class="editor-input" id="manualMode" onchange="updateManualSummary()">
+                <option value="full">Full search: find, verify and draft</option>
+                <option value="publish-only">Re-check queue only (no new search)</option>
+                <option value="preflight">Test credentials only (changes nothing)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="manualLane">Businesses</label>
+              <select class="editor-input" id="manualLane" onchange="updateManualSummary()">
+                <option value="all">All businesses</option>
+                <option value="no-website">No website only</option>
+                <option value="website">Has a website only</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="manualCity">City</label>
+              <select class="editor-input" id="manualCity" onchange="updateManualSummary()"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="manualIndustry">Industry</label>
+              <select class="editor-input" id="manualIndustry" onchange="updateManualSummary()"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="manualTarget">Priority drafts to aim for</label>
+              <input class="editor-input" id="manualTarget" type="number" min="1" max="50" step="1" value="10" oninput="updateManualSummary()">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="manualSearches">No-website searches to spend</label>
+              <input class="editor-input" id="manualSearches" type="number" min="0" max="100" step="1" value="15" oninput="updateManualSummary()">
+            </div>
+          </div>
+          <p class="manual-summary" id="manualSummary"></p>
+          <div class="manual-actions">
+            <button type="submit" class="btn-modal-approve" id="btnStartManualSearch">Start search</button>
+            <span class="manual-quota" id="manualQuota"></span>
+          </div>
+        </form>
+
+        <div class="manual-card">
+          <h4 class="manual-card-title">Good to know</h4>
+          <ul class="manual-notes">
+            <li>A run appears on GitHub within about a minute and takes up to 18 minutes.</li>
+            <li>If a nightly run is going, yours waits for it to finish.</li>
+            <li>New drafts land in the <a href="#" onclick="switchTab('queue'); return false;">Approval Queue</a>; phone-only leads go to the <strong>Call List</strong> tab of the <a href="#" id="manualSheetLink" target="_blank" rel="noopener">Sheet</a>.</li>
+            <li>Full searches are limited to <span id="manualFullLimit">2</span> a day so the nightly runs keep their AI drafting budget. Searches here never use the nightly search allowance.</li>
+            <li>Nothing is emailed: sending stays locked whatever you choose.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="page-lead manual-history-head">
+        <h2 class="manual-subtitle">Recent manual searches</h2>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <a href="#" id="manualActionsLink" class="lead-link" target="_blank" rel="noopener">All runs on GitHub ↗</a>
+          <button class="btn-paper" onclick="loadManualSearch()">Refresh status ↺</button>
+        </div>
+      </div>
+      <div class="leads-table-container">
+        <table class="leads-table" id="manualHistoryTable">
+          <thead>
+            <tr>
+              <th>Started</th>
+              <th>By</th>
+              <th>Search</th>
+              <th>Status</th>
+              <th>Run</th>
+            </tr>
+          </thead>
+          <tbody id="manualHistoryBody">
+            <tr><td colspan="5" class="empty-state"><div class="spinner"></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -1884,6 +2000,7 @@
       campaigns: [],
       replies: [],
       health: null,
+      manual: null,
       searchDebounceTimer: null
     };
 
@@ -1931,6 +2048,7 @@
       if (tabId === 'overview') loadOverviewData();
       else if (tabId === 'queue') loadQueueData();
       else if (tabId === 'campaigns') loadCampaignsData();
+      else if (tabId === 'manual') loadManualSearch();
       else if (tabId === 'replies') loadRepliesData();
       else if (tabId === 'health') loadHealthData();
     }
@@ -2795,6 +2913,129 @@
     // -------------------------------------------------------------------------
     // CAMPAIGNS & REPLIES DATA LOADERS
     // -------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // MANUAL SEARCH
+    // -------------------------------------------------------------------------
+    const MANUAL_LABELS = {
+      mode: { 'full': 'Full search', 'publish-only': 'Re-check queue', 'preflight': 'Credential test' },
+      lane: { 'all': 'all businesses', 'no-website': 'no-website businesses', 'website': 'businesses with a website' }
+    };
+    let manualPollTimer = null;
+
+    function fillSelect(id, values, allLabel) {
+      const el = document.getElementById(id);
+      if (!el || el.options.length) return;
+      el.innerHTML = values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v === 'all' ? allLabel : v)}</option>`).join('');
+    }
+
+    function manualFormValues() {
+      return {
+        mode: document.getElementById('manualMode').value,
+        lane: document.getElementById('manualLane').value,
+        city: document.getElementById('manualCity').value || 'all',
+        industry: document.getElementById('manualIndustry').value || 'all',
+        target: Number(document.getElementById('manualTarget').value),
+        no_site_searches: Number(document.getElementById('manualSearches').value)
+      };
+    }
+
+    function describeManualSearch(v) {
+      if (v.mode === 'preflight') return 'Checks that the Sheet, AI and search credentials work. Finds and changes nothing.';
+      if (v.mode === 'publish-only') return 'Re-checks the existing queue against suppression and quality rules. Runs no new search.';
+      const where = v.city === 'all' ? 'all cities' : v.city;
+      const what = v.industry === 'all' ? 'every industry' : v.industry;
+      const budget = v.lane === 'website' ? '' : ` Up to ${v.no_site_searches} searches may be spent proving businesses have no website.`;
+      return `Looks for ${MANUAL_LABELS.lane[v.lane]} in ${where}, ${what}, aiming for ${v.target} priority drafts.${budget}`;
+    }
+
+    function updateManualSummary() {
+      const v = manualFormValues();
+      document.getElementById('manualSummary').textContent = describeManualSearch(v);
+      document.getElementById('manualSearches').disabled = v.mode !== 'full' || v.lane === 'website';
+      document.getElementById('manualTarget').disabled = v.mode === 'preflight';
+      const limited = v.mode === 'full' && state.manual && state.manual.fullRunsToday >= state.manual.fullRunsPerDay;
+      const btn = document.getElementById('btnStartManualSearch');
+      btn.disabled = !(state.manual && state.manual.tokenConfigured) || limited;
+      btn.title = limited ? 'Daily full-search limit reached' : '';
+    }
+
+    function manualStatusBadge(entry) {
+      const s = entry.conclusion || entry.status;
+      const map = {
+        success: ['sent', 'Finished'], failure: ['bounced', 'Failed'], cancelled: ['rejected', 'Cancelled'],
+        timed_out: ['bounced', 'Timed out'], in_progress: ['sending', 'Running'], queued: ['awaiting', 'Waiting'],
+        waiting: ['awaiting', 'Waiting'], pending: ['awaiting', 'Waiting'], requested: ['awaiting', 'Waiting'],
+        not_found: ['needs_research', 'Not on GitHub yet'], unknown: ['needs_research', 'Unknown']
+      };
+      const [cls, label] = map[s] || ['needs_research', s || 'Unknown'];
+      return `<span class="status-badge ${cls}">${escapeHtml(label)}</span>`;
+    }
+
+    function renderManualHistory(history) {
+      const body = document.getElementById('manualHistoryBody');
+      if (!history.length) {
+        body.innerHTML = '<tr><td colspan="5" class="empty-state"><h4>No manual searches yet</h4><p>Searches you start here will be listed with their live status.</p></td></tr>';
+        return;
+      }
+      body.innerHTML = history.map(e => {
+        const search = e.mode === 'full'
+          ? `${escapeHtml(MANUAL_LABELS.lane[e.lane] || e.lane)} · ${escapeHtml(e.city === 'all' ? 'all cities' : e.city)} · ${escapeHtml(e.industry === 'all' ? 'all industries' : e.industry)} · target ${Number(e.target)}`
+          : escapeHtml(MANUAL_LABELS.mode[e.mode] || e.mode);
+        const link = e.run_url ? `<a class="lead-link" href="${escapeHtml(e.run_url)}" target="_blank" rel="noopener">View ↗</a>` : '<span class="lead-subtext">—</span>';
+        return `<tr><td>${escapeHtml(formatIST(e.at))}</td><td>${escapeHtml(e.by || '')}</td><td>${search}</td><td>${manualStatusBadge(e)}</td><td>${link}</td></tr>`;
+      }).join('');
+    }
+
+    async function loadManualSearch() {
+      try {
+        const data = await api.call('apiGetManualSearchConfig');
+        state.manual = data;
+        fillSelect('manualCity', data.options.cities, 'All cities');
+        fillSelect('manualIndustry', data.options.industries, 'All industries');
+        document.getElementById('manualSetupNotice').style.display = data.tokenConfigured ? 'none' : 'block';
+        document.getElementById('manualRepoName').textContent = data.repository;
+        const err = document.getElementById('manualGithubError');
+        err.style.display = data.githubError ? 'block' : 'none';
+        err.textContent = data.githubError || '';
+        document.getElementById('manualFullLimit').textContent = data.fullRunsPerDay;
+        document.getElementById('manualQuota').textContent = `${data.fullRunsToday} of ${data.fullRunsPerDay} full searches used today`;
+        document.getElementById('manualActionsLink').href = data.actionsUrl;
+        if (data.sheetUrl) document.getElementById('manualSheetLink').href = data.sheetUrl;
+        renderManualHistory(data.history || []);
+        updateManualSummary();
+        scheduleManualPoll(data.history || []);
+      } catch (err) {
+        document.getElementById('manualHistoryBody').innerHTML = `<tr><td colspan="5" class="empty-state"><h4>Could not load manual searches</h4><p>${escapeHtml(err.message || err)}</p></td></tr>`;
+      }
+    }
+
+    // Refresh while a run is waiting or running, but only while this page is open.
+    function scheduleManualPoll(history) {
+      clearTimeout(manualPollTimer);
+      const active = history.some(e => ['queued', 'in_progress', 'waiting', 'pending', 'requested', 'not_found'].includes(e.status)
+        && Date.now() - new Date(e.at).getTime() < 30 * 60000);
+      if (active) manualPollTimer = setTimeout(() => { if (state.currentTab === 'manual') loadManualSearch(); }, 20000);
+    }
+
+    async function startManualSearch(event) {
+      event.preventDefault();
+      const v = manualFormValues();
+      if (!confirm(`Start this search?\n\n${MANUAL_LABELS.mode[v.mode]}\n${describeManualSearch(v)}`)) return;
+      const btn = document.getElementById('btnStartManualSearch');
+      btn.disabled = true;
+      btn.textContent = 'Starting...';
+      try {
+        const res = await api.call('apiTriggerManualSearch', v);
+        showToast(res.message || 'Search started.', 'success');
+        await loadManualSearch();
+      } catch (err) {
+        showToast(err.message || String(err), 'error');
+        updateManualSummary();
+      } finally {
+        btn.textContent = 'Start search';
+      }
+    }
+
     async function loadCampaignsData() {
       const tbody = document.getElementById('campaignsTableBody');
       tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><div class="spinner"></div></td></tr>';
@@ -3056,6 +3297,19 @@
               alt_opening_2: 'Your admissions page mentions physical form submission.',
               status: 'AWAITING_REVIEW'
             });
+          } else if (method === 'apiGetManualSearchConfig') {
+            resolve({
+              tokenConfigured: true, repository: 'onefolk/Client-Automation', fullRunsToday: 1, fullRunsPerDay: 2, githubError: '',
+              options: {
+                modes: ['full', 'publish-only', 'preflight'], lanes: ['all', 'no-website', 'website'],
+                cities: ['all', 'Bengaluru', 'Chennai', 'Pune'], industries: ['all', 'healthcare', 'wellness', 'wedding']
+              },
+              actionsUrl: 'https://github.com/onefolk/Client-Automation/actions/workflows/morning_queue.yml', sheetUrl: '#',
+              history: [{ at: new Date().toISOString(), by: 'team.onefolk@gmail.com', mode: 'full', lane: 'no-website', city: 'Pune',
+                          industry: 'wellness', target: 10, no_site_searches: 15, status: 'in_progress', conclusion: '', run_url: '#' }]
+            });
+          } else if (method === 'apiTriggerManualSearch') {
+            resolve({ success: true, message: 'Search started on GitHub. It usually appears within a minute and takes up to 18 minutes.' });
           } else if (method === 'apiCancelApproval') {
             resolve({ success: true, message: 'Authorization cancelled. Lead returned to review queue.' });
           } else if (method === 'apiEmergencyStop') {

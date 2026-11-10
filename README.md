@@ -35,6 +35,11 @@ this repository can be described as an operational autonomous system.
   `NOT_INTERESTED` or `WRONG_NUMBER` to stop further contact. Needs `SERPER_API_KEY`; set `NO_SITE_ENABLED=false`
   to turn it off, and `NO_SITE_SEARCHES_PER_RUN` (15) / `NO_SITE_SEARCHES_PER_DAY` (30) to cap search spend.
   Add big chains and booking sites to `config/chains.json` to keep them out of this lane.
+- **Manual Search page (dashboard):** the **Manual Search** tab starts the same workflow with the options below,
+  shows live status and caps full runs at 2 a day. One-time setup: create a fine-grained GitHub token limited to
+  this repository with *Actions: Read and write*, add it in Apps Script *Project Settings > Script properties* as
+  `GITHUB_DISPATCH_TOKEN` (and `GITHUB_REPOSITORY` if the repo is not `onefolk/Client-Automation`), then deploy a
+  new version so admins approve the new "connect to an external service" permission.
 - **Manual runs (testing and targeted client search):** the schedule stays automatic. To run by hand, open GitHub
   Actions > *OneFolk Autonomous Morning Queue* > **Run workflow** on `main`, then pick `mode` (`full`,
   `publish-only` or `preflight` to test credentials only), `lane` (`all`, `no-website`, `website`), one `city`, one
