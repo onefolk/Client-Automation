@@ -31,11 +31,8 @@ TAB_CALL_LIST = "Call List"
 # No-website lane: businesses verified to have no working website of their own.
 LEAD_TYPE_NO_WEBSITE = "NO_WEBSITE"
 NO_WEBSITE_STATUSES = ("NO_SITE_CONFIRMED", "SOCIAL_ONLY", "SITE_DEAD")
-# Clamped so a typo in a manual run cannot spend hundreds of search credits.
-NO_SITE_SEARCHES_PER_RUN = max(0, min(100, int(os.getenv("NO_SITE_SEARCHES_PER_RUN", "15"))))
-NO_SITE_SEARCHES_PER_DAY = max(0, min(100, int(os.getenv("NO_SITE_SEARCHES_PER_DAY", "30"))))
-# Manual runs get their own budget so they never use up the scheduled runs' credits.
-NO_SITE_BUDGET_SCOPE = os.getenv("NO_SITE_BUDGET_SCOPE", "scheduled").strip() or "scheduled"
+NO_SITE_SEARCHES_PER_RUN = int(os.getenv("NO_SITE_SEARCHES_PER_RUN", "15"))
+NO_SITE_SEARCHES_PER_DAY = int(os.getenv("NO_SITE_SEARCHES_PER_DAY", "30"))
 NO_SITE_MAX_BACKLOG = int(os.getenv("NO_SITE_MAX_BACKLOG", "200"))
 # Call List statuses an operator can set that permanently stop further contact.
 DO_NOT_CALL_STATUSES = ("DO_NOT_CALL", "NOT_INTERESTED", "WRONG_NUMBER")

@@ -10,9 +10,7 @@ import re
 import time
 from pathlib import Path
 import requests
-from src.config import (
-    CONFIG_DIR, LEAD_TYPE_NO_WEBSITE, NO_SITE_MAX_BACKLOG, USER_AGENT, is_no_site_lead, lead_lane, load_chains,
-)
+from src.config import CONFIG_DIR, LEAD_TYPE_NO_WEBSITE, NO_SITE_MAX_BACKLOG, USER_AGENT, is_no_site_lead, load_chains
 from src.network import canonical_url, extract_domain, read_bounded
 
 def company_id(website):
@@ -58,20 +56,16 @@ class OpenDiscovery:
         from src.overture_discovery import OvertureDiscovery, OvertureNoSiteDiscovery
         from src.wikidata_discovery import WikidataDiscovery
         discovered, errors = [], []
-        lane = lead_lane()
-        website_on = lane != 'no-website'
-        no_site_on = lane != 'website' and os.getenv('NO_SITE_ENABLED', 'true').lower() != 'false'
+        no_site_on = os.getenv('NO_SITE_ENABLED', 'true').lower() != 'false'
         overture_on = os.getenv('OVERTURE_ENABLED', 'true').lower() != 'false'
-        sources = [WikidataDiscovery(self.store, self.campaign)] if website_on else []
+        sources = [WikidataDiscovery(self.store, self.campaign)]
         if overture_on:
-            if website_on:
-                sources.append(OvertureDiscovery(self.store, self.campaign))
+            sources.append(OvertureDiscovery(self.store, self.campaign))
             if no_site_on:
                 sources.append(OvertureNoSiteDiscovery(self.store, self.campaign))
         serper = SerperDiscovery(self.store, self.campaign)
         if serper.is_configured():
-            if website_on:
-                sources.append(serper)
+            sources.append(serper)
             if no_site_on:
                 sources.append(SerperNoSiteDiscovery(self.store, self.campaign))
         for source in sources:

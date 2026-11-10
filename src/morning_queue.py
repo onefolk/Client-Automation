@@ -6,8 +6,8 @@ import os
 import time
 from src.writer_policy import require_production_writer
 from src.config import (
-    CALL_LIST_HEADERS, LEAD_TYPE_NO_WEBSITE, NO_SITE_BUDGET_SCOPE, NO_SITE_SEARCHES_PER_DAY, NO_SITE_SEARCHES_PER_RUN,
-    TAB_CALL_LIST, env_list, get_active_campaign, is_no_site_lead, lead_lane, matches_run_filters, validate_credentials,
+    CALL_LIST_HEADERS, LEAD_TYPE_NO_WEBSITE, NO_SITE_SEARCHES_PER_DAY, NO_SITE_SEARCHES_PER_RUN, TAB_CALL_LIST,
+    get_active_campaign, is_no_site_lead, validate_credentials,
 )
 from src.no_site_verifier import NoSiteResearcher, SearchUnavailable
 from src.sheets import SheetsManager
@@ -66,9 +66,7 @@ class MorningQueueManager:
                    'newly_discovered_today':0, 'qualified_overnight':0, 'api_failures':0,
                    'ready_for_approval':0, 'needs_research':0, 'rejected':0,
                    'suppressed_or_duplicate':0, 'shortage_reasons':[], 'target_queue':self.target_queue,
-                   'no_site_checked':0, 'no_site_qualified':0, 'call_list_added':0, 'no_site_found_website':0,
-                   'lane':lead_lane(), 'cities':', '.join(env_list('CAMPAIGN_CITIES')) or 'all',
-                   'industries':', '.join(env_list('CAMPAIGN_INDUSTRIES')) or 'all'}
+                   'no_site_checked':0, 'no_site_qualified':0, 'call_list_added':0, 'no_site_found_website':0}
 
         prior = store.get(slot_key)
         if prior and prior.get('status') == 'READY':
@@ -126,7 +124,7 @@ class MorningQueueManager:
                 store.put(budget_key,budget)
                 groq=GroqClient(max_calls=calls)
                 # Reserved up front like the AI budget, so a crash can never overspend search credits.
-                search_key='no_site_budget:'+day if NO_SITE_BUDGET_SCOPE=='scheduled' else 'no_site_budget:'+NO_SITE_BUDGET_SCOPE
+                search_key='no_site_budget:'+day
                 search_budget=store.get(search_key,{'reserved':0})
                 searches=min(NO_SITE_SEARCHES_PER_RUN,max(0,NO_SITE_SEARCHES_PER_DAY-search_budget['reserved']))
                 search_budget['reserved']+=searches
@@ -147,7 +145,6 @@ class MorningQueueManager:
                     if prospect.get('state')=='QUEUED' and prospect['company_id'] not in existing_domains:
                         prospect['state']='DRAFTED'  # Missing/stale Sheet row: replay outbox or re-research.
                     if prospect.get('state') in ('QUEUED','SUPPRESSED','REJECTED','ROUTED_HAS_SITE','CALL_LISTED'): continue
-                    if not matches_run_filters(prospect): continue  # manual runs can target one lane, city or industry
                     if is_no_site_lead(prospect) and not no_site.can_verify() and not prospect.get('record') and not prospect.get('research'):
                         continue
                     if (prospect.get('state') in ('NEEDS_RESEARCH','QUALIFIED_CONTACT_MISSING','NEEDS_OPPORTUNITY_EVIDENCE','WEBSITE_UNAVAILABLE','EMAIL_VALIDATION_FAILED')
